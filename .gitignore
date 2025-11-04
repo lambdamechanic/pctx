@@ -7,6 +7,3 @@
 .idea/
 *.iml
 .claude
-
-# TypeScript-Go binaries (cached for development)
-crates/sdk_runner/.bin/

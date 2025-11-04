@@ -54,7 +54,11 @@ pub(crate) fn check_with_tsgo(code: &str, binary_path: &std::path::Path) -> Resu
     let temp_path = temp_file.path();
 
     // Run typescript-go type checker and only check if it's valid --noEmit
+    // Set current directory to the bin directory so tsgo can find lib.d.ts files
+    let bin_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("bin");
+
     let output = Command::new(binary_path)
+        .current_dir(bin_dir)
         .arg("--noEmit")
         .arg("--pretty")
         .arg("false")
