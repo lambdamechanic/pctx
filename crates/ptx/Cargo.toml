@@ -1,0 +1,28 @@
+[package]
+name = "ptx"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT"
+repository = "https://github.com/portofcontext/ptx"
+default-run = "ptx"
+
+[[bin]]
+name = "ptx"
+path = "src/main.rs"
+
+[dependencies]
+sdk_runner = { path = "../sdk_runner" }
+clap = { workspace = true, features = ["derive", "env", "wrap_help"] }
+
+[target.'cfg(all(not(target_env = "msvc"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "powerpc64")))'.dependencies]
+tikv-jemallocator = "0.6.0"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+mimalloc = "0.1.43"
+
+[lints]
+workspace = true
+
+[package.metadata.dist]
+dist = true

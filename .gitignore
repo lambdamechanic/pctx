@@ -1,0 +1,13 @@
+/target
+Cargo.lock
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+.claude
+
+# TypeScript-Go binaries (cached for development)
+crates/sdk_runner/.bin/
