@@ -30,7 +30,10 @@ fn main() -> io::Result<()> {
     let binary_path = manifest_dir.join("bin").join(&binary_name);
 
     if !binary_path.exists() {
-        eprintln!("Warning: TypeScript binary not found at {}", binary_path.display());
+        eprintln!(
+            "Warning: TypeScript binary not found at {}",
+            binary_path.display()
+        );
         eprintln!("TypeScript type checking will not be available.");
         return Ok(());
     }
@@ -45,7 +48,10 @@ fn main() -> io::Result<()> {
     }
 
     println!("cargo:rustc-env=TSGO_BINARY_PATH={}", binary_path.display());
-    println!("cargo:warning=Using TypeScript binary at: {}", binary_path.display());
+    println!(
+        "cargo:warning=Using TypeScript binary at: {}",
+        binary_path.display()
+    );
 
     Ok(())
 }
