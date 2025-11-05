@@ -46,7 +46,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Set Windows build jobs
         if: matrix.os == 'windows-latest'
-        run: echo "CARGO_BUILD_JOBS=2" >> $GITHUB_ENV
+        run: echo "CARGO_BUILD_JOBS=1" >> $GITHUB_ENV
         shell: bash
       - name: Run tests
         run: cargo test --workspace --locked
