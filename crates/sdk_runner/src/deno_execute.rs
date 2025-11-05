@@ -1,9 +1,17 @@
-use deno_core::{JsRuntime, PollEventLoopOptions, RuntimeOptions, error::AnyError};
+use deno_core::{JsRuntime, PollEventLoopOptions, RuntimeOptions, error::AnyError, extension};
 use serde::{Deserialize, Serialize};
 use std::pin::pin;
+use std::rc::Rc;
 
-// Embed the Zod library at compile time
-const ZOD_SOURCE: &str = include_str!("../js/zod.min.mjs");
+// Embed the mcp-client library at compile time
+const MCP_CLIENT_SOURCE: &str = include_str!("../js/mcp-client.min.mjs");
+
+// Setup extension that imports all the web extension modules we need
+extension!(
+    setup_web_apis,
+    esm_entry_point = "ext:setup_web_apis/setup.js",
+    esm = [dir "js", "setup.js"],
+);
 
 /// Transpile TypeScript code to JavaScript
 fn transpile_typescript(code: &str) -> Result<String, AnyError> {
@@ -49,9 +57,9 @@ pub struct ExecuteResult {
 
 /// Execute TypeScript/JavaScript code with Deno runtime
 ///
-/// This function executes code in an isolated Deno runtime with Zod pre-loaded.
+/// This function executes code in an isolated Deno runtime with mcp-client pre-loaded.
 /// The runtime supports:
-/// - Zod validation library available as: `import { z } from "zod"`
+/// - mcp-client library available as: `import { Client } from "mcp-client"`
 /// - ES modules and dynamic imports
 /// - Full TypeScript support
 ///
@@ -70,9 +78,9 @@ pub struct ExecuteResult {
 ///
 /// # async fn example() {
 /// let code = r#"
-///     import { z } from "zod";
-///     const schema = z.object({ name: z.string() });
-///     const result = schema.parse({ name: "test" });
+///     import { registerMCP, callMCPTool } from "mcp-client";
+///     registerMCP({ name: "test", url: "http://localhost:3000" });
+///     const result = await callMCPTool({ name: "test", tool: "echo", arguments: { message: "hello" } });
 ///     result
 /// "#;
 /// let result = execute(code).await.expect("execution should not fail");
@@ -80,18 +88,18 @@ pub struct ExecuteResult {
 /// # }
 /// ```
 pub async fn execute_code(code: &str) -> Result<ExecuteResult, AnyError> {
-    // Create a custom module loader that provides Zod
-    struct ZodModuleLoader;
+    // Create a custom module loader that provides mcp-client from the snapshot
+    struct McpClientModuleLoader;
 
-    impl deno_core::ModuleLoader for ZodModuleLoader {
+    impl deno_core::ModuleLoader for McpClientModuleLoader {
         fn resolve(
             &self,
             specifier: &str,
             referrer: &str,
             _kind: deno_core::ResolutionKind,
         ) -> Result<deno_core::ModuleSpecifier, deno_core::error::ModuleLoaderError> {
-            if specifier == "zod" {
-                return deno_core::resolve_url("internal:zod")
+            if specifier == "mcp-client" {
+                return deno_core::resolve_url("internal:mcp-client")
                     .map_err(|e| deno_core::error::ModuleLoaderError::generic(e.to_string()));
             }
             deno_core::resolve_import(specifier, referrer)
@@ -102,14 +110,15 @@ pub async fn execute_code(code: &str) -> Result<ExecuteResult, AnyError> {
             &self,
             module_specifier: &deno_core::ModuleSpecifier,
             _maybe_referrer: Option<&deno_core::ModuleLoadReferrer>,
-            _load_options: deno_core::ModuleLoadOptions,
+            _is_dyn_import: bool,
+            _requested_module_type: deno_core::RequestedModuleType,
         ) -> deno_core::ModuleLoadResponse {
             let specifier_str = module_specifier.as_str();
 
-            if specifier_str == "internal:zod" {
+            if specifier_str == "internal:mcp-client" {
                 let module_source = deno_core::ModuleSource::new(
                     deno_core::ModuleType::JavaScript,
-                    deno_core::ModuleSourceCode::String(ZOD_SOURCE.to_string().into()),
+                    deno_core::ModuleSourceCode::String(String::from(MCP_CLIENT_SOURCE).into()),
                     module_specifier,
                     None,
                 );
@@ -123,50 +132,33 @@ pub async fn execute_code(code: &str) -> Result<ExecuteResult, AnyError> {
         }
     }
 
-    // Create a new Deno runtime with custom module loader
+    // Define permissions for web APIs
+    struct NoTimersPermission;
+    impl deno_web::TimersPermission for NoTimersPermission {
+        fn allow_hrtime(&mut self) -> bool {
+            true
+        }
+    }
+
+    // Create a new Deno runtime with web APIs
+    // The setup_web_apis extension imports all the ESM modules from other extensions,
+    // ensuring they are properly evaluated during runtime initialization
     let mut runtime = JsRuntime::new(RuntimeOptions {
-        module_loader: Some(std::rc::Rc::new(ZodModuleLoader)),
+        module_loader: Some(Rc::new(McpClientModuleLoader)),
+        extensions: vec![
+            // Web API extensions (in dependency order)
+            deno_webidl::deno_webidl::init(),
+            deno_console::deno_console::init(),
+            deno_url::deno_url::init(),
+            deno_web::deno_web::init::<NoTimersPermission>(
+                std::sync::Arc::new(deno_web::BlobStore::default()),
+                None, // location - can be set dynamically later
+            ),
+            // Our setup extension that imports all the web API modules
+            setup_web_apis::init(),
+        ],
         ..Default::default()
     });
-
-    // Inject console capture code
-    let console_setup = r"
-        globalThis.__stdout = [];
-        globalThis.__stderr = [];
-
-        const originalLog = console.log;
-        const originalError = console.error;
-        const originalWarn = console.warn;
-        const originalInfo = console.info;
-
-        console.log = (...args) => {
-            const msg = args.map(arg => {
-                if (typeof arg === 'object') {
-                    try { return JSON.stringify(arg); }
-                    catch { return String(arg); }
-                }
-                return String(arg);
-            }).join(' ');
-            globalThis.__stdout.push(msg);
-        };
-
-        console.error = (...args) => {
-            const msg = args.map(arg => {
-                if (typeof arg === 'object') {
-                    try { return JSON.stringify(arg); }
-                    catch { return String(arg); }
-                }
-                return String(arg);
-            }).join(' ');
-            globalThis.__stderr.push(msg);
-        };
-
-        console.warn = console.error;
-        console.info = console.log;
-        "
-    .to_string();
-
-    runtime.execute_script("<console_setup>", console_setup)?;
 
     // Transpile TypeScript to JavaScript
     let transpiled_code = match transpile_typescript(code) {

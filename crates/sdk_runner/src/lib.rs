@@ -55,28 +55,6 @@ pub enum SdkRunnerError {
 /// # Errors
 /// * Returns error only if internal tooling fails (not for type errors or runtime errors)
 ///
-/// # Examples
-/// ```no_run
-/// use sdk_runner::execute;
-///
-/// # async fn example() {
-/// let code = r#"
-///     import { z } from "zod";
-///     const schema = z.object({ name: z.string() });
-///     const result = schema.parse({ name: "test" });
-///     console.log(JSON.stringify(result));
-/// "#;
-///
-/// let result = execute(code).await.expect("execution should not fail");
-/// if result.success {
-///     println!("Output: {}", result.stdout);
-/// } else if !result.diagnostics.is_empty() {
-///     println!("Type errors: {:?}", result.diagnostics);
-/// } else if let Some(err) = result.runtime_error {
-///     println!("Runtime error: {}", err.message);
-/// }
-/// # }
-/// ```
 pub async fn execute(code: &str) -> Result<ExecuteResult> {
     let check_result = check(code)?;
     if !check_result.success {

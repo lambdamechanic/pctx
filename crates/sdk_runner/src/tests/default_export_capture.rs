@@ -114,31 +114,6 @@ export default result;
 }
 
 #[tokio::test]
-async fn test_capture_zod_validation_result() {
-    let code = r#"
-import { z } from "zod";
-
-const schema = z.object({
-    name: z.string(),
-    age: z.number(),
-});
-
-const data = { name: "Alice", age: 30 };
-const result = schema.parse(data);
-
-export default result;
-"#;
-
-    let result = execute(code).await.expect("execution should succeed");
-    assert!(result.success, "Zod validation should succeed");
-    assert!(result.output.is_some(), "Should capture validated output");
-
-    let output = result.output.unwrap();
-    assert_eq!(output["name"], "Alice");
-    assert_eq!(output["age"], 30);
-}
-
-#[tokio::test]
 async fn test_capture_boolean_export() {
     let code = r"
 const isValid = true;
