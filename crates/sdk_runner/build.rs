@@ -1,5 +1,4 @@
 use std::env;
-use std::fs;
 use std::io;
 use std::path::PathBuf;
 
@@ -41,6 +40,7 @@ fn main() -> io::Result<()> {
     // Set executable permissions on Unix platforms
     #[cfg(unix)]
     {
+        use std::fs;
         use std::os::unix::fs::PermissionsExt;
         let mut perms = fs::metadata(&binary_path)?.permissions();
         perms.set_mode(0o755);
