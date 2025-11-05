@@ -1,0 +1,8 @@
+# Windows-specific linker configuration to avoid PDB errors
+[target.x86_64-pc-windows-msvc]
+# Use /DEBUG:FASTLINK to reduce PDB generation overhead and avoid LNK1318 errors
+# /NODEFAULTLIB:libcmt to resolve library conflicts
+rustflags = [
+    "-C", "link-args=/DEBUG:FASTLINK",
+    "-C", "link-args=/NODEFAULTLIB:libcmt.lib"
+]

@@ -46,3 +46,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run tests
         run: cargo test --workspace --locked
+        env:
+          # Reduce parallel jobs on Windows to avoid PDB linker errors
+          CARGO_BUILD_JOBS: ${{ matrix.os == 'windows-latest' && '2' || '' }}
