@@ -44,8 +44,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Set Windows build jobs
+        if: matrix.os == 'windows-latest'
+        run: echo "CARGO_BUILD_JOBS=2" >> $GITHUB_ENV
+        shell: bash
       - name: Run tests
         run: cargo test --workspace --locked
-        env:
-          # Reduce parallel jobs on Windows to avoid PDB linker errors
-          CARGO_BUILD_JOBS: ${{ matrix.os == 'windows-latest' && '2' || '' }}
