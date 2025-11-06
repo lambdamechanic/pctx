@@ -1,9 +1,11 @@
+use codegen::case::Case;
 use indexmap::{IndexMap, IndexSet};
 use rmcp::{
     ErrorData as McpError, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
+        Tool,
     },
     schemars, tool, tool_handler, tool_router,
 };
@@ -17,16 +19,11 @@ pub(crate) struct PtxTools {
 }
 #[tool_router]
 impl PtxTools {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(upstream: Vec<UpstreamMcp>) -> Self {
         Self {
-            upstream: vec![],
+            upstream,
             tool_router: Self::tool_router(),
         }
-    }
-
-    pub(crate) fn register_mcp(mut self, mcp: UpstreamMcp) -> Self {
-        self.upstream.push(mcp);
-        self
     }
 
     #[tool(
@@ -251,7 +248,7 @@ pub(crate) struct UpstreamMcp {
 pub(crate) struct UpstreamTool {
     pub(crate) tool_name: String,
     pub(crate) title: Option<String>,
-    pub(crate) description: String,
+    pub(crate) description: Option<String>,
     pub(crate) fn_name: String,
     pub(crate) input_type: Option<String>,
     pub(crate) output_type: String,
@@ -259,6 +256,25 @@ pub(crate) struct UpstreamTool {
 }
 
 impl UpstreamTool {
+    pub(crate) fn from_tool(tool: Tool) -> Self {
+        let fn_name = Case::Camel.sanitize(&tool.name);
+        let input_types = codegen::typegen::generate_typescript_types(
+            json!(tool.input_schema),
+            &Case::Pascal.sanitize(&format!("{fn_name} Input")),
+        )
+        .unwrap();
+
+        Self {
+            tool_name: tool.name.to_string(),
+            title: tool.title,
+            description: tool.description.map(String::from),
+            fn_name: codegen::case::Case::Camel.sanitize(&tool.name),
+            input_type: Some(input_types.type_signature),
+            output_type: todo!(),
+            types: todo!(),
+        }
+    }
+
     pub(crate) fn fn_signature(&self, include_types: bool) -> String {
         let docstring_content = format!(
             "{title}{desc}",
@@ -267,7 +283,7 @@ impl UpstreamTool {
                 .as_ref()
                 .map(|t| format!("{t}\n\n"))
                 .unwrap_or_default(),
-            desc = &self.description
+            desc = &self.description.clone().unwrap_or_default()
         );
         let args = self
             .input_type

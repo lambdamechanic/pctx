@@ -1,6 +1,10 @@
 use clap::Parser;
 
-use crate::mcp::{PtxMcp, tools::UpstreamMcp};
+use crate::mcp::{
+    PtxMcp,
+    inspect::inspect_mcp_server,
+    tools::{UpstreamMcp, UpstreamTool},
+};
 
 #[derive(Parser, Clone, Debug)]
 /// Run PTX development MPC server
@@ -9,12 +13,26 @@ pub(crate) struct DevCmd {
     host: String,
     #[arg(long, default_value_t = 8080)]
     port: u16,
+    #[arg(long)]
+    url: Vec<String>,
 }
 
 impl DevCmd {
     pub(crate) async fn handle(&self) {
         let ctx = include_str!("./ctx.json");
-        let upstream: UpstreamMcp = serde_json::from_str(ctx).expect("invalid format");
+
+        let mut upstream: Vec<UpstreamMcp> = vec![];
+        for url in &self.url {
+            let (info, tools) = inspect_mcp_server(url).await;
+
+            println!(
+                "Generating typescript interface for {name}({url}) containing {tools_len} tools",
+                name = &info.name,
+                tools_len = tools.len(),
+            );
+
+            // UpstreamTool::from_tool(tools[0].clone());
+        }
 
         PtxMcp::serve(&self.host, self.port, upstream).await;
     }

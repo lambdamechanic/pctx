@@ -1,4 +1,6 @@
+pub(crate) mod inspect;
 pub(crate) mod tools;
+
 use rmcp::transport::{
     StreamableHttpServerConfig,
     streamable_http_server::{StreamableHttpService, session::local::LocalSessionManager},
@@ -8,10 +10,10 @@ use crate::mcp::tools::{PtxTools, UpstreamMcp};
 
 pub(crate) struct PtxMcp;
 impl PtxMcp {
-    pub(crate) async fn serve(host: &str, port: u16, mcp: UpstreamMcp) {
+    pub(crate) async fn serve(host: &str, port: u16, mcps: Vec<UpstreamMcp>) {
         let service = StreamableHttpService::new(
             // || Ok(counter::Counter::new()),
-            move || Ok(PtxTools::new().register_mcp(mcp.clone())),
+            move || Ok(PtxTools::new(mcps.clone())),
             LocalSessionManager::default().into(),
             StreamableHttpServerConfig {
                 stateful_mode: false,
