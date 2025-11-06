@@ -29,7 +29,10 @@ impl PtxTools {
         self
     }
 
-    #[tool(description = "List functions organized in namespaces based on available services")]
+    #[tool(
+        title = "List Functions",
+        description = "List functions organized in namespaces based on available services"
+    )]
     async fn list_functions(&self) -> Result<CallToolResult, McpError> {
         let namespaces: Vec<String> = self
             .upstream
@@ -55,6 +58,7 @@ namespace {namespace} {{
     }
 
     #[tool(
+        title = "Get Function Details",
         description = "Get details about specific functions as listed in `list_functions`, organized in namespaces"
     )]
     async fn get_function_details(
@@ -108,6 +112,72 @@ namespace {namespace} {{
 
         Ok(CallToolResult::success(vec![Content::text(content)]))
     }
+
+    #[tool(
+        title = "Execute Code",
+        description = "Runs TypeScript code that can use the namespaced functions listed in `list_functions`
+        You are a skilled programmer writing code to interact with the available namespaced functions.
+
+        Always define an async function called `run` that accepts no arguments:
+        
+        async function run() {
+            // YOUR CODE GOES HERE
+
+            // log results and return output
+        }
+
+        The only available methods are returned by the `list_functions` tool, and the inputs and outputs of the methods can be obtained by the `get_function_details` tool, no other inputs or outputs exist.
+        When calling the functions you MUST include the namespace. e.g. if e.g. If there is a function `getData` within the `DataApi` namespace, to call the function you must write `DataApi.getData`.
+        You will be returned anything that your function returns, plus the results of any console.log statements.
+        If any code triggers an error, the tool will return an error response, so you do not need to add error handling unless you want to output something more helpful than the raw error.
+        It is not necessary to add comments to code, unless by adding those comments you believe that you can generate better code.
+        This code will run in a container, and you will not be able to use the filesystem, `fetch` or otherwise interact with the network calls other than through the namespaced functions you are given.
+        Any variables you define won't live between successive uses of this tool, so make sure to return or log any data you might need later.
+        Try to avoid logging or returning large objects, try to only return and log the specific fields you may need.
+        If you are making calls to multiple methods, add logs between the method calls so in case of a failure, you are aware of how far the execution got.
+        "
+    )]
+    async fn execute(
+        &self,
+        Parameters(ExecuteInput { code }): Parameters<ExecuteInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let registrations = self
+            .upstream
+            .iter()
+            .map(|m| {
+                format!(
+                    "registerMCP({{ name: {name}, url: {url} }});",
+                    name = json!(&m.name),
+                    url = json!(&m.url)
+                )
+            })
+            .collect::<Vec<String>>()
+            .join("\n\n");
+        let namespaces = self
+            .upstream
+            .iter()
+            .map(|m| {
+                let fns: Vec<String> = m.tools.iter().map(|(_, t)| t.fn_signature(true)).collect();
+
+                format!(
+                    "{docstring}
+namespace {namespace} {{
+  {fns}
+}}",
+                    docstring = to_docstring(&m.description),
+                    namespace = &m.namespace,
+                    fns = fns.join("\n\n")
+                )
+            })
+            .collect::<Vec<String>>()
+            .join("\n\n");
+
+        let to_execute = format!(
+            "import {{ registerMCP, callMCPTool }} from \"mcp-client\"\n{registrations}\n{namespaces}\n{code}\n\n run();"
+        );
+
+        todo!()
+    }
 }
 
 // #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -129,6 +199,18 @@ pub(crate) struct GetFunctionDetailsInput {
     /// List of functions to get details of. Functions should be in the form "<namespace>.<function name>".
     /// e.g. If there is a function `getData` within the `DataApi` namespace the value provided in this field is "DataApi.getData"
     pub functions: Vec<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub(crate) struct ExecuteInput {
+    /// Typescript code to execute.
+    /// Example:
+    /// async function run() {
+    ///   // YOUR CODE GOES HERE e.g. const result = await client.method();
+    ///   // ALWAYS RETURN THE RESULT e.g. return result;
+    /// }
+    ///
+    pub code: String,
 }
 
 #[tool_handler]

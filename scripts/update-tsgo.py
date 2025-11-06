@@ -62,7 +62,7 @@ def main():
     # Determine paths
     script_dir = Path(__file__).parent
     repo_root = script_dir.parent
-    bin_dir = repo_root / "crates" / "sdk_runner" / "bin"
+    bin_dir = repo_root / "crates" / "deno_executor" / "bin"
     temp_dir = bin_dir / "temp"
 
     # Create temp directory

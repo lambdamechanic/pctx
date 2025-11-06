@@ -44,5 +44,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Run tests
+      - name: Set Windows build jobs
+        if: matrix.os == 'windows-latest'
+        run: echo "CARGO_BUILD_JOBS=1" >> $GITHUB_ENV
+        shell: bash
+      - name: Run tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: cargo test --workspace --locked -- --test-threads=1
+      - name: Run tests (Unix)
+        if: matrix.os != 'windows-latest'
         run: cargo test --workspace --locked
