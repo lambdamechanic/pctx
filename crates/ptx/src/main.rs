@@ -33,10 +33,10 @@ fn main() {
     let cli = Cli::parse();
     match cli.command {
         Some(Commands::Version) => {
-            println!("ptx {}", sdk_runner::version());
+            println!("ptx {}", deno_executor::version());
         }
         None => {
-            println!("ptx {}", sdk_runner::version());
+            println!("ptx {}", deno_executor::version());
         }
     }
 }

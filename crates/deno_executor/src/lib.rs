@@ -5,7 +5,7 @@ pub use deno_execute::{ExecutionError as RuntimeError, execute_code as execute_r
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, SdkRunnerError>;
+pub type Result<T> = std::result::Result<T, DenoExecutorError>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecuteResult {
@@ -28,7 +28,7 @@ pub struct ExecuteResult {
 }
 
 #[derive(Debug, Error)]
-pub enum SdkRunnerError {
+pub enum DenoExecutorError {
     #[error("Internal check error: {0}")]
     InternalError(String),
 
@@ -70,7 +70,7 @@ pub async fn execute(code: &str) -> Result<ExecuteResult> {
 
     let exec_result = execute_raw(code)
         .await
-        .map_err(|e| SdkRunnerError::InternalError(e.to_string()))?;
+        .map_err(|e| DenoExecutorError::InternalError(e.to_string()))?;
 
     let stderr = if let Some(ref err) = exec_result.error {
         err.message.clone()
@@ -130,7 +130,7 @@ pub struct CheckResult {
 ///
 /// # Examples
 /// ```
-/// use sdk_runner::check;
+/// use deno_executor::check;
 ///
 /// // This will pass - types match
 /// let code = r#"const greeting: string = "hello";"#;
@@ -139,7 +139,7 @@ pub struct CheckResult {
 /// ```
 pub fn check(code: &str) -> Result<CheckResult> {
     let binary_path = ts_go_check::get_tsgo_binary_path()
-        .ok_or_else(|| SdkRunnerError::InternalError(
+        .ok_or_else(|| DenoExecutorError::InternalError(
             "typescript-go binary not found. This should not happen - please report this build issue.".to_string()
         ))?;
 

@@ -315,3 +315,58 @@ export default await test();
         "Error message should mention nonexistent server, got: {message}"
     );
 }
+
+#[tokio::test]
+async fn test_execute_with_mcp_client_call_tool_makes_network_request() {
+    // Initialize rustls crypto provider for network requests
+    super::init_rustls_crypto();
+
+    let code = r#"
+import { registerMCP, callMCPTool } from "mcp-client";
+
+registerMCP({
+    name: "test-server",
+    url: "http://localhost:9999"
+});
+
+async function test() {
+    try {
+        await callMCPTool({
+            name: "test-server",
+            tool: "echo",
+            arguments: { message: "hello" }
+        });
+        return { madeRequest: true, hadError: false };
+    } catch (e) {
+        // Network error means we actually attempted the request
+        const isNetworkError = e.message.includes("ECONNREFUSED") ||
+                              e.message.includes("connection refused") ||
+                              e.message.includes("fetch") ||
+                              e.message.includes("connect");
+        console.log(isNetworkError);
+        return {
+            madeRequest: isNetworkError,
+            hadError: true,
+            errorMessage: e.message
+        };
+    }
+}
+
+export default await test();
+"#;
+
+    let result = execute(code).await.expect("execution should succeed");
+    assert!(result.success, "Execution should succeed");
+
+    let output = result.output.expect("Should have output");
+    let obj = output.as_object().expect("Should be an object");
+
+    // Either we successfully connected (unlikely without a real server)
+    // or we got a network error proving we tried to make the request
+    assert_eq!(
+        obj.get("madeRequest").unwrap(),
+        &json!(true),
+        "Should have attempted to make network request. Error: {:?}",
+        obj.get("errorMessage")
+    );
+}

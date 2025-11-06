@@ -31,7 +31,7 @@ def main():
     # Determine paths
     script_dir = Path(__file__).parent
     repo_root = script_dir.parent
-    dest_file = repo_root / "crates" / "sdk_runner" / "js" / "mcp-client.min.mjs"
+    dest_file = repo_root / "crates" / "deno_executor" / "js" / "mcp-client.min.mjs"
 
     # Ensure parent directory exists
     dest_file.parent.mkdir(parents=True, exist_ok=True)
