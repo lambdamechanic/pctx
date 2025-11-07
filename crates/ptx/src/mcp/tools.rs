@@ -14,21 +14,19 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::deno_pool::DenoExecutor;
-
 type McpResult<T> = Result<T, McpError>;
 
 #[derive(Clone)]
 pub(crate) struct PtxTools {
-    executor: DenoExecutor,
+    allowed_hosts: Vec<String>,
     upstream: Vec<UpstreamMcp>,
     tool_router: ToolRouter<PtxTools>,
 }
 #[tool_router]
 impl PtxTools {
-    pub(crate) fn with_executor(executor: DenoExecutor) -> Self {
+    pub(crate) fn new(allowed_hosts: Vec<String>) -> Self {
         Self {
-            executor,
+            allowed_hosts,
             upstream: vec![],
             tool_router: Self::tool_router(),
         }
@@ -185,13 +183,38 @@ namespace {namespace} {{
             .join("\n\n");
 
         let to_execute = format!(
-            "import {{ registerMCP, callMCPTool }} from \"mcp-client\"\n{registrations}\n{namespaces}\n{code}\n\nexport default run();"
+            "import {{ registerMCP, callMCPTool }} from \"mcp-client\"\n{registrations}\n{namespaces}\n{code}\n\nexport default await run();"
         );
 
         log::info!("Executing code in sandbox");
         trace!("Will execute: \n{to_execute}");
 
-        let result = self.executor.execute(to_execute).await.map_err(|e| {
+        let allowed_hosts = self.allowed_hosts.clone();
+        let code_to_execute = to_execute.clone();
+
+        // Execute in a blocking task to handle V8 thread affinity
+        let result = tokio::task::spawn_blocking(move || {
+            // Install rustls crypto provider (required for HTTPS)
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
+            // Create a new single-threaded runtime for this execution
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| format!("Failed to create runtime: {e}"))?;
+
+            rt.block_on(async {
+                deno_executor::execute_code(&code_to_execute, Some(allowed_hosts))
+                    .await
+                    .map_err(|e| format!("Execution failed: {e}"))
+            })
+        })
+        .await
+        .map_err(|e| {
+            log::error!("Task join failed: {e}");
+            McpError::internal_error(format!("Task join failed: {e}"), None)
+        })?
+        .map_err(|e| {
             log::error!("Sandbox execution error: {e}");
             McpError::internal_error(e, None)
         })?;
@@ -199,7 +222,7 @@ namespace {namespace} {{
         if result.success {
             log::info!("Sandbox execution completed successfully");
         } else {
-            log::warn!("Sandbox execution failed: {:?}", result.runtime_error);
+            log::warn!("Sandbox execution failed: {:?}", result.error);
         }
 
         Ok(CallToolResult::success(vec![Content::text(format!(

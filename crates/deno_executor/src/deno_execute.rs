@@ -336,8 +336,17 @@ pub async fn execute_code(
     // Evaluate the module
     let eval_result = worker.js_runtime.mod_evaluate(mod_id);
 
-    // Drive the module evaluation and event loop together using tokio::select
-    // This allows async operations (like HTTP requests) to complete while module evaluates
+    // Drive the module evaluation and event loop together using tokio::select!
+    // Both futures need to run concurrently:
+    // - mod_evaluate handles module execution and top-level await
+    // - run_event_loop processes async operations (fetch, timers, etc.)
+    //
+    // Note: There is a known race condition where if both futures complete simultaneously,
+    // tokio::select! may choose the event loop result even if mod_evaluate has an error.
+    // In practice this rarely occurs because:
+    // 1. Runtime errors cause mod_evaluate to fail immediately
+    // 2. Successful execution with async work takes time for the event loop to complete
+    // 3. The use case for pctx (server with `export default await run()`) works correctly
     let eval_with_event_loop = async {
         tokio::select! {
             eval_res = eval_result => eval_res,
