@@ -1,7 +1,7 @@
 use anyhow::Result;
 use codegen::{case::Case, generate_docstring};
 use indexmap::{IndexMap, IndexSet};
-use log::{debug, trace};
+use log::{debug, info, trace};
 use rmcp::{
     ErrorData as McpError, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -186,7 +186,7 @@ namespace {namespace} {{
             "import {{ registerMCP, callMCPTool }} from \"mcp-client\"\n{registrations}\n{namespaces}\n{code}\n\nexport default await run();"
         );
 
-        log::info!("Executing code in sandbox");
+        info!("Executing code in sandbox");
         trace!("Will execute: \n{to_execute}");
 
         let allowed_hosts = self.allowed_hosts.clone();
@@ -225,9 +225,28 @@ namespace {namespace} {{
             log::warn!("Sandbox execution failed: {:?}", result.error);
         }
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
-            "{result:#?}"
-        ))]))
+        let text_result = format!(
+            "Code Executed Successfully: {success}
+
+# Return Value
+```json
+{return_val}
+```
+
+# STDOUT
+{stdout}
+
+# STDERR
+{stderr}
+",
+            success = result.success,
+            return_val = serde_json::to_string_pretty(&result.output)
+                .unwrap_or(json!(result.output).to_string()),
+            stdout = result.stdout,
+            stderr = result.stderr,
+        );
+
+        Ok(CallToolResult::success(vec![Content::text(text_result)]))
     }
 }
 
