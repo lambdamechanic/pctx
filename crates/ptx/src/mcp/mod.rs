@@ -17,7 +17,9 @@ use crate::mcp::{
 pub(crate) struct PtxMcp;
 impl PtxMcp {
     pub(crate) async fn serve(host: &str, port: u16, mcp: UpstreamMcp) {
-        let executor = DenoExecutor::new();
+        let allowed_hosts = vec![mcp.url.clone()];
+        let executor = DenoExecutor::new(Some(allowed_hosts.clone()));
+        log::info!("Starting sandbox with access to host: {allowed_hosts:?}...");
 
         let service = StreamableHttpService::new(
             // || Ok(counter::Counter::new()),
@@ -40,7 +42,9 @@ impl PtxMcp {
     }
 
     pub(crate) async fn serve_multi(host: &str, port: u16, mcps: Vec<UpstreamMcp>) {
-        let executor = DenoExecutor::new();
+        let allowed_hosts: Vec<String> = mcps.iter().map(|m| m.url.clone()).collect();
+        let executor = DenoExecutor::new(Some(allowed_hosts.clone()));
+        log::info!("Starting sandbox with access to host: {allowed_hosts:?}...");
 
         let service = StreamableHttpService::new(
             move || {
