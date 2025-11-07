@@ -98,10 +98,6 @@ Each server can have its own authentication configuration supporting:\n\
         #[command(subcommand)]
         mcp_cmd: McpCommands,
     },
-
-    /// Run the development MCP server (legacy)
-    #[command(hide = true)]
-    Dev(commands::dev::DevCmd),
 }
 
 #[derive(Subcommand)]
@@ -231,7 +227,6 @@ async fn main() {
             McpCommands::Get { name } => commands::mcp_get::handle(name),
             McpCommands::Auth { name } => commands::mcp_auth::handle(name).await,
         },
-        Commands::Dev(dev_cmd) => dev_cmd.handle().await,
     };
 
     if let Err(e) = result {

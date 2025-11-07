@@ -39,7 +39,7 @@ pub(crate) async fn handle(host: &str, port: u16) -> Result<()> {
     info!("");
 
     // Start the gateway with multiple MCP servers
-    PtxMcp::serve_multi(host, port, upstream_servers).await;
+    PtxMcp::serve(host, port, upstream_servers).await;
 
     info!("Shutting down...");
 

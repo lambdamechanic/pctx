@@ -1,4 +1,3 @@
-pub(crate) mod dev;
 pub(crate) mod init;
 pub(crate) mod mcp_add;
 pub(crate) mod mcp_auth;

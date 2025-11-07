@@ -30,6 +30,11 @@ impl PtxTools {
         }
     }
 
+    pub(crate) fn with_upstream_mcps(mut self, upstream: Vec<UpstreamMcp>) -> Self {
+        self.upstream = upstream;
+        self
+    }
+
     #[tool(
         title = "List Functions",
         description = "List functions organized in namespaces based on available services"
