@@ -2,7 +2,7 @@ pub mod case;
 pub mod format;
 pub mod schema_type;
 pub mod typegen;
-mod utils;
+pub mod utils;
 
 use indexmap::IndexMap;
 use schemars::schema::Schema;
@@ -22,4 +22,19 @@ pub enum CodegenError {
 
     #[error("Type generation error: {0}")]
     TypeGen(String),
+}
+
+pub fn generate_docstring(content: &str) -> String {
+    let mut lines = vec!["/**".to_string()];
+
+    let replace_pat = regex::Regex::new(r"\*\/").expect("invalid docstring replace_pat");
+    for line in content.split('\n') {
+        // in the unlikely event that the description has a `*/`
+        // ending the typescript docstring, we add escapes
+        lines.push(format!("* {}", replace_pat.replace_all(line, "*-/")))
+    }
+
+    lines.push("*/".into());
+
+    lines.join("\n")
 }

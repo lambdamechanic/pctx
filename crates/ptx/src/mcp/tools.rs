@@ -1,4 +1,4 @@
-use codegen::case::Case;
+use codegen::{case::Case, generate_docstring};
 use indexmap::{IndexMap, IndexSet};
 use rmcp::{
     ErrorData as McpError, ServerHandler,
@@ -42,7 +42,7 @@ impl PtxTools {
 namespace {namespace} {{
   {fns}
 }}",
-                    docstring = to_docstring(&m.description),
+                    docstring = generate_docstring(&m.description),
                     namespace = &m.namespace,
                     fns = fns.join("\n\n")
                 )
@@ -93,7 +93,7 @@ namespace {namespace} {{
 namespace {namespace} {{
   {fns}
 }}",
-                        docstring = to_docstring(&mcp.description),
+                        docstring = generate_docstring(&mcp.description),
                         namespace = &mcp.namespace,
                         fns = fn_details.join("\n\n")
                     ));
@@ -161,7 +161,7 @@ namespace {namespace} {{
 namespace {namespace} {{
   {fns}
 }}",
-                    docstring = to_docstring(&m.description),
+                    docstring = generate_docstring(&m.description),
                     namespace = &m.namespace,
                     fns = fns.join("\n\n")
                 )
@@ -258,7 +258,7 @@ pub(crate) struct UpstreamTool {
 impl UpstreamTool {
     pub(crate) fn from_tool(tool: Tool) -> Self {
         let fn_name = Case::Camel.sanitize(&tool.name);
-        let input_types = codegen::typegen::generate_typescript_types(
+        let input_types = codegen::typegen::generate_types(
             json!(tool.input_schema),
             &Case::Pascal.sanitize(&format!("{fn_name} Input")),
         )
@@ -270,8 +270,8 @@ impl UpstreamTool {
             description: tool.description.map(String::from),
             fn_name: codegen::case::Case::Camel.sanitize(&tool.name),
             input_type: Some(input_types.type_signature),
-            output_type: todo!(),
-            types: todo!(),
+            output_type: "todo".into(),
+            types: "todo".into(),
         }
     }
 
@@ -299,7 +299,7 @@ impl UpstreamTool {
 
         format!(
             "{types}{docstring}\nasync function {fn_name}({args}): Promise<{output}>",
-            docstring = to_docstring(&docstring_content),
+            docstring = generate_docstring(&docstring_content),
             fn_name = &self.fn_name,
             output = &self.output_type
         )
@@ -320,12 +320,4 @@ impl UpstreamTool {
             args = self.input_type.as_ref().map_or("undefined", |_| "input")
         )
     }
-}
-
-fn to_docstring(content: &str) -> String {
-    let mut lines = vec!["/**".to_string()];
-    lines.extend(content.split('\n').map(|c| format!(" * {c}")));
-    lines.push("*/".into());
-
-    lines.join("\n")
 }

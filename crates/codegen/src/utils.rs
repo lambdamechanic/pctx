@@ -4,6 +4,7 @@ use schemars::schema::{
 use serde_json::json;
 
 use crate::{
+    CodegenResult, SchemaDefinitions,
     case::Case,
     schema_type::{
         ArraySchemaType, MapSchemaType, ObjectSchemaType, SchemaType, UnionSchemaType, X_TYPE_NAME,
@@ -25,6 +26,24 @@ pub fn map_schema(value_schema: &Schema) -> Schema {
     };
 
     Schema::Object(obj)
+}
+
+/// gets description from schema, in the case of a ref, it will prioritize the first description it finds
+pub fn get_description(
+    obj: &SchemaObject,
+    defs: &SchemaDefinitions,
+) -> CodegenResult<Option<String>> {
+    if let Some(desc) = obj.metadata.as_ref().and_then(|m| m.description.clone()) {
+        return Ok(Some(desc));
+    }
+
+    // follow in case it is a ref
+    if let SchemaType::Reference(ref_type) = SchemaType::from(obj) {
+        let followed = ref_type.follow(defs)?.into_object();
+        get_description(&followed, defs)
+    } else {
+        Ok(None)
+    }
 }
 
 /// Iterates through the provided schema, assigning unique type names recursively

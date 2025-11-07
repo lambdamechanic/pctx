@@ -1,16 +1,27 @@
+mod schema_data;
+
+use handlebars::Handlebars;
 use indexmap::IndexMap;
 use schemars::schema::{RootSchema, Schema};
+use serde_json::json;
 
-use crate::{CodegenResult, SchemaDefinitions, case::Case, utils::assign_type_names};
+use crate::{
+    CodegenResult, SchemaDefinitions, case::Case, schema_type::SchemaType,
+    typegen::schema_data::ObjectSchemaData, utils::assign_type_names,
+};
+
+static TYPES_TEMPLATE: &str = include_str!("./types.handlebars");
 
 pub struct TypegenResult {
+    pub types_generated: usize,
     pub type_signature: String,
-    pub types: Vec<String>,
+    pub types: String,
 }
-pub fn generate_typescript_types(
+pub fn generate_types(
     json_schema: serde_json::Value,
     type_name: &str,
 ) -> CodegenResult<TypegenResult> {
+    // println!("{json_schema}");
     let root_schema: RootSchema = serde_json::from_value(json_schema)?;
 
     // ensure all objects have type names
@@ -21,6 +32,17 @@ pub fn generate_typescript_types(
     }
     let schema = assign_type_names(Schema::Object(root_schema.schema), type_name);
 
-    // println!("{schema:#?}");
-    todo!()
+    // println!("{}", serde_json::to_string_pretty(&defs).unwrap());
+
+    // collect and generate types with handlebars
+    let to_generate = ObjectSchemaData::collect(&schema, &defs)?;
+    let types = Handlebars::new()
+        .render_template(TYPES_TEMPLATE, &json!({"objects": to_generate}))
+        .unwrap();
+
+    Ok(TypegenResult {
+        types,
+        types_generated: to_generate.len(),
+        type_signature: SchemaType::from(&schema).type_signature(true, &defs)?,
+    })
 }

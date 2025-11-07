@@ -30,8 +30,10 @@ impl DevCmd {
                 name = &info.name,
                 tools_len = tools.len(),
             );
-
-            UpstreamTool::from_tool(tools[0].clone());
+            for tool in tools {
+                println!("{}", &tool.name);
+                UpstreamTool::from_tool(tool);
+            }
         }
 
         PtxMcp::serve(&self.host, self.port, upstream).await;

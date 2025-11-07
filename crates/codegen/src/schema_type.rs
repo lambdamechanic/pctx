@@ -1,12 +1,14 @@
 use std::fmt::Display;
 
 use schemars::schema::{
-    ArrayValidation, InstanceType, ObjectValidation, Schema, SchemaObject, SingleOrVec,
-    SubschemaValidation,
+    InstanceType, ObjectValidation, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::utils::{self, anything_schema};
+use crate::{
+    CodegenResult, SchemaDefinitions,
+    utils::{self, anything_schema},
+};
 
 pub static X_TYPE_NAME: &str = "x-type-name";
 
@@ -15,6 +17,16 @@ pub struct RefSchemaType {
     pub ref_key: String,
     pub schema_obj: SchemaObject,
     pub nullable: bool,
+}
+impl RefSchemaType {
+    pub fn follow(&self, defs: &SchemaDefinitions) -> CodegenResult<Schema> {
+        defs.get(&self.ref_key)
+            .cloned()
+            .ok_or(crate::CodegenError::TypeGen(format!(
+                "Failed following JSON schema reference, `#/$defs/{}` does not exist",
+                &self.ref_key
+            )))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -205,6 +217,50 @@ impl SchemaType {
             | SchemaType::Array(ArraySchemaType { schema_obj, .. })
             | SchemaType::Reference(RefSchemaType { schema_obj, .. }) => schema_obj,
         }
+    }
+
+    pub fn type_signature(
+        &self,
+        required: bool,
+        defs: &SchemaDefinitions,
+    ) -> CodegenResult<String> {
+        let mut sig: String = match self {
+            SchemaType::Reference(ref_schema_type) => {
+                let followed = ref_schema_type.follow(defs)?;
+                SchemaType::from(followed).type_signature(required, defs)?
+            }
+            SchemaType::Any(_) => "any".into(),
+            SchemaType::Boolean(_) => "boolean".into(),
+            SchemaType::Integer(_) | SchemaType::Number(_) => "number".into(),
+            SchemaType::String(_) => "string".into(),
+            SchemaType::Enum(EnumSchemaType { options, .. }) => options
+                .iter()
+                .map(|o| o.to_string())
+                .collect::<Vec<String>>()
+                .join(" | "),
+            SchemaType::Object(ObjectSchemaType { type_name, .. }) => type_name.clone(),
+            SchemaType::Map(MapSchemaType { value_schema, .. }) => format!(
+                "{{ [key: string]: {val_sig} }}",
+                val_sig = SchemaType::from(value_schema).type_signature(false, defs)?
+            ),
+            SchemaType::Array(ArraySchemaType { item_schema, .. }) => format!(
+                "{item_sig}[]",
+                item_sig = SchemaType::from(item_schema).type_signature(true, defs)?
+            ),
+            SchemaType::Union(UnionSchemaType { union_schemas, .. }) => union_schemas
+                .iter()
+                .map(|s| SchemaType::from(s).type_signature(true, defs))
+                .collect::<CodegenResult<Vec<String>>>()?
+                .join(" | "),
+        };
+
+        if self.is_nullable() {
+            sig = format!("{sig} | null")
+        }
+        if !required {
+            sig = format!("{sig} | undefined")
+        }
+        Ok(sig)
     }
 }
 
