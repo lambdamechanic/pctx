@@ -62,8 +62,10 @@ namespace {namespace} {{
             })
             .collect();
 
+        let namespaced_functions = codegen::format::format_d_ts(&namespaces.join("\n\n"));
+
         Ok(CallToolResult::success(vec![Content::text(
-            namespaces.join("\n\n"),
+            namespaced_functions,
         )]))
     }
 
@@ -117,7 +119,7 @@ namespace {namespace} {{
         let content = if namespace_details.is_empty() {
             "No namespaces/functions match the request".to_string()
         } else {
-            namespace_details.join("\n\n")
+            codegen::format::format_d_ts(&namespace_details.join("\n\n"))
         };
 
         Ok(CallToolResult::success(vec![Content::text(content)]))
@@ -182,11 +184,11 @@ namespace {namespace} {{
             .collect::<Vec<String>>()
             .join("\n\n");
 
-        let to_execute = format!(
+        let to_execute = codegen::format::format_ts(&format!(
             "import {{ registerMCP, callMCPTool }} from \"mcp-client\"\n{registrations}\n{namespaces}\n{code}\n\nexport default await run();"
-        );
+        ));
 
-        // std::fs::write("./execute.ts", &to_execute).unwrap();
+        std::fs::write("./execute.ts", &to_execute).unwrap();
 
         let result = self
             .executor
