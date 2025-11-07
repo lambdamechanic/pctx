@@ -1,7 +1,6 @@
 pub(crate) mod auth;
 pub(crate) mod client;
 pub(crate) mod config;
-pub(crate) mod deno_pool;
 pub(crate) mod tools;
 pub(crate) mod upstream;
 
@@ -10,10 +9,7 @@ use rmcp::transport::{
     streamable_http_server::{StreamableHttpService, session::local::LocalSessionManager},
 };
 
-use crate::mcp::{
-    deno_pool::DenoExecutor,
-    tools::{PtxTools, UpstreamMcp},
-};
+use crate::mcp::tools::{PtxTools, UpstreamMcp};
 
 pub(crate) struct PtxMcp;
 impl PtxMcp {
@@ -33,12 +29,10 @@ impl PtxMcp {
             })
             .collect::<Vec<_>>();
 
-        let executor = DenoExecutor::new(Some(allowed_hosts.clone()));
         log::info!("Starting sandbox with access to host: {allowed_hosts:?}...");
 
         let service = StreamableHttpService::new(
-            // || Ok(counter::Counter::new()),
-            move || Ok(PtxTools::with_executor(executor.clone()).with_upstream_mcps(mcps.clone())),
+            move || Ok(PtxTools::new(allowed_hosts.clone()).with_upstream_mcps(mcps.clone())),
             LocalSessionManager::default().into(),
             StreamableHttpServerConfig {
                 stateful_mode: false,
