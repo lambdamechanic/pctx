@@ -1,7 +1,7 @@
 use anyhow::Result;
 use codegen::{case::Case, generate_docstring};
 use indexmap::{IndexMap, IndexSet};
-use log::debug;
+use log::{debug, trace};
 use rmcp::{
     ErrorData as McpError, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -188,7 +188,7 @@ namespace {namespace} {{
             "import {{ registerMCP, callMCPTool }} from \"mcp-client\"\n{registrations}\n{namespaces}\n{code}\n\nexport default await run();"
         ));
 
-        std::fs::write("./execute.ts", &to_execute).unwrap();
+        trace!("Will execute: \n{to_execute}");
 
         let result = self
             .executor
@@ -201,20 +201,6 @@ namespace {namespace} {{
         ))]))
     }
 }
-
-// #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-// pub(crate) struct GetFunctionDetailsInput {
-//     /// List of functions, organized by their namespace to get more details on
-//     pub namespaced_functions: Vec<NamespacedFunctions>,
-// }
-
-// #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-// pub(crate) struct NamespacedFunctions {
-//     /// The namespace the function is defined in, as returned by `list_functions`
-//     pub namespace: String,
-//     /// List of function names within the name space to get more details on
-//     pub functions: Vec<String>,
-// }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub(crate) struct GetFunctionDetailsInput {
