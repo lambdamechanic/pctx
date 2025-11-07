@@ -4,8 +4,8 @@ use log::info;
 
 use crate::mcp::{
     auth::store_in_keychain,
+    client::{InitMCPClientError, init_mcp_client},
     config::{AuthConfig, AuthType, Config, OAuth2Credentials, ServerConfig},
-    upstream::{ConnectionTestResult, test_server_connection},
 };
 
 pub(crate) async fn handle(
@@ -30,12 +30,13 @@ pub(crate) async fn handle(
     } else {
         // No CLI auth - test the server and prompt if needed
         info!("Testing connection to '{url}'...");
-        match test_server_connection(url).await {
-            ConnectionTestResult::Success => {
+        match init_mcp_client(url).await {
+            Ok(client) => {
                 info!("✓ Successfully connected without authentication");
+                client.cancel().await?;
                 None
             }
-            ConnectionTestResult::OAuth2Available => {
+            Err(InitMCPClientError::RequiresOAuth) => {
                 info!("✓ Server supports OAuth 2.1");
                 info!("");
                 if Confirm::new()
@@ -52,8 +53,8 @@ pub(crate) async fn handle(
                     })
                 }
             }
-            ConnectionTestResult::RequiresAuth => {
-                info!("⚠ Server requires authentication (401 Unauthorized)");
+            Err(InitMCPClientError::RequiresAuth) => {
+                info!("⚠ Server requires authentication");
                 info!("");
                 if Confirm::new()
                     .with_prompt("Would you like to configure authentication now?")
@@ -71,27 +72,7 @@ pub(crate) async fn handle(
                     None
                 }
             }
-            ConnectionTestResult::Forbidden => {
-                info!("⚠ Server returned 403 Forbidden");
-                info!("  This might indicate missing permissions or incorrect authentication.");
-                info!("");
-                if Confirm::new()
-                    .with_prompt("Would you like to configure authentication now?")
-                    .default(true)
-                    .interact()?
-                {
-                    if let Ok(auth) = prompt_for_auth(name) {
-                        Some(auth)
-                    } else {
-                        info!("You can configure authentication later with: ptx mcp auth {name}");
-                        None
-                    }
-                } else {
-                    info!("You can configure authentication later with: ptx mcp auth {name}");
-                    None
-                }
-            }
-            ConnectionTestResult::Failed(reason) => {
+            Err(InitMCPClientError::Failed(reason)) => {
                 info!("⚠ Connection test failed: {reason}");
                 info!("  Adding server anyway - you can test it later.");
                 None

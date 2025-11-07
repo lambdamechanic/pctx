@@ -1,8 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use codegen::case::Case;
 use indexmap::IndexMap;
 use log::{debug, info};
-use reqwest::StatusCode;
 
 use crate::mcp::{client::init_mcp_client, tools::UpstreamTool};
 
@@ -81,92 +80,4 @@ pub(crate) async fn fetch_upstream_tools(server: &ServerConfig) -> Result<Upstre
         url: server.url.clone(),
         tools,
     })
-}
-
-/// Result of testing connection to an MCP server
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ConnectionTestResult {
-    /// Successfully connected without authentication
-    Success,
-    /// Server requires authentication (401 Unauthorized)
-    RequiresAuth,
-    /// Server returned 403 Forbidden (might need different auth or permissions)
-    Forbidden,
-    /// OAuth 2.1 is available on this server
-    OAuth2Available,
-    /// Connection failed (network error, invalid URL, etc.)
-    Failed(String),
-}
-
-/// Test connection to an MCP server to determine if authentication is needed
-///
-/// This function:
-/// 1. First attempts to connect without authentication using a simple MCP initialize request
-/// 2. If the server requires auth (401), checks if it supports OAuth 2.1
-/// 3. Returns a result indicating whether auth is needed and what type
-pub(crate) async fn test_server_connection(url: &str) -> ConnectionTestResult {
-    // Try a simple MCP initialize request without auth
-    debug!("Testing connection to {url} without authentication...");
-
-    let client = reqwest::Client::new();
-
-    // Create a minimal MCP initialize request
-    let init_request = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {
-                "name": "ptx",
-                "version": "0.1.0"
-            }
-        }
-    });
-
-    match client
-        .post(url)
-        .header("Content-Type", "application/json")
-        .header("Accept", "application/json")
-        .json(&init_request)
-        .send()
-        .await
-    {
-        Ok(response) => {
-            let status = response.status();
-            debug!("Server responded with status: {status}");
-
-            if status == StatusCode::OK || status.is_success() {
-                ConnectionTestResult::Success
-            } else if status == StatusCode::UNAUTHORIZED {
-                // Server requires auth - check if it supports OAuth 2.1
-                debug!("Server requires auth, testing OAuth 2.1 support...");
-                if let Ok(_oauth_state) = rmcp::transport::auth::OAuthState::new(url, None).await {
-                    info!("Server supports OAuth 2.1");
-                    ConnectionTestResult::OAuth2Available
-                } else {
-                    ConnectionTestResult::RequiresAuth
-                }
-            } else if status == StatusCode::FORBIDDEN {
-                ConnectionTestResult::Forbidden
-            } else if status == StatusCode::METHOD_NOT_ALLOWED {
-                // 405 likely means the server is running but expects different format
-                // Treat this as success since the server is responding
-                debug!("Server returned 405, treating as success (server is responsive)");
-                ConnectionTestResult::Success
-            } else if status == StatusCode::NOT_ACCEPTABLE {
-                // 406 might mean the server doesn't like our headers/format, but it's responding
-                // Treat this as success since the server is responsive
-                debug!("Server returned 406, treating as success (server is responsive)");
-                ConnectionTestResult::Success
-            } else {
-                ConnectionTestResult::Failed(format!("Server returned status: {status}"))
-            }
-        }
-        Err(e) => {
-            debug!("Connection test failed: {e}");
-            ConnectionTestResult::Failed(format!("Failed to connect: {e}"))
-        }
-    }
 }

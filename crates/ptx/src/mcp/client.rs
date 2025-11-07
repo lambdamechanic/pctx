@@ -5,12 +5,12 @@ use rmcp::{
         ClientCapabilities, ClientInfo, Implementation, InitializeRequestParam, ProtocolVersion,
     },
     service::{ClientInitializeError, RunningService},
-    transport::{AuthError, StreamableHttpClientTransport},
+    transport::{StreamableHttpClientTransport, streamable_http_client::StreamableHttpError},
 };
 
 /// Error types for MCP server connection failures
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub(crate) enum MCPClientInitError {
+pub(crate) enum InitMCPClientError {
     /// Server requires authentication (401 Unauthorized)
     #[error("Server requires OAuth authentication")]
     RequiresOAuth,
@@ -24,7 +24,7 @@ pub(crate) enum MCPClientInitError {
 
 pub(crate) async fn init_mcp_client(
     url: &str,
-) -> Result<RunningService<RoleClient, InitializeRequestParam>, MCPClientInitError> {
+) -> Result<RunningService<RoleClient, InitializeRequestParam>, InitMCPClientError> {
     let transport = StreamableHttpClientTransport::from_uri(url);
     let init_request = ClientInfo {
         protocol_version: ProtocolVersion::default(),
@@ -40,23 +40,27 @@ pub(crate) async fn init_mcp_client(
     match init_request.serve(transport).await {
         Ok(c) => Ok(c),
         Err(ClientInitializeError::TransportError { error, context }) => {
-            if let Some(auth_err) = error.error.downcast_ref::<AuthError>() {
-                todo!("look more into auth errors");
-                // Server requires auth - check if it supports OAuth 2.1
+            if let Some(s_err) = error
+                .error
+                .downcast_ref::<StreamableHttpError<reqwest::Error>>()
+                && let StreamableHttpError::AuthRequired(a_err) = s_err
+            {
                 debug!("Server (`{url}`) requires auth, testing OAuth 2.1 support...");
+                debug!(
+                    "www_authenticate_header: {}",
+                    &a_err.www_authenticate_header
+                );
                 if let Ok(_oauth_state) = rmcp::transport::auth::OAuthState::new(url, None).await {
                     debug!("Server supports OAuth 2.1");
-                    Err(MCPClientInitError::RequiresOAuth)
-                } else {
-                    Err(MCPClientInitError::RequiresAuth)
+                    return Err(InitMCPClientError::RequiresOAuth);
                 }
-            } else {
-                Err(MCPClientInitError::Failed(format!(
-                    "Failed initialize request with MCP server ({url}): {error} {context} "
-                )))
+                return Err(InitMCPClientError::RequiresAuth);
             }
+            Err(InitMCPClientError::Failed(format!(
+                "Failed initialize request with MCP server ({url}): {error} {context} "
+            )))
         }
-        Err(e) => Err(MCPClientInitError::Failed(format!(
+        Err(e) => Err(InitMCPClientError::Failed(format!(
             "Failed initialize request with MCP server ({url}): {e} "
         ))),
     }
