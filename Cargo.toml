@@ -12,7 +12,6 @@ repository = "https://github.com/portofcontext/ptx"
 thiserror = "2.0"
 
 [workspace.lints.rust]
-unsafe_code = "warn"
 unreachable_pub = "warn"
 
 [workspace.lints.clippy]
