@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clap::Parser;
 
 use crate::mcp::{PtxMcp, tools::UpstreamMcp};
@@ -12,10 +13,12 @@ pub(crate) struct DevCmd {
 }
 
 impl DevCmd {
-    pub(crate) async fn handle(&self) {
+    pub(crate) async fn handle(&self) -> Result<()> {
         let ctx = include_str!("./ctx.json");
         let upstream: UpstreamMcp = serde_json::from_str(ctx).expect("invalid format");
 
         PtxMcp::serve(&self.host, self.port, upstream).await;
+
+        Ok(())
     }
 }
