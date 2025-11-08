@@ -1,11 +1,9 @@
 # PTCX Authentication Examples
 
-Quick reference guide for configuring authentication in PTCX.
-
 ## Storage Methods
 
 | Method | Format | Use Case |
-|--------|--------|----------|----------|
+|--------|--------|----------|
 | Environment Variable | `${VAR_NAME}` | CI/CD, containerized apps |
 | OS Keychain | `keychain://service/account` | Local development, production |
 | External Command | `command://shell command` | Secret managers (1Password, Vault, AWS Secrets) |
@@ -279,59 +277,4 @@ Server: production
   Auth:
     Type: bearer
     Token: ${PROD_TOKEN}
-```
-
----
-
-## Security Best Practices
-
-1. **Never commit tokens to version control** - Use `.gitignore` for config files with secrets
-2. **Prefer keychain for local development** - OS-managed, encrypted storage
-3. **Use environment variables for CI/CD** - Easy to rotate, no files to manage
-4. **Use secret managers for production** - Centralized, auditable, rotatable
-5. **Use OAuth Client Credentials for M2M** - Automatic token refresh, standards-compliant
-6. **Rotate credentials regularly** - Update tokens every 30-90 days
-
----
-
-## Troubleshooting
-
-### Environment variable not found
-```bash
-# Check if variable is set
-echo $MY_TOKEN
-
-# Set it in current shell
-export MY_TOKEN="value"
-
-# Make permanent: add to ~/.bashrc or ~/.zshrc
-echo 'export MY_TOKEN="value"' >> ~/.bashrc
-```
-
-### Keychain access denied
-```bash
-# macOS: Grant terminal access in System Preferences > Security > Privacy > Keychain
-
-# Linux: Ensure libsecret is installed
-sudo apt-get install libsecret-1-0  # Debian/Ubuntu
-```
-
-### Command execution fails
-```bash
-# Test command manually
-sh -c "your-command-here"
-
-# Ensure command is in PATH
-which op  # For 1Password
-which aws # For AWS CLI
-```
-
-### OAuth token expired
-ptcx automatically refreshes expired tokens. If issues persist:
-```bash
-# View server config to check token status
-ptcx mcp get server-name
-
-# Remove cached credentials to force refresh
-# Edit ~/.pctx/config.toml and remove the [servers.auth.credentials] section
 ```

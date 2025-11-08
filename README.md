@@ -14,11 +14,13 @@
 [![Downloads](https://img.shields.io/crates/d/pctx.svg)](https://crates.io/crates/pctx)
 [![dependency status](https://deps.rs/repo/github/portofcontext/pctx/status.svg)](https://deps.rs/repo/github/portofcontext/pctx)
 
+The framework to connect AI agents to external tools and services with [code mode](#what-is-pctx-and-what-is-code-mode)
+
+
 </div>
 
-# Getting Started
 
-`pctx` is a framework to connect AI agents to external tools and services. By aggregating multiple MCP servers and exposing tools as TypeScript functions for efficient code-mode execution, 
+# Getting Started
 
 - Visit our [learn pctx](todo) course to get started.
 - Visit the [pctx showcase](todo) to see live mcp servers built with `pctx`.
@@ -27,158 +29,82 @@
 
 Visit https://portofcontext.com/docs to view the full documentation.
 
+## Installation
 
-
-## What is Code Mode?
-
-Unlike traditional MCP implementations where agents directly call tools, `pctx` exposes MCP tools as TypeScript functions. This allows AI agents to write code that calls MCP servers more efficiently by:
-
-- **Loading tools on-demand**: Only load the tool definitions needed for the current task, rather than all tools upfront
-- **Processing data efficiently**: Filter and transform data in the execution environment before passing results to the model
-- **Reducing token usage**: Intermediate results stay in the execution environment, saving context window space
-- **Better control flow**: Use familiar programming constructs like loops, conditionals, and error handling
-
-For example, instead of making sequential tool calls that pass large datasets through the model's context window, an agent can write:
-
-```typescript
-const sheet = await gdrive.getSheet({ sheetId: 'abc123' });
-const pendingOrders = sheet.filter(row => row.status === 'pending');
-console.log(`Found ${pendingOrders.length} pending orders`);
+```bash
+brew install pctx
+npm
+choco
 ```
-
-This approach dramatically reduces token consumption and improves agent performance, especially when working with multiple MCP servers or large datasets.
-
-## Features
-
-- **Code mode interface**: Tools exposed as TypeScript functions for efficient agent interaction. Code generated at startup time by reading the MCP server tool definitions.
-- **Multi-server aggregation**: Connect to multiple MCP servers through a single gateway that includes a simple authentication management system.
-- **Multiple auth sourcing methods**: Environment variables, system keychain, external commands
-- **Secure credential handling**: Credentials never exposed to AI models
 
 ## Quick Start
 
 ```bash
-# Initialize the configuration file that manages mcp servers and auth
+# Initialize configuration for auth and mcp host management
 pctx init
-
-# Add an MCP server with OAuth 2.1 authentication
+# Add an MCP server
 pctx mcp add my-server https://mcp.example.com
-pctx mcp auth my-server
-
 # Start the gateway
-pctx start --port 8080
-```
-
-## Installation
-
-```bash
-cargo install pctx
-```
-
-Or build from source:
-
-```bash
-git clone https://github.com/yourusername/pctx.git
-cd pctx
-cargo build --release
-```
-
-## Usage
-
-### Initialize pctx
-
-Create the configuration directory and files:
-
-```bash
-pctx init
-```
-
-### Managing MCP Servers
-
-Add a new MCP server:
-
-```bash
-# Without authentication
-pctx mcp add local http://localhost:3000/mcp
-
-# With OAuth 2.1 (configure later)
-pctx mcp add prod https://mcp.example.com
-```
-
-Configure authentication:
-
-```bash
-pctx mcp auth my-server
-```
-
-List all configured servers:
-
-```bash
-pctx mcp list
-```
-
-Get server details:
-
-```bash
-pctx mcp get my-server
-```
-
-Test server connection:
-
-```bash
-pctx mcp test my-server
-```
-
-Remove a server:
-
-```bash
-pctx mcp remove my-server
-```
-
-### Starting the Gateway
-
-Start the pctx gateway server:
-
-```bash
-# Default (localhost:8080)
 pctx start
-
-# Custom port
-pctx start --port 3000
-
-# Bind to all interfaces
-pctx start --host 0.0.0.0
 ```
 
-The gateway exposes a single MCP endpoint at `/mcp` that provides access to tools from all configured servers as TypeScript functions.
+## What is pctx and what is Code Mode?
 
-## Authentication Methods
+Unlike traditional MCP implementations where agents directly call tools, `pctx` generates code and uses code mode to expose MCP tools as TypeScript functions. This allows AI agents to write code that calls MCP servers more efficiently by:
 
-pctx supports multiple authentication methods:
+- **Loading tools on-demand**: Only load the interfaces needed for the current task, rather than all tools upfront like in traditional tool calling.
+- **Reducing token usage**: Intermediate results stay in the execution environment, saving context window space.
+- **Better control flow**: Use programming constructs like loops, conditionals, and error handling
 
-### OAuth 2.1 (Recommended)
-- Automatic discovery of authorization endpoints
-- PKCE-protected authorization flow
-- Automatic token refresh
-- Full MCP authorization spec compliance
+#### Quick Example
+Instead of making sequential tool calls that pass data through the context window, an agent can write:
 
-### Environment Variable
-Reference environment variables with `${VAR_NAME}` syntax:
-```bash
-pctx mcp add my-server https://api.example.com --auth env --auth-token MY_TOKEN_VAR
+```typescript
+const sheet = await gdrive.getSheet({ sheetId: 'abc' });
+const orders = sheet.filter(row => row.status === 'pending');
+console.log(`Found ${order.length} orders`);
 ```
 
-### System Keychain
-Secure storage in OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service):
-```bash
-pctx mcp add my-server https://api.example.com --auth keychain --auth-account my-account
+This example reduces the token usage from 150,000 tokens to 2,000 tokens leading to a **time and cost saving of 98.7%**.
+
+## Features
+
+- **Code mode interface**: Tools exposed as TypeScript functions for efficient agent interaction. See [Code Mode Guide](docs/code-mode.md).
+- **Multi-server aggregation**: Connect to multiple MCP servers through a single gateway. See [Multi-Server Guide](docs/multi-server.md).
+- **Secure authentication**: OAuth 2.1, environment variables, system keychain, and external commands. See [Authentication Guide](docs/mcp-auth.md).
+
+
+### Architecture
+
+```
+       ┌─────────────────────────────────┐
+       │      AI Agents (Any LLM)        │
+       └────────────┬────────────────────┘
+                    │ MCP Protocol
+       ┌────────────▼────────────────────┐
+       │            pctx                 │
+       │                                 │
+       │  • MCP Server to Agents         │
+       │  • Auth & Route Management      │
+       │  • "Code Mode" Sandbox Env      │
+       │  • Client to MCP Servers        │
+       └──┬──────┬──────┬──────┬─────────┘
+          │      │      │      │
+          ↓      ↓      ↓      ↓
+       ┌──────┬──────┬──────┬──────┐
+       │GDrive│Slack │GitHub│Custom│
+       └──────┴──────┴──────┴──────┘
+
+       Runs locally • in docker • any cloud
 ```
 
-### External Command
-Run any command that outputs a token:
-```bash
-pctx mcp add my-server https://api.example.com --auth command --auth-command "op read op://vault/server/token"
-```
+
+### Security
+
+- Code runs in an isolated [Deno](https://deno.com) sandbox that can only access the network hosts specified in the configuration file.
+- No filesystem, environment, network (beyond allowed hosts), or system access.
+- MCP clients are authenticated. LLMs cannot view the auth.
+
 
 ## Learn More
 
