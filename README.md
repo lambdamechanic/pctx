@@ -1,25 +1,37 @@
-todo: centered large logo
+<div align="center">
+  <img src=".github/assets/logo.png" alt="PCTX Logo" style="max-width: 200px; width: 100%;">
+</div>
 
 # PCTX
----
-todo: banners
+
+<div align="center">
+
+[![Crates.io](https://img.shields.io/crates/v/pctx.svg)](https://crates.io/crates/pctx)
+[![Documentation](https://docs.rs/pctx/badge.svg)](https://docs.rs/pctx)
+[![License](https://img.shields.io/crates/l/pctx.svg)](https://github.com/portofcontext/pctx/blob/main/LICENSE)
+[![Rust Version](https://img.shields.io/badge/rust-1.89%2B-blue.svg)](https://www.rust-lang.org)
+[![CI](https://github.com/portofcontext/pctx/workflows/CI/badge.svg)](https://github.com/portofcontext/pctx/actions)
+[![Downloads](https://img.shields.io/crates/d/pctx.svg)](https://crates.io/crates/pctx)
+[![dependency status](https://deps.rs/repo/github/portofcontext/pctx/status.svg)](https://deps.rs/repo/github/portofcontext/pctx)
+
+</div>
 
 # Getting Started
 
-pctx enables you to create connected AI agents by aggregating multiple MCP servers, exposing tools as TypeScript functions for efficient code-mode execution.
+`pctx` is a framework to connect AI agents to external tools and services. By aggregating multiple MCP servers and exposing tools as TypeScript functions for efficient code-mode execution, 
 
-Visit our (Learn pctx)[todo] course to get started with pctx.
-Visit the (pctx Showcase)[todo] to see ai agents build with pctx.
+- Visit our [learn pctx](todo) course to get started.
+- Visit the [pctx showcase](todo) to see live mcp servers built with `pctx`.
 
 # Documentation
 
-Visit https://portofcontext.com/ptcx/docs to view the full documentation.
+Visit https://portofcontext.com/docs to view the full documentation.
 
 
 
 ## What is Code Mode?
 
-Unlike traditional MCP implementations where agents directly call tools, PCTX exposes MCP tools as TypeScript functions. This allows AI agents to write code that calls MCP servers more efficiently by:
+Unlike traditional MCP implementations where agents directly call tools, `pctx` exposes MCP tools as TypeScript functions. This allows AI agents to write code that calls MCP servers more efficiently by:
 
 - **Loading tools on-demand**: Only load the tool definitions needed for the current task, rather than all tools upfront
 - **Processing data efficiently**: Filter and transform data in the execution environment before passing results to the model
@@ -38,16 +50,15 @@ This approach dramatically reduces token consumption and improves agent performa
 
 ## Features
 
-- **Multi-server aggregation**: Connect to multiple MCP servers through a single gateway
-- **Code mode interface**: Tools exposed as TypeScript functions for efficient agent interaction
-- **OAuth 2.1 support**: Full compliance with MCP authorization spec including PKCE and automatic token refresh
-- **Multiple auth methods**: Environment variables, system keychain, external commands
+- **Code mode interface**: Tools exposed as TypeScript functions for efficient agent interaction. Code generated at startup time by reading the MCP server tool definitions.
+- **Multi-server aggregation**: Connect to multiple MCP servers through a single gateway that includes a simple authentication management system.
+- **Multiple auth sourcing methods**: Environment variables, system keychain, external commands
 - **Secure credential handling**: Credentials never exposed to AI models
 
 ## Quick Start
 
 ```bash
-# Initialize configuration
+# Initialize the configuration file that manages mcp servers and auth
 pctx init
 
 # Add an MCP server with OAuth 2.1 authentication
