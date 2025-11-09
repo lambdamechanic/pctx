@@ -2172,6 +2172,7 @@ dependencies = [
  "deno_runtime",
  "deno_transpiler",
  "node_resolver",
+ "pctx_runtime",
  "regex",
  "rustls",
  "serde",
@@ -6267,6 +6268,22 @@ dependencies = [
  "tikv-jemallocator",
  "tokio",
  "toml",
+ "url",
+]
+
+[[package]]
+name = "pctx_runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "deno_core",
+ "deno_error",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
  "url",
 ]
 

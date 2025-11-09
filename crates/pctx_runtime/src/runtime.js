@@ -166,7 +166,18 @@ export const REGISTRY = {
     }
 };
 
+/**
+ * Fetch with host-based permissions
+ * @param {string} url - URL to fetch
+ * @param {Object} [options] - Fetch options (method, headers, body)
+ * @returns {Promise<{status: number, headers: Object, body: string}>}
+ */
+async function fetch(url, options) {
+    return await ops.op_fetch(url, options);
+}
+
 // Make APIs available globally for convenience (matching original behavior)
 globalThis.registerMCP = registerMCP;
 globalThis.callMCPTool = callMCPTool;
 globalThis.REGISTRY = REGISTRY;
+globalThis.fetch = fetch;

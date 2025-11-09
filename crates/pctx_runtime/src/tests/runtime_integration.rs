@@ -3,7 +3,7 @@
 //! These tests verify that the MCP client works correctly when accessed from JavaScript
 
 use crate::mcp_client::MCPRegistry;
-use deno_core::{op2, JsRuntime, RuntimeOptions};
+use deno_core::{JsRuntime, PollEventLoopOptions, RuntimeOptions, op2};
 use serde_json::json;
 
 // Custom op to capture test results
@@ -13,20 +13,18 @@ fn op_test_set_result(#[serde] value: serde_json::Value) -> serde_json::Value {
     value
 }
 
-/// Helper function to create a JavaScript runtime with pctx_runtime extension and test ops
+/// Helper function to create a JavaScript runtime with `pctx_runtime` extension and test ops
 fn create_test_runtime() -> JsRuntime {
     let registry = MCPRegistry::new();
+    let allowed_hosts = crate::AllowedHosts::default();
 
     // Create a simple extension for test helpers
-    deno_core::extension!(
-        test_helpers,
-        ops = [op_test_set_result],
-    );
+    deno_core::extension!(test_helpers, ops = [op_test_set_result],);
 
     JsRuntime::new(RuntimeOptions {
         extensions: vec![
             test_helpers::init(),
-            crate::pctx_runtime::init(registry),
+            crate::pctx_runtime_snapshot::init(registry, allowed_hosts),
         ],
         ..Default::default()
     })
@@ -40,52 +38,48 @@ async fn execute_js(code: &str) -> Result<serde_json::Value, String> {
     runtime
         .execute_script(
             "<inject_helper>",
-            r#"
+            r"
             globalThis.setTestResult = (val) => {
                 return Deno.core.ops.op_test_set_result(val);
             };
-            "#,
+            ",
         )
-        .map_err(|e| format!("Failed to inject helper: {}", e))?;
+        .map_err(|e| format!("Failed to inject helper: {e}"))?;
 
     // Wrap the code to call setTestResult
     // Note: The code should NOT use import statements - use the global APIs instead
     // The runtime.js already exposes registerMCP, callMCPTool, and REGISTRY globally
     let wrapped_code = format!(
-        r#"
+        r"
         (async () => {{
             const result = await (async () => {{
-                {}
+                {code}
             }})();
             return setTestResult(result);
         }})();
-        "#,
-        code
+        "
     );
 
     // Execute the code and get the promise
     let promise = runtime
         .execute_script("<test>", wrapped_code)
-        .map_err(|e| format!("Script execution failed: {}", e))?;
+        .map_err(|e| format!("Script execution failed: {e}"))?;
 
     // Resolve the promise first
     let resolve_future = runtime.resolve(promise);
 
     // Then run it with the event loop
     let resolved = runtime
-        .with_event_loop_promise(
-            resolve_future,
-            Default::default()
-        )
+        .with_event_loop_promise(resolve_future, PollEventLoopOptions::default())
         .await
-        .map_err(|e| format!("Failed to resolve promise: {}", e))?;
+        .map_err(|e| format!("Failed to resolve promise: {e}"))?;
 
     // Convert the resolved value to JSON
     let json_value = {
         deno_core::scope!(scope, &mut runtime);
         let local = deno_core::v8::Local::new(scope, resolved);
         deno_core::serde_v8::from_v8::<serde_json::Value>(scope, local)
-            .map_err(|e| format!("Failed to convert result to JSON: {}", e))?
+            .map_err(|e| format!("Failed to convert result to JSON: {e}"))?
     };
 
     Ok(json_value)
@@ -118,7 +112,11 @@ async fn test_runtime_register_mcp_global_api() {
     "#;
 
     let result = execute_js(code).await.expect("Should execute successfully");
-    assert_eq!(result, json!(true), "Server should be registered via global API");
+    assert_eq!(
+        result,
+        json!(true),
+        "Server should be registered via global API"
+    );
 }
 
 #[tokio::test]
@@ -141,7 +139,11 @@ async fn test_runtime_duplicate_registration_throws() {
     "#;
 
     let result = execute_js(code).await.expect("Should execute successfully");
-    assert_eq!(result, json!(true), "Should catch duplicate registration error");
+    assert_eq!(
+        result,
+        json!(true),
+        "Should catch duplicate registration error"
+    );
 }
 
 #[tokio::test]
@@ -170,7 +172,10 @@ async fn test_runtime_get_nonexistent() {
     "#;
 
     let result = execute_js(code).await.expect("Should execute successfully");
-    assert!(result.is_null(), "Nonexistent server should return undefined/null");
+    assert!(
+        result.is_null(),
+        "Nonexistent server should return undefined/null"
+    );
 }
 
 #[tokio::test]
@@ -254,7 +259,11 @@ async fn test_runtime_multiple_servers() {
 
     for server in servers {
         let obj = server.as_object().expect("Each result should be an object");
-        assert_eq!(obj.get("exists").unwrap(), &json!(true), "Server should exist");
+        assert_eq!(
+            obj.get("exists").unwrap(),
+            &json!(true),
+            "Server should exist"
+        );
         assert!(obj.get("config").is_some(), "Config should be present");
     }
 }
@@ -276,26 +285,42 @@ async fn test_runtime_console_output_capturing() {
     let result = execute_js(code).await.expect("Should execute successfully");
     let obj = result.as_object().expect("Should be an object");
 
-    let stdout = obj.get("stdout").unwrap().as_array().expect("stdout should be array");
-    let stderr = obj.get("stderr").unwrap().as_array().expect("stderr should be array");
+    let stdout = obj
+        .get("stdout")
+        .unwrap()
+        .as_array()
+        .expect("stdout should be array");
+    let stderr = obj
+        .get("stderr")
+        .unwrap()
+        .as_array()
+        .expect("stderr should be array");
 
     // Check that console.log and console.info went to stdout
     assert!(
-        stdout.iter().any(|v| v.as_str().unwrap().contains("test log message")),
+        stdout
+            .iter()
+            .any(|v| v.as_str().unwrap().contains("test log message")),
         "stdout should contain log message"
     );
     assert!(
-        stdout.iter().any(|v| v.as_str().unwrap().contains("test info")),
+        stdout
+            .iter()
+            .any(|v| v.as_str().unwrap().contains("test info")),
         "stdout should contain info message"
     );
 
     // Check that console.error and console.warn went to stderr
     assert!(
-        stderr.iter().any(|v| v.as_str().unwrap().contains("test error message")),
+        stderr
+            .iter()
+            .any(|v| v.as_str().unwrap().contains("test error message")),
         "stderr should contain error message"
     );
     assert!(
-        stderr.iter().any(|v| v.as_str().unwrap().contains("test warning")),
+        stderr
+            .iter()
+            .any(|v| v.as_str().unwrap().contains("test warning")),
         "stderr should contain warning"
     );
 }
