@@ -1,7 +1,4 @@
 // PCTX Runtime - MCP Client and Console Capturing
-//
-// This provides the same API as the original @portofcontext/mcp-client package,
-// but implemented in Rust for better performance and integration.
 
 const core = Deno.core;
 const ops = core.ops;

@@ -1,8 +1,3 @@
-//! MCP Client implementation in Rust
-//!
-//! This module provides the core MCP client functionality that was previously
-//! implemented in JavaScript via @modelcontextprotocol/sdk
-
 use crate::error::McpError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
