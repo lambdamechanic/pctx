@@ -1,6 +1,7 @@
 mod deno_execute;
 mod ts_go_check;
 
+// Use the snapshot-based implementation
 pub use deno_execute::{ExecutionError as RuntimeError, execute_code};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
