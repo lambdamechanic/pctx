@@ -13,6 +13,7 @@ deno_resolver = "0.52.0"
 node_resolver = "0.59.0"
 sys_traits = "0.1"
 deno_transpiler = { path = "../deno_transpiler" }
+pctx_runtime = { path = "../pctx_runtime" }
 tempfile = "3.14"
 regex = "1.11"
 thiserror = { workspace = true }
