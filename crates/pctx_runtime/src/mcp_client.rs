@@ -18,7 +18,7 @@ pub struct MCPServerConfig {
 
 /// Arguments for calling an MCP tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CallMCPToolArgs {
+pub(crate) struct CallMCPToolArgs {
     pub name: String,
     pub tool: String,
     #[serde(default)]
@@ -47,7 +47,7 @@ enum ContentItem {
     Text {
         #[serde(rename = "type")]
         content_type: String,
-        text: String
+        text: String,
     },
     Image {
         #[serde(rename = "type")]
@@ -77,6 +77,10 @@ impl MCPRegistry {
     }
 
     /// Register an MCP server configuration
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
     pub fn add(&self, cfg: MCPServerConfig) -> Result<(), McpError> {
         let mut configs = self.configs.write().unwrap();
 
@@ -92,24 +96,40 @@ impl MCPRegistry {
     }
 
     /// Get an MCP server configuration by name
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
     pub fn get(&self, name: &str) -> Option<MCPServerConfig> {
         let configs = self.configs.read().unwrap();
         configs.get(name).cloned()
     }
 
     /// Check if an MCP server is registered
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
     pub fn has(&self, name: &str) -> bool {
         let configs = self.configs.read().unwrap();
         configs.contains_key(name)
     }
 
     /// Delete an MCP server configuration
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
     pub fn delete(&self, name: &str) -> bool {
         let mut configs = self.configs.write().unwrap();
         configs.remove(name).is_some()
     }
 
     /// Clear all MCP server configurations
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
     pub fn clear(&self) {
         let mut configs = self.configs.write().unwrap();
         configs.clear();
@@ -123,14 +143,17 @@ impl Default for MCPRegistry {
 }
 
 /// Call an MCP tool on a registered server
-pub async fn call_mcp_tool(
+pub(crate) async fn call_mcp_tool(
     registry: &MCPRegistry,
     args: CallMCPToolArgs,
 ) -> Result<serde_json::Value, McpError> {
     // Get the server config from registry
-    let mcp_cfg = registry
-        .get(&args.name)
-        .ok_or_else(|| McpError::ToolCallError(format!("MCP Server with name \"{}\" does not exist", args.name)))?;
+    let mcp_cfg = registry.get(&args.name).ok_or_else(|| {
+        McpError::ToolCallError(format!(
+            "MCP Server with name \"{}\" does not exist",
+            args.name
+        ))
+    })?;
 
     // Create HTTP client
     let client = reqwest::Client::new();
@@ -148,7 +171,7 @@ pub async fn call_mcp_tool(
         .json(&request_body)
         .send()
         .await
-        .map_err(|e| McpError::ToolCallError(format!("HTTP request failed: {}", e)))?;
+        .map_err(|e| McpError::ToolCallError(format!("HTTP request failed: {e}")))?;
 
     // Check HTTP status
     if !response.status().is_success() {
@@ -163,7 +186,7 @@ pub async fn call_mcp_tool(
     let tool_response: ToolCallResponse = response
         .json()
         .await
-        .map_err(|e| McpError::ToolCallError(format!("Failed to parse response: {}", e)))?;
+        .map_err(|e| McpError::ToolCallError(format!("Failed to parse response: {e}")))?;
 
     // Check if the tool call resulted in an error
     if tool_response.is_error.unwrap_or(false) {
@@ -174,14 +197,12 @@ pub async fn call_mcp_tool(
     }
 
     // Extract structured content from response
-    let content = tool_response
-        .content
-        .ok_or_else(|| {
-            McpError::ToolCallError(format!(
-                "Tool call \"{}.{}\" returned no content",
-                args.name, args.tool
-            ))
-        })?;
+    let content = tool_response.content.ok_or_else(|| {
+        McpError::ToolCallError(format!(
+            "Tool call \"{}.{}\" returned no content",
+            args.name, args.tool
+        ))
+    })?;
 
     // Convert content to JSON value
     // For simplicity, we'll extract text content and try to parse as JSON
@@ -189,10 +210,12 @@ pub async fn call_mcp_tool(
         // Try to parse as JSON, fallback to string value
         serde_json::from_str(text)
             .or_else(|_| Ok(serde_json::Value::String(text.clone())))
-            .map_err(|e: serde_json::Error| McpError::ToolCallError(format!("Failed to parse content: {}", e)))
+            .map_err(|e: serde_json::Error| {
+                McpError::ToolCallError(format!("Failed to parse content: {e}"))
+            })
     } else {
         // Return the whole content array as JSON
         serde_json::to_value(&content)
-            .map_err(|e| McpError::ToolCallError(format!("Failed to serialize content: {}", e)))
+            .map_err(|e| McpError::ToolCallError(format!("Failed to serialize content: {e}")))
     }
 }

@@ -17,7 +17,9 @@ fn test_registry_add_and_has() {
         url: "http://localhost:3000".to_string(),
     };
 
-    registry.add(config).expect("Should add server successfully");
+    registry
+        .add(config)
+        .expect("Should add server successfully");
     assert!(registry.has("test-server"), "Server should be registered");
 }
 
@@ -43,8 +45,7 @@ fn test_registry_add_duplicate_fails() {
     let err = result.unwrap_err();
     assert!(
         err.to_string().contains("already registered"),
-        "Error message should mention duplicate registration, got: {}",
-        err
+        "Error message should mention duplicate registration, got: {err}"
     );
 }
 
@@ -69,7 +70,10 @@ fn test_registry_get_nonexistent() {
     let registry = MCPRegistry::new();
 
     let result = registry.get("nonexistent-server");
-    assert!(result.is_none(), "Should return None for nonexistent server");
+    assert!(
+        result.is_none(),
+        "Should return None for nonexistent server"
+    );
 }
 
 #[test]
@@ -86,7 +90,10 @@ fn test_registry_delete() {
 
     let deleted = registry.delete("temp-server");
     assert!(deleted, "Delete should return true");
-    assert!(!registry.has("temp-server"), "Server should no longer exist");
+    assert!(
+        !registry.has("temp-server"),
+        "Server should no longer exist"
+    );
 }
 
 #[test]
@@ -94,7 +101,10 @@ fn test_registry_delete_nonexistent() {
     let registry = MCPRegistry::new();
 
     let deleted = registry.delete("nonexistent-server");
-    assert!(!deleted, "Delete should return false for nonexistent server");
+    assert!(
+        !deleted,
+        "Delete should return false for nonexistent server"
+    );
 }
 
 #[test]
@@ -144,16 +154,16 @@ fn test_registry_multiple_servers() {
 
     for (name, url) in &servers {
         let config = MCPServerConfig {
-            name: name.to_string(),
-            url: url.to_string(),
+            name: (*name).to_string(),
+            url: (*url).to_string(),
         };
         registry.add(config).expect("Should add server");
     }
 
     for (name, url) in &servers {
-        assert!(registry.has(name), "Server {} should exist", name);
+        assert!(registry.has(name), "Server {name} should exist");
         let config = registry.get(name).expect("Should get server");
-        assert_eq!(config.url, *url, "URL should match for {}", name);
+        assert_eq!(config.url, *url, "URL should match for {name}");
     }
 }
 
@@ -172,15 +182,23 @@ fn test_registry_clone() {
     let registry2 = registry1.clone();
 
     // Both registries should share the same underlying data
-    assert!(registry2.has("test-server"), "Cloned registry should have server");
+    assert!(
+        registry2.has("test-server"),
+        "Cloned registry should have server"
+    );
 
     // Add to registry2
     let config2 = MCPServerConfig {
         name: "server2".to_string(),
         url: "http://localhost:3001".to_string(),
     };
-    registry2.add(config2).expect("Should add to cloned registry");
+    registry2
+        .add(config2)
+        .expect("Should add to cloned registry");
 
     // registry1 should also see the new server (shared state)
-    assert!(registry1.has("server2"), "Original registry should see new server from clone");
+    assert!(
+        registry1.has("server2"),
+        "Original registry should see new server from clone"
+    );
 }

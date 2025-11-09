@@ -189,24 +189,13 @@ namespace {namespace} {{
         info!("Executing code in sandbox");
         trace!("Will execute: \n{to_execute}");
 
+        // Execute in a blocking task to handle V8 thread affinity (JsRuntime is !Send)
         let allowed_hosts = self.allowed_hosts.clone();
         let code_to_execute = to_execute.clone();
 
-        // Execute in a blocking task to handle V8 thread affinity
         let result = tokio::task::spawn_blocking(move || {
-            // Install rustls crypto provider (required for HTTPS)
-            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-
-            // Create a new single-threaded runtime for this execution
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|e| format!("Failed to create runtime: {e}"))?;
-
-            rt.block_on(async {
-                deno_executor::execute_code(&code_to_execute, Some(allowed_hosts))
-                    .await
-                    .map_err(|e| format!("Execution failed: {e}"))
+            tokio::runtime::Handle::current().block_on(async {
+                deno_executor::execute_code(&code_to_execute, Some(allowed_hosts)).await
             })
         })
         .await
@@ -216,7 +205,7 @@ namespace {namespace} {{
         })?
         .map_err(|e| {
             log::error!("Sandbox execution error: {e}");
-            McpError::internal_error(e, None)
+            McpError::internal_error(format!("Execution failed: {e}"), None)
         })?;
 
         if result.success {

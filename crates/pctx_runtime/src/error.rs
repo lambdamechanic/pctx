@@ -17,8 +17,8 @@ pub enum McpError {
 impl fmt::Display for McpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            McpError::ConfigError(msg) => write!(f, "MCP configuration error: {}", msg),
-            McpError::ToolCallError(msg) => write!(f, "MCP tool call error: {}", msg),
+            McpError::ConfigError(msg) => write!(f, "MCP configuration error: {msg}"),
+            McpError::ToolCallError(msg) => write!(f, "MCP tool call error: {msg}"),
         }
     }
 }

@@ -5,12 +5,3 @@
 
 mod mcp_registry;
 mod runtime_integration;
-
-// Helper function to initialize rustls crypto provider for network tests
-pub(crate) fn init_rustls_crypto() {
-    use std::sync::Once;
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        let _ = rustls::crypto::ring::default_provider().install_default();
-    });
-}
