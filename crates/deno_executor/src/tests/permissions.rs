@@ -1,5 +1,7 @@
+use super::serial;
 use crate::*;
 
+#[serial]
 #[tokio::test]
 async fn test_network_blocked_when_no_hosts_allowed() {
     let code = r#"
@@ -38,6 +40,7 @@ export default await test();
     );
 }
 
+#[serial]
 #[tokio::test]
 async fn test_network_allowed_for_specific_host() {
     // Initialize rustls crypto provider for network requests
@@ -80,6 +83,7 @@ export default await test();
     );
 }
 
+#[serial]
 #[tokio::test]
 async fn test_network_blocked_for_different_host() {
     let code = r#"
@@ -117,6 +121,7 @@ export default await test();
     );
 }
 
+#[serial]
 #[tokio::test]
 async fn test_network_allowed_for_multiple_hosts() {
     // Initialize rustls crypto provider for network requests

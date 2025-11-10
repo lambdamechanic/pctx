@@ -1,6 +1,8 @@
+use super::serial;
 use crate::*;
 use serde_json::json;
 
+#[serial]
 #[tokio::test]
 async fn test_execute_with_mcp_client_register() {
     let code = r#"
@@ -37,6 +39,7 @@ export default registered;
     );
 }
 
+#[serial]
 #[tokio::test]
 async fn test_execute_with_mcp_client_duplicate_registration() {
     let code = r#"
@@ -67,6 +70,7 @@ export default true;
     );
 }
 
+#[serial]
 #[tokio::test]
 async fn test_execute_with_mcp_client_get_config() {
     let code = r#"
@@ -95,6 +99,7 @@ export default config;
     assert_eq!(config.get("url").unwrap(), "http://localhost:4000");
 }
 
+#[serial]
 #[tokio::test]
 async fn test_execute_with_mcp_client_multiple_servers() {
     let code = r#"
@@ -143,6 +148,7 @@ export default { hasServer1, hasServer2, hasServer3 };
     );
 }
 
+#[serial]
 #[tokio::test]
 async fn test_execute_with_mcp_client_registry_operations() {
     let code = r#"
@@ -177,6 +183,7 @@ export default { existsBefore, existsAfter };
     );
 }
 
+#[serial]
 #[tokio::test]
 async fn test_execute_with_mcp_client_registry_clear() {
     let code = r#"
@@ -216,6 +223,7 @@ export default { hasBefore, hasAfter };
     );
 }
 
+#[serial]
 #[tokio::test]
 async fn test_execute_with_mcp_client_delete_nonexistent() {
     let code = r#"
@@ -240,6 +248,7 @@ export default deleteResult;
     );
 }
 
+#[serial]
 #[tokio::test]
 async fn test_execute_with_mcp_client_call_tool_nonexistent_server() {
     let code = r#"
