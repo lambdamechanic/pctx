@@ -2,10 +2,10 @@ use anyhow::Result;
 use codegen::case::Case;
 use indexmap::IndexMap;
 use log::{debug, info};
+use pctx_config::server::ServerConfig;
 
+use super::tools::UpstreamMcp;
 use crate::mcp::{client::init_mcp_client, tools::UpstreamTool};
-
-use super::{auth::get_server_credentials, config::ServerConfig, tools::UpstreamMcp};
 
 /// Fetch tools from an upstream MCP server
 ///
@@ -17,14 +17,7 @@ use super::{auth::get_server_credentials, config::ServerConfig, tools::UpstreamM
 pub(crate) async fn fetch_upstream_tools(server: &ServerConfig) -> Result<UpstreamMcp> {
     info!("Fetching tools from '{}'...", server.name);
 
-    // Get authentication credentials if configured
-    let credentials = get_server_credentials(server).await?;
-
-    if credentials.is_some() {
-        debug!("Using authentication for '{}'", server.name);
-    }
-
-    // TODO: extend init_mcp_client to support auth tokens and use here
+    // TODO: extend init_mcp_client to support credentials
     let mcp_client = init_mcp_client(&server.url).await?;
 
     // Build the HTTP client and request

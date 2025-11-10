@@ -2,14 +2,9 @@ use anyhow::Result;
 use codegen::case::Case;
 use indexmap::IndexMap;
 use log::info;
+use pctx_config::auth::{AuthConfig, AuthSecret, SecretString, store_in_keychain};
 
-use crate::{
-    config::auth::{AuthConfig, AuthSecret, SecretString},
-    utils::{
-        keyring::store_in_keychain,
-        styles::{fmt_dimmed, fmt_success},
-    },
-};
+use crate::utils::styles::{fmt_dimmed, fmt_success};
 
 pub(crate) fn prompt_auth(server_name: &str) -> Result<AuthConfig> {
     let options = vec![
@@ -135,7 +130,7 @@ pub(crate) fn prompt_secret_parse(msg: &str) -> Result<SecretString> {
 }
 
 pub(crate) mod validators {
-    use crate::config::auth::SecretString;
+    use pctx_config::auth::SecretString;
 
     #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn url(

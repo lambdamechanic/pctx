@@ -14,7 +14,6 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 mod commands;
-mod config;
 mod mcp;
 mod utils;
 
@@ -23,7 +22,8 @@ use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 use log::error;
 
-use crate::{commands::add::AddCmd, config::Config};
+use crate::commands::add::AddCmd;
+use pctx_config::Config;
 
 #[derive(Parser)]
 #[command(name = "pctx")]
@@ -80,7 +80,6 @@ impl Cli {
             Commands::Mcp { mcp_cmd } => match mcp_cmd {
                 McpCommands::Remove { name } => commands::mcp_remove::handle(name)?,
                 McpCommands::List => commands::mcp_list::handle().await?,
-                McpCommands::Get { name } => commands::mcp_get::handle(name)?,
             },
         };
 
@@ -157,16 +156,6 @@ including any stored authentication credentials."
 authentication status, and connection health. This command tests each server's connectivity."
     )]
     List,
-
-    /// Get detailed information about an MCP server
-    #[command(
-        long_about = "Show detailed configuration for a specific MCP server including URL, \
-authentication method, and connection status."
-    )]
-    Get {
-        /// Name of the server to inspect
-        name: String,
-    },
 }
 
 #[tokio::main]

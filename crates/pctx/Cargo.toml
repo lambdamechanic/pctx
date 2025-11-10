@@ -19,6 +19,7 @@ path = "src/cli.rs"
 [dependencies]
 deno_executor = { path = "../deno_executor" }
 codegen = { path = "../codegen" }
+pctx_config = { path = "../pctx_config" }
 clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
 rmcp = { version = "0.8.0", features = [
     "server",
@@ -42,14 +43,6 @@ tokio = { version = "1", features = [
     "signal",
     "process",
 ] }
-toml = "0.9.8"
-keyring = { version = "3.6.1", features = [
-    "apple-native",
-    "windows-native",
-    "linux-native",
-] }
-dialoguer = "0.12.0"
-dirs = "6.0.0"
 anyhow = "1.0"
 thiserror = { workspace = true }
 async-trait = "0.1"

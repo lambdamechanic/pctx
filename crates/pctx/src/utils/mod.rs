@@ -1,4 +1,3 @@
-pub(crate) mod keyring;
 pub(crate) mod logger;
 pub(crate) mod prompts;
 pub(crate) mod spinner;

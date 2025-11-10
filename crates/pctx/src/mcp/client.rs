@@ -7,6 +7,7 @@ use rmcp::{
     service::{ClientInitializeError, RunningService},
     transport::{StreamableHttpClientTransport, streamable_http_client::StreamableHttpError},
 };
+use url::Url;
 
 /// Error types for MCP server connection failures
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -23,9 +24,9 @@ pub(crate) enum InitMCPClientError {
 }
 
 pub(crate) async fn init_mcp_client(
-    url: &str,
+    url: &Url,
 ) -> Result<RunningService<RoleClient, InitializeRequestParam>, InitMCPClientError> {
-    let transport = StreamableHttpClientTransport::from_uri(url);
+    let transport = StreamableHttpClientTransport::from_uri(url.as_str());
     let init_request = ClientInfo {
         protocol_version: ProtocolVersion::default(),
         capabilities: ClientCapabilities::default(),
@@ -50,7 +51,9 @@ pub(crate) async fn init_mcp_client(
                     "www_authenticate_header: {}",
                     &a_err.www_authenticate_header
                 );
-                if let Ok(_oauth_state) = rmcp::transport::auth::OAuthState::new(url, None).await {
+                if let Ok(_oauth_state) =
+                    rmcp::transport::auth::OAuthState::new(url.as_str(), None).await
+                {
                     debug!("Server supports OAuth 2.1");
                     return Err(InitMCPClientError::RequiresOAuth);
                 }

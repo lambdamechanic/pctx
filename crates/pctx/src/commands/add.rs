@@ -3,7 +3,6 @@ use clap::Parser;
 use log::info;
 
 use crate::{
-    config::{Config, server::ServerConfig},
     mcp::client::{InitMCPClientError, init_mcp_client},
     utils::{
         prompts,
@@ -11,6 +10,7 @@ use crate::{
         styles::{fmt_bold, fmt_dimmed, fmt_success},
     },
 };
+use pctx_config::{Config, server::ServerConfig};
 
 #[derive(Debug, Clone, Parser)]
 pub(crate) struct AddCmd {
@@ -33,7 +33,7 @@ impl AddCmd {
         if !self.force {
             let mut sp = Spinner::new("Testing MCP connection...");
 
-            match init_mcp_client(self.url.as_str()).await {
+            match init_mcp_client(&self.url).await {
                 Ok(client) => {
                     sp.stop_success("Successfully connected to MCP without authentication");
                     client.cancel().await?;

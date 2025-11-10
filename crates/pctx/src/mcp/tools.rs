@@ -13,6 +13,7 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use url::Url;
 
 type McpResult<T> = Result<T, McpError>;
 
@@ -294,7 +295,7 @@ pub(crate) struct UpstreamMcp {
     pub(crate) name: String,
     pub(crate) namespace: String,
     pub(crate) description: String,
-    pub(crate) url: String,
+    pub(crate) url: Url,
     pub(crate) tools: IndexMap<String, UpstreamTool>,
 }
 

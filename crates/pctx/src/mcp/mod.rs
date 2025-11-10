@@ -1,7 +1,4 @@
-pub(crate) mod auth;
 pub(crate) mod client;
-pub(crate) mod config;
-pub(crate) mod token_resolver;
 pub(crate) mod tools;
 pub(crate) mod upstream;
 
@@ -18,15 +15,13 @@ impl PtcxMcp {
         let allowed_hosts = mcps
             .iter()
             .filter_map(|m| {
-                url::Url::parse(&m.url).ok().and_then(|url| {
-                    let host = url.host_str()?;
-                    if let Some(port) = url.port() {
-                        Some(format!("{host}:{port}"))
-                    } else {
-                        let default_port = if url.scheme() == "https" { 443 } else { 80 };
-                        Some(format!("{host}:{default_port}"))
-                    }
-                })
+                let host = m.url.host_str()?;
+                if let Some(port) = m.url.port() {
+                    Some(format!("{host}:{port}"))
+                } else {
+                    let default_port = if m.url.scheme() == "https" { 443 } else { 80 };
+                    Some(format!("{host}:{default_port}"))
+                }
             })
             .collect::<Vec<_>>();
 

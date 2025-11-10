@@ -7,7 +7,7 @@ use tokio::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
-pub(crate) enum AuthConfig {
+pub enum AuthConfig {
     /// Bearer token
     Bearer { token: SecretString },
     /// Custom headers
@@ -28,26 +28,31 @@ pub(crate) enum AuthConfig {
 /// A string that may contain 0 or more embedded secrets
 /// Supports interpolation like "Bearer ${env:TOKEN}" or "plain text" or "prefix ${env:A} suffix ${keychain:B}"
 #[derive(Debug, Clone)]
-pub(crate) struct SecretString {
+pub struct SecretString {
     parts: Vec<SecretPart>,
 }
 
 impl SecretString {
-    pub(crate) fn new_plain(secret: &str) -> Self {
+    pub fn new_plain(secret: &str) -> Self {
         Self {
             parts: vec![SecretPart::Plain(secret.into())],
         }
     }
-    pub(crate) fn new_secret(secret: AuthSecret) -> Self {
+    pub fn new_secret(secret: AuthSecret) -> Self {
         Self {
             parts: vec![SecretPart::Secret(secret)],
         }
     }
-    pub(crate) fn new_parts(parts: Vec<SecretPart>) -> Self {
+    pub fn new_parts(parts: Vec<SecretPart>) -> Self {
         Self { parts }
     }
 
-    pub(crate) fn parse(input: &str) -> Result<Self> {
+    /// Parse secret string parts from string
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the inputted string is not a valid secret string
+    pub fn parse(input: &str) -> Result<Self> {
         let mut parts = Vec::new();
         let mut chars = input.char_indices().peekable();
 
@@ -137,12 +142,12 @@ impl SecretString {
         }
     }
 
-    pub(crate) fn parts(&self) -> &Vec<SecretPart> {
+    pub fn parts(&self) -> &Vec<SecretPart> {
         &self.parts
     }
 
     /// Check if this string contains any secrets
-    pub(crate) fn has_secrets(&self) -> bool {
+    pub fn has_secrets(&self) -> bool {
         self.parts
             .iter()
             .any(|p| matches!(p, SecretPart::Secret(_)))
@@ -180,7 +185,7 @@ impl Serialize for SecretString {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum SecretPart {
+pub enum SecretPart {
     /// Plain text segment
     Plain(String),
     /// Secret to be resolved
@@ -198,7 +203,7 @@ impl Display for SecretPart {
 
 /// Authentication secret that supports multiple resolution strategies
 #[derive(Debug, Clone)]
-pub(crate) enum AuthSecret {
+pub enum AuthSecret {
     /// Environment variable (matches: ${env:VAR})
     Env(String),
     /// macOS Keychain (matches: ${keychain:KEY})
@@ -208,7 +213,12 @@ pub(crate) enum AuthSecret {
 }
 
 impl AuthSecret {
-    pub(crate) async fn resolve(&self) -> Result<String> {
+    /// Returns the resolved string of the auth secret
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the secrets can not be resolved from their sources (env/keyring/commands)
+    pub async fn resolve(&self) -> Result<String> {
         match self {
             AuthSecret::Env(var) => std::env::var(var)
                 .with_context(|| format!("Environment variable '{var}' not found")),
@@ -263,6 +273,22 @@ impl Display for AuthSecret {
 
         write!(f, "{val}")
     }
+}
+
+/// Store a value in the system keychain as a password
+///
+/// # Errors
+/// This function fails if keyring is unable to store a password
+/// in the local system's keychain
+pub fn store_in_keychain(key: &str, val: &str) -> Result<()> {
+    let entry = keyring::Entry::new("pctx", key).context("Failed to create keychain entry")?;
+    log::debug!("Value stored in keychain service=\"pctx\", user=\"{key}\"");
+
+    entry
+        .set_password(val)
+        .context("Failed to store password in keychain")?;
+
+    Ok(())
 }
 
 #[cfg(test)]
