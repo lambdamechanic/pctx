@@ -2,7 +2,7 @@ use anyhow::Result;
 use codegen::case::Case;
 use indexmap::IndexMap;
 use log::info;
-use pctx_config::auth::{AuthConfig, AuthSecret, SecretString, store_in_keychain};
+use pctx_config::auth::{AuthConfig, AuthSecret, SecretString, write_to_keychain};
 
 use crate::utils::styles::{fmt_dimmed, fmt_success};
 
@@ -96,7 +96,7 @@ pub(crate) fn prompt_secret(msg: &str, prefix: &str, key: &str) -> Result<Secret
             let secret = inquire::Text::new(&format!("{prefix}Enter value:"))
                 .with_validator(inquire::min_length!(1, "must be at least 1 character"))
                 .prompt()?;
-            store_in_keychain(key, &secret)?;
+            write_to_keychain(key, &secret)?;
             info!(
                 "{}",
                 fmt_success(&format!("{prefix}Value stored in keychain"))

@@ -23,6 +23,7 @@ use clap::{Parser, Subcommand};
 use log::error;
 
 use crate::commands::add::AddCmd;
+use crate::commands::remove::RemoveCmd;
 use pctx_config::Config;
 
 #[derive(Parser)]
@@ -70,17 +71,12 @@ impl Cli {
     pub(crate) async fn handle(&self) -> Result<()> {
         let cfg = Config::load(&self.config)?;
 
-        match &self.command {
-            Commands::Add(cmd) => {
-                cmd.handle(cfg).await?;
-            }
+        let _updated_cfg = match &self.command {
+            Commands::Add(cmd) => cmd.handle(cfg).await?,
+            Commands::Remove(cmd) => cmd.handle(cfg)?,
             // Legacy
-            Commands::Init => commands::init::handle()?,
-            Commands::Start { port, host } => commands::start::handle(host, *port).await?,
-            Commands::Mcp { mcp_cmd } => match mcp_cmd {
-                McpCommands::Remove { name } => commands::mcp_remove::handle(name)?,
-                McpCommands::List => commands::mcp_list::handle().await?,
-            },
+            Commands::Init => todo!(),
+            Commands::Start { port, host } => todo!(),
         };
 
         Ok(())
@@ -96,6 +92,13 @@ enum Commands {
 EXAMPLE: pctx add local http://localhost:3000/mcp"
     )]
     Add(AddCmd),
+
+    /// Remove an MCP server from the configuration
+    #[command(
+        long_about = "Register a new MCP server with PCTX. You will be prompted for auth if it is required.
+EXAMPLE: pctx add local http://localhost:3000/mcp"
+    )]
+    Remove(RemoveCmd),
 
     /// Initialize PCTX configuration directory and files
     #[command(
@@ -121,20 +124,6 @@ Before starting, ensure you have:\n\
         /// Host address to bind to (use 0.0.0.0 for external access)
         #[arg(long, default_value = "127.0.0.1")]
         host: String,
-    },
-
-    /// Configure and manage MCP servers
-    #[command(
-        long_about = "Manage MCP server configurations including adding, removing, and testing servers. \
-Each server can have its own authentication configuration supporting:\n\
-  - OAuth 2.1 (recommended for HTTP servers)\n\
-  - Environment variables\n\
-  - System keychain\n\
-  - External command execution"
-    )]
-    Mcp {
-        #[command(subcommand)]
-        mcp_cmd: McpCommands,
     },
 }
 

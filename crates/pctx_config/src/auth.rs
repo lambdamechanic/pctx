@@ -2,6 +2,7 @@ use std::{fmt::Display, process::Stdio};
 
 use anyhow::{Context, Result};
 use indexmap::IndexMap;
+use log::debug;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tokio::process::Command;
 
@@ -146,6 +147,19 @@ impl SecretString {
         &self.parts
     }
 
+    pub fn keychain_keys(&self) -> Vec<String> {
+        self.parts
+            .iter()
+            .filter_map(|p| {
+                if let SecretPart::Secret(AuthSecret::Keychain(k)) = p {
+                    Some(k.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     /// Check if this string contains any secrets
     pub fn has_secrets(&self) -> bool {
         self.parts
@@ -280,13 +294,34 @@ impl Display for AuthSecret {
 /// # Errors
 /// This function fails if keyring is unable to store a password
 /// in the local system's keychain
-pub fn store_in_keychain(key: &str, val: &str) -> Result<()> {
-    let entry = keyring::Entry::new("pctx", key).context("Failed to create keychain entry")?;
-    log::debug!("Value stored in keychain service=\"pctx\", user=\"{key}\"");
+pub fn write_to_keychain(key: &str, val: &str) -> Result<()> {
+    let entry: keyring::Entry =
+        keyring::Entry::new("pctx", key).context("Failed to create keychain entry")?;
 
     entry
         .set_password(val)
         .context("Failed to store password in keychain")?;
+
+    log::debug!("Value stored in keychain service=\"pctx\", user=\"{key}\"");
+
+    Ok(())
+}
+
+/// Removes a value stored in the system keychain as a password
+///
+/// # Errors
+/// This function fails if keyring is unable to build the keychain entry
+pub fn remove_from_keychain(key: &str) -> Result<()> {
+    let entry: keyring::Entry =
+        keyring::Entry::new("pctx", key).context("Failed to create keychain entry")?;
+
+    match entry.delete_credential() {
+        Ok(()) => (),
+        Err(keyring::Error::NoEntry) => {
+            debug!("No value stored in keychain matching service=\"pctx\", user=\"{key}\"");
+        }
+        Err(e) => anyhow::bail!(e),
+    }
 
     Ok(())
 }
