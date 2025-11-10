@@ -29,8 +29,8 @@ pub struct Config {
 
 impl Config {
     #[must_use]
-    pub fn with_path(mut self, path: Utf8PathBuf) -> Self {
-        self.path = Some(path);
+    pub fn with_path(mut self, path: &Utf8PathBuf) -> Self {
+        self.path = Some(path.clone());
         self
     }
 

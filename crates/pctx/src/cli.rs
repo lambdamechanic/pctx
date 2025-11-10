@@ -22,7 +22,9 @@ use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 use log::error;
 
-use crate::commands::{add::AddCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd};
+use crate::commands::{
+    add::AddCmd, init::InitCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd,
+};
 use pctx_config::Config;
 
 #[derive(Parser)]
@@ -68,15 +70,14 @@ struct Cli {
 
 impl Cli {
     pub(crate) async fn handle(&self) -> Result<()> {
-        let cfg = Config::load(&self.config)?;
+        let cfg = Config::load(&self.config);
 
         let _updated_cfg = match &self.command {
-            Commands::List(cmd) => cmd.handle(cfg).await?,
-            Commands::Add(cmd) => cmd.handle(cfg).await?,
-            Commands::Remove(cmd) => cmd.handle(cfg)?,
-            Commands::Start(cmd) => cmd.handle(cfg).await?,
-            // Legacy
-            Commands::Init => todo!(),
+            Commands::Init(cmd) => cmd.handle(&self.config).await?,
+            Commands::List(cmd) => cmd.handle(cfg?).await?,
+            Commands::Add(cmd) => cmd.handle(cfg?, true).await?,
+            Commands::Remove(cmd) => cmd.handle(cfg?)?,
+            Commands::Start(cmd) => cmd.handle(cfg?).await?,
         };
 
         Ok(())
@@ -109,12 +110,9 @@ The gateway exposes a single MCP endpoint at /mcp that provides access to tools 
     )]
     Start(StartCmd),
 
-    /// Initialize PCTX configuration directory and files
-    #[command(
-        long_about = "Creates the ~/.pctx directory and initializes the configuration file. \
-This command is safe to run multiple times - it will not overwrite existing configuration."
-    )]
-    Init,
+    /// Initializes the pctx.json file
+    #[command(long_about = "Initializes the pctx.json, and add upstream MCP servers interactively")]
+    Init(InitCmd),
 }
 
 #[tokio::main]
