@@ -109,8 +109,8 @@ This example reduces the token usage from 150,000 tokens to 2,000 tokens leading
 ## Learn More
 
 - [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)
-- [Code Mode explanation by Cloudflare](https://blog.cloudflare.com/code-mode-mcp)
-- [Code execution with MCP by Anthropic](https://www.anthropic.com/research/code-execution-mcp)
+- [Code Mode explanation by Cloudflare](https://blog.cloudflare.com/code-mode/)
+- [Code execution with MCP by Anthropic](https://www.anthropic.com/engineering/code-execution-with-mcp)
 
 ## License
 
