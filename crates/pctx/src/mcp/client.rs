@@ -62,12 +62,6 @@ pub(crate) async fn init_mcp_client(
                     );
                 }
             }
-            AuthConfig::OAuthClientCredentials {
-                client_id,
-                client_secret,
-                token_url,
-                scope,
-            } => todo!("implement oauth creds"),
         }
     }
 

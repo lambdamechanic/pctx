@@ -15,15 +15,16 @@ pub enum AuthConfig {
     Custom {
         headers: IndexMap<String, SecretString>,
     },
-    /// OAuth 2.1 Client Credentials Flow (machine-to-machine)
-    #[serde(rename = "oauth_client_credentials")]
-    OAuthClientCredentials {
-        client_id: SecretString,
-        client_secret: SecretString,
-        token_url: url::Url,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        scope: Option<String>,
-    },
+    // TODO: support OAuth client credentials flow?
+    // /// OAuth 2.1 Client Credentials Flow (machine-to-machine)
+    // #[serde(rename = "oauth_client_credentials")]
+    // OAuthClientCredentials {
+    //     client_id: SecretString,
+    //     client_secret: SecretString,
+    //     token_url: url::Url,
+    //     #[serde(skip_serializing_if = "Option::is_none")]
+    //     scope: Option<String>,
+    // },
 }
 
 /// A string that may contain 0 or more embedded secrets
@@ -167,6 +168,12 @@ impl SecretString {
             .any(|p| matches!(p, SecretPart::Secret(_)))
     }
 
+    /// Returns the resolved `String` of the `SecretString`
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the secret parts
+    /// cannot resolve (e.g. Environment var not set)
     pub async fn resolve(&self) -> Result<String> {
         let mut resolved = String::new();
 

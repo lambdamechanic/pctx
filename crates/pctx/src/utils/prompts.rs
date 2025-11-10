@@ -9,8 +9,8 @@ use crate::utils::styles::{fmt_dimmed, fmt_success};
 pub(crate) fn prompt_auth(server_name: &str) -> Result<AuthConfig> {
     let options = vec![
         "Bearer Token".to_string(),
-        format!("OAuth2 {}", fmt_dimmed("(client credentials flow)")),
         "Custom Headers".to_string(),
+        // format!("OAuth2 {}", fmt_dimmed("(client credentials flow)")),
     ];
     let selection = inquire::Select::new(
         "How do you want to authenticate with the MCP server",
@@ -24,30 +24,8 @@ pub(crate) fn prompt_auth(server_name: &str) -> Result<AuthConfig> {
             let token = prompt_secret("Select auth option for bearer token:", "", &bearer_key)?;
             Ok(AuthConfig::Bearer { token })
         }
+
         Some(1) => {
-            // OAuth2
-            let token_url = inquire::Text::new("├── Token URL:")
-                .with_validator(validators::url)
-                .prompt()?;
-
-            let client_id_key = Case::Snake.sanitize(format!("{server_name}_client_id"));
-            let client_id = prompt_secret("├── Client ID:", "│   ", &client_id_key)?;
-
-            let client_secret_key = Case::Snake.sanitize(format!("{server_name}_client_secret"));
-            let client_secret = prompt_secret("├── Client Secret:", "│   ", &client_secret_key)?;
-
-            let scope = inquire::Text::new("└── Scopes:")
-                .with_help_message("comma separated scopes, leave empty if does not apply")
-                .prompt_skippable()?;
-
-            Ok(AuthConfig::OAuthClientCredentials {
-                client_id,
-                client_secret,
-                token_url: token_url.parse()?,
-                scope,
-            })
-        }
-        Some(2) => {
             // custom headers
             let mut prompt = true;
             let mut headers: IndexMap<String, SecretString> = IndexMap::new();
@@ -69,6 +47,29 @@ pub(crate) fn prompt_auth(server_name: &str) -> Result<AuthConfig> {
 
             Ok(AuthConfig::Custom { headers })
         }
+        // Some(2) => {
+        //     // OAuth2
+        //     let token_url = inquire::Text::new("├── Token URL:")
+        //         .with_validator(validators::url)
+        //         .prompt()?;
+
+        //     let client_id_key = Case::Snake.sanitize(format!("{server_name}_client_id"));
+        //     let client_id = prompt_secret("├── Client ID:", "│   ", &client_id_key)?;
+
+        //     let client_secret_key = Case::Snake.sanitize(format!("{server_name}_client_secret"));
+        //     let client_secret = prompt_secret("├── Client Secret:", "│   ", &client_secret_key)?;
+
+        //     let scope = inquire::Text::new("└── Scopes:")
+        //         .with_help_message("comma separated scopes, leave empty if does not apply")
+        //         .prompt_skippable()?;
+
+        //     Ok(AuthConfig::OAuthClientCredentials {
+        //         client_id,
+        //         client_secret,
+        //         token_url: token_url.parse()?,
+        //         scope,
+        //     })
+        // }
         _ => anyhow::bail!("Invalid selection {selection}"),
     }
 }
@@ -133,6 +134,7 @@ pub(crate) mod validators {
     use pctx_config::auth::SecretString;
 
     #[allow(clippy::unnecessary_wraps)]
+    #[allow(unused)]
     pub(crate) fn url(
         val: &str,
     ) -> Result<inquire::validator::Validation, inquire::CustomUserError> {
