@@ -14,7 +14,8 @@ pub enum Case {
     Lowercase,
 }
 impl Case {
-    pub fn sanitize(&self, input: &str) -> String {
+    pub fn sanitize<S: AsRef<str>>(&self, input: S) -> String {
+        let input = input.as_ref();
         // Early return for empty strings to avoid unnecessary processing
         if input.is_empty() {
             return String::new();

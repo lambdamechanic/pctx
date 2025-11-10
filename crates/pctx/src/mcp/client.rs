@@ -39,7 +39,7 @@ pub(crate) async fn init_mcp_client(
     };
     match init_request.serve(transport).await {
         Ok(c) => Ok(c),
-        Err(ClientInitializeError::TransportError { error, context }) => {
+        Err(ClientInitializeError::TransportError { error, .. }) => {
             if let Some(s_err) = error
                 .error
                 .downcast_ref::<StreamableHttpError<reqwest::Error>>()
@@ -57,11 +57,12 @@ pub(crate) async fn init_mcp_client(
                 return Err(InitMCPClientError::RequiresAuth);
             }
             Err(InitMCPClientError::Failed(format!(
-                "Failed initialize request with MCP server ({url}): {error} {context} "
+                "Failed initialize request with MCP server: {}",
+                error.error
             )))
         }
         Err(e) => Err(InitMCPClientError::Failed(format!(
-            "Failed initialize request with MCP server ({url}): {e} "
+            "Failed initialize request with MCP server: {e}"
         ))),
     }
 }

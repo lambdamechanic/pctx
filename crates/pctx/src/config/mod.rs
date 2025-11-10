@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use camino::Utf8PathBuf;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fs;
@@ -11,33 +12,49 @@ pub(crate) mod server;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub(crate) struct Config {
+    #[serde(skip_serializing)]
+    path: Option<Utf8PathBuf>,
+
     #[serde(default)]
     pub servers: Vec<ServerConfig>,
 }
 
 impl Config {
+    pub(crate) fn with_path(mut self, path: Utf8PathBuf) -> Self {
+        self.path = Some(path);
+        self
+    }
+
+    pub(crate) fn path(&self) -> Utf8PathBuf {
+        self.path.clone().unwrap_or(Self::default_path())
+    }
+
     /// Loads config from json file, falling back on default path
     /// if none is provided
-    pub(crate) fn load(path: Option<Utf8PathBuf>) -> Result<Self> {
-        let config_path = path.unwrap_or(Self::default_path());
+    pub(crate) fn load(path: &Utf8PathBuf) -> Result<Self> {
+        debug!("Loading config from {path}");
 
-        if !config_path.exists() {
-            anyhow::bail!("Config file does not exist: {config_path}");
+        if !path.exists() {
+            anyhow::bail!("Config file does not exist: {path}");
         }
 
-        let contents = fs::read_to_string(&config_path)
-            .context(format!("Failed reading config: {config_path}"))?;
+        let contents =
+            fs::read_to_string(path).context(format!("Failed reading config: {path}"))?;
 
-        serde_json::from_str(&contents).context(format!("Failed loading config: {config_path}"))
+        let mut cfg: Self =
+            serde_json::from_str(&contents).context(format!("Failed loading config: {path}"))?;
+        cfg.path = Some(path.clone());
+
+        Ok(cfg)
     }
 
     /// Saves config to json file, falling back on default path if non is provided
-    pub(crate) fn save(&self, dest: Option<Utf8PathBuf>) -> Result<()> {
-        let config_path = dest.unwrap_or(Self::default_path());
+    pub(crate) fn save(&self) -> Result<()> {
+        let dest = self.path();
+        debug!("Saving config to {dest}");
         let contents = serde_json::to_string_pretty(self).unwrap_or(json!(self).to_string());
 
-        fs::write(&config_path, contents)
-            .context(format!("Failed writing config: {config_path}"))?;
+        fs::write(&dest, contents).context(format!("Failed writing config: {dest}"))?;
 
         Ok(())
     }
@@ -47,8 +64,8 @@ impl Config {
         Utf8PathBuf::new().join("pctx.json")
     }
 
-    pub(crate) fn add_server(&mut self, server: ServerConfig) -> Result<()> {
-        if self.servers.iter().any(|s| s.name == server.name) {
+    pub(crate) fn add_server(&mut self, server: ServerConfig, force: bool) -> Result<()> {
+        if !force && self.servers.iter().any(|s| s.name == server.name) {
             anyhow::bail!("Server '{}' already exists", server.name);
         }
 

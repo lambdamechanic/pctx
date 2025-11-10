@@ -1,0 +1,68 @@
+use crate::utils::{CHECK, MARK};
+
+use super::styles::{fmt_green, fmt_red, fmt_yellow};
+use log::{error, info, log_enabled, warn};
+use spinoff::{Color, spinners};
+use std::borrow::Cow;
+
+/// Wrapper around `spinoff::Spinner` to handle only
+/// showing if log level is INFO
+pub(crate) struct Spinner {
+    sp: Option<spinoff::Spinner>,
+}
+
+impl Spinner {
+    pub(crate) fn new<M: Into<Cow<'static, str>>>(msg: M) -> Self {
+        let sp = if log_enabled!(log::Level::Debug) || !log_enabled!(log::Level::Info) {
+            // level debug or quiet mode
+            info!("{}...", msg.into());
+            None
+        } else {
+            Some(spinoff::Spinner::new(spinners::Dots, msg, Color::Cyan))
+        };
+        Self { sp }
+    }
+
+    pub(crate) fn update_text<M: Into<Cow<'static, str>>>(&mut self, msg: M) {
+        if let Some(sp) = self.sp.as_mut() {
+            sp.update_text(msg);
+        } else {
+            info!("{}...", msg.into());
+        }
+    }
+
+    pub(crate) fn stop_and_persist<M: Into<Cow<'static, str>>>(&mut self, symbol: &str, msg: M) {
+        if let Some(sp) = self.sp.as_mut() {
+            sp.stop_and_persist(symbol, &msg.into());
+        } else {
+            info!("{symbol} {}", msg.into());
+        }
+    }
+
+    pub(crate) fn stop_success<M: Into<Cow<'static, str>>>(&mut self, msg: M) {
+        let symbol = fmt_green(CHECK);
+        if let Some(sp) = self.sp.as_mut() {
+            sp.stop_and_persist(&symbol, &msg.into());
+        } else {
+            info!("{symbol} {}", msg.into());
+        }
+    }
+
+    pub(crate) fn stop_warn<M: Into<Cow<'static, str>>>(&mut self, msg: M) {
+        let symbol = fmt_yellow("ø");
+        if let Some(sp) = self.sp.as_mut() {
+            sp.stop_and_persist(&symbol, &msg.into());
+        } else {
+            warn!("{symbol} {}", msg.into());
+        }
+    }
+
+    pub(crate) fn stop_error<M: Into<Cow<'static, str>>>(&mut self, msg: M) {
+        let symbol = fmt_red(MARK);
+        if let Some(sp) = self.sp.as_mut() {
+            sp.stop_and_persist(&symbol, &msg.into());
+        } else {
+            error!("{symbol} {}", msg.into());
+        }
+    }
+}

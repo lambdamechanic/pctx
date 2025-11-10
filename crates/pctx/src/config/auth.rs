@@ -1,6 +1,7 @@
 use std::{fmt::Display, process::Stdio};
 
 use anyhow::{Context, Result};
+use indexmap::IndexMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tokio::process::Command;
 
@@ -9,19 +10,16 @@ use tokio::process::Command;
 pub(crate) enum AuthConfig {
     /// Bearer token
     Bearer { token: SecretString },
-    /// Custom headers and query parameters
+    /// Custom headers
     Custom {
-        #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
-        headers: std::collections::HashMap<String, SecretString>,
-        #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
-        query: std::collections::HashMap<String, SecretString>,
+        headers: IndexMap<String, SecretString>,
     },
     /// OAuth 2.1 Client Credentials Flow (machine-to-machine)
-    #[serde(rename = "oauth-client-credentials")]
+    #[serde(rename = "oauth_client_credentials")]
     OAuthClientCredentials {
         client_id: SecretString,
         client_secret: SecretString,
-        token_url: String,
+        token_url: url::Url,
         #[serde(skip_serializing_if = "Option::is_none")]
         scope: Option<String>,
     },
@@ -35,6 +33,20 @@ pub(crate) struct SecretString {
 }
 
 impl SecretString {
+    pub(crate) fn new_plain(secret: &str) -> Self {
+        Self {
+            parts: vec![SecretPart::Plain(secret.into())],
+        }
+    }
+    pub(crate) fn new_secret(secret: AuthSecret) -> Self {
+        Self {
+            parts: vec![SecretPart::Secret(secret)],
+        }
+    }
+    pub(crate) fn new_parts(parts: Vec<SecretPart>) -> Self {
+        Self { parts }
+    }
+
     pub(crate) fn parse(input: &str) -> Result<Self> {
         let mut parts = Vec::new();
         let mut chars = input.char_indices().peekable();
@@ -168,7 +180,7 @@ impl Serialize for SecretString {
 }
 
 #[derive(Debug, Clone)]
-enum SecretPart {
+pub(crate) enum SecretPart {
     /// Plain text segment
     Plain(String),
     /// Secret to be resolved

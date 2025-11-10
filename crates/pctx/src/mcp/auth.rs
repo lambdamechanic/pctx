@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Stdio;
@@ -550,12 +551,13 @@ pub(crate) async fn get_server_credentials(
     }
 }
 
-/// Store a token in the system keychain
-pub(crate) fn store_in_keychain(service: &str, account: &str, token: &str) -> Result<()> {
-    let entry = keyring::Entry::new(service, account).context("Failed to create keychain entry")?;
+/// Store a value in the system keychain as a password
+pub(crate) fn store_in_keychain(key: &str, val: &str) -> Result<()> {
+    let entry = keyring::Entry::new("pctx", key).context("Failed to create keychain entry")?;
+    debug!("Value stored in keychain service=\"pctx\", user=\"{key}\"");
 
     entry
-        .set_password(token)
+        .set_password(val)
         .context("Failed to store password in keychain")?;
 
     Ok(())
