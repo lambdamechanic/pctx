@@ -166,6 +166,20 @@ impl SecretString {
             .iter()
             .any(|p| matches!(p, SecretPart::Secret(_)))
     }
+
+    pub async fn resolve(&self) -> Result<String> {
+        let mut resolved = String::new();
+
+        for p in &self.parts {
+            let val = match p {
+                SecretPart::Plain(p) => p.clone(),
+                SecretPart::Secret(auth_secret) => auth_secret.resolve().await?,
+            };
+            resolved = format!("{resolved}{val}");
+        }
+
+        Ok(resolved)
+    }
 }
 
 impl Display for SecretString {

@@ -1,11 +1,19 @@
+use std::str::FromStr;
+
+use axum::http::{HeaderMap, HeaderName, HeaderValue, header};
+use indexmap::IndexMap;
 use log::debug;
+use pctx_config::auth::AuthConfig;
 use rmcp::{
     RoleClient, ServiceExt,
     model::{
         ClientCapabilities, ClientInfo, Implementation, InitializeRequestParam, ProtocolVersion,
     },
     service::{ClientInitializeError, RunningService},
-    transport::{StreamableHttpClientTransport, streamable_http_client::StreamableHttpError},
+    transport::{
+        StreamableHttpClientTransport,
+        streamable_http_client::{StreamableHttpClientTransportConfig, StreamableHttpError},
+    },
 };
 use url::Url;
 
@@ -25,8 +33,59 @@ pub(crate) enum InitMCPClientError {
 
 pub(crate) async fn init_mcp_client(
     url: &Url,
+    auth: Option<&AuthConfig>,
 ) -> Result<RunningService<RoleClient, InitializeRequestParam>, InitMCPClientError> {
-    let transport = StreamableHttpClientTransport::from_uri(url.as_str());
+    let mut default_headers = HeaderMap::new();
+    if let Some(a) = auth {
+        match a {
+            AuthConfig::Bearer { token } => {
+                let resolved = token
+                    .resolve()
+                    .await
+                    .map_err(|e| InitMCPClientError::Failed(e.to_string()))?;
+                default_headers.append(
+                    header::AUTHORIZATION,
+                    HeaderValue::from_str(&format!("Bearer {resolved}"))
+                        .map_err(|e| InitMCPClientError::Failed(e.to_string()))?,
+                );
+            }
+            AuthConfig::Custom { headers } => {
+                for (name, val) in headers {
+                    let resolved = val
+                        .resolve()
+                        .await
+                        .map_err(|e| InitMCPClientError::Failed(e.to_string()))?;
+                    default_headers.append(
+                        HeaderName::from_str(name)
+                            .map_err(|e| InitMCPClientError::Failed(e.to_string()))?,
+                        HeaderValue::from_str(&resolved)
+                            .map_err(|e| InitMCPClientError::Failed(e.to_string()))?,
+                    );
+                }
+            }
+            AuthConfig::OAuthClientCredentials {
+                client_id,
+                client_secret,
+                token_url,
+                scope,
+            } => todo!("implement oauth creds"),
+        }
+    }
+
+    debug!("{default_headers:?}");
+
+    let reqwest_client = reqwest::Client::builder()
+        .default_headers(default_headers)
+        .build()
+        .map_err(|e| InitMCPClientError::Failed(e.to_string()))?;
+
+    let transport = StreamableHttpClientTransport::with_client(
+        reqwest_client,
+        StreamableHttpClientTransportConfig {
+            uri: url.as_str().into(),
+            ..Default::default()
+        },
+    );
     let init_request = ClientInfo {
         protocol_version: ProtocolVersion::default(),
         capabilities: ClientCapabilities::default(),

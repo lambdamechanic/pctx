@@ -18,7 +18,7 @@ pub(crate) async fn fetch_upstream_tools(server: &ServerConfig) -> Result<Upstre
     info!("Fetching tools from '{}'...", server.name);
 
     // TODO: extend init_mcp_client to support credentials
-    let mcp_client = init_mcp_client(&server.url).await?;
+    let mcp_client = init_mcp_client(&server.url, None).await?;
 
     // Build the HTTP client and request
     // let client = reqwest::Client::new();

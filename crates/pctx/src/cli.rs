@@ -22,8 +22,7 @@ use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 use log::error;
 
-use crate::commands::add::AddCmd;
-use crate::commands::remove::RemoveCmd;
+use crate::commands::{add::AddCmd, list::ListCmd, remove::RemoveCmd};
 use pctx_config::Config;
 
 #[derive(Parser)]
@@ -72,11 +71,12 @@ impl Cli {
         let cfg = Config::load(&self.config)?;
 
         let _updated_cfg = match &self.command {
+            Commands::List(cmd) => cmd.handle(cfg).await?,
             Commands::Add(cmd) => cmd.handle(cfg).await?,
             Commands::Remove(cmd) => cmd.handle(cfg)?,
             // Legacy
             Commands::Init => todo!(),
-            Commands::Start { port, host } => todo!(),
+            Commands::Start { .. } => todo!(),
         };
 
         Ok(())
@@ -86,18 +86,20 @@ impl Cli {
 #[derive(Debug, Subcommand)]
 #[command(styles=utils::styles::get_styles())]
 enum Commands {
+    /// List MCP servers in the configuration
+    #[command(
+        long_about = "Lists the MCP servers in the configuration and tests the connection to each."
+    )]
+    List(ListCmd),
+
     /// Add a new MCP server to the configuration
     #[command(
-        long_about = "Register a new MCP server with PCTX. You will be prompted for auth if it is required.
-EXAMPLE: pctx add local http://localhost:3000/mcp"
+        long_about = "Register a new MCP server with PCTX. You will be prompted for auth if it is required."
     )]
     Add(AddCmd),
 
     /// Remove an MCP server from the configuration
-    #[command(
-        long_about = "Register a new MCP server with PCTX. You will be prompted for auth if it is required.
-EXAMPLE: pctx add local http://localhost:3000/mcp"
-    )]
+    #[command(long_about = "Removes an MCP server from the configuration.")]
     Remove(RemoveCmd),
 
     /// Initialize PCTX configuration directory and files

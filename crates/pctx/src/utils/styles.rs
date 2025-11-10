@@ -61,11 +61,6 @@ pub(crate) fn fmt_yellow(msg: &str) -> String {
     fmt_style(msg, &yellow)
 }
 
-pub(crate) fn fmt_grey(msg: &str) -> String {
-    let grey = Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightBlack)));
-    fmt_style(msg, &grey)
-}
-
 pub(crate) fn fmt_bold(msg: &str) -> String {
     let bold = Style::new().bold();
     fmt_style(msg, &bold)

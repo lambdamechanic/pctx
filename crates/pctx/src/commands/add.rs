@@ -33,7 +33,7 @@ impl AddCmd {
         if !self.force {
             let mut sp = Spinner::new("Testing MCP connection...");
 
-            match init_mcp_client(&self.url).await {
+            match init_mcp_client(&self.url, None).await {
                 Ok(client) => {
                     sp.stop_success("Successfully connected to MCP without authentication");
                     client.cancel().await?;

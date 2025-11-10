@@ -11,6 +11,7 @@ pub(crate) struct Spinner {
     sp: Option<spinoff::Spinner>,
 }
 
+#[allow(unused)]
 impl Spinner {
     pub(crate) fn new<M: Into<Cow<'static, str>>>(msg: M) -> Self {
         let sp = if log_enabled!(log::Level::Debug) || !log_enabled!(log::Level::Info) {
