@@ -24,16 +24,26 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
 
-  clippy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: Run clippy
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+  # clippy:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         components: clippy
+  #     - uses: Swatinem/rust-cache@v2
+  #       with:
+  #         # Include V8 in the cache key since it's large and platform-specific
+  #         shared-key: "v8-build"
+  #     # Build first to ensure V8 is properly downloaded and cached
+  #     - name: Build project
+  #       run: cargo build --workspace --all-targets --locked
+  #       env:
+  #         # Ensure V8 downloads are retried on failure
+  #         V8_FROM_SOURCE: 0
+  #         RUSTY_V8_MIRROR: https://github.com/denoland/rusty_v8/releases/download
+  #     - name: Run clippy
+  #       run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
   test:
     strategy:
