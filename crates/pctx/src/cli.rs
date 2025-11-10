@@ -14,6 +14,7 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 mod commands;
+mod config;
 mod mcp;
 mod utils;
 
