@@ -83,25 +83,42 @@ console.log(`Found ${orders.length} orders`);
 ### Architecture
 
 ```
-       ┌─────────────────────────────────┐
-       │      AI Agents (Bring any LLM)  │
-       └────────────┬────────────────────┘
-                    │ MCP Protocol
-       ┌────────────▼────────────────────┐
-       │            pctx                 │
-       │                                 │
-       │  • MCP Server to Agents         │
-       │  • Auth & Route Management      │
-       │  • "Code Mode" Sandbox          │
-       │  • Client to MCP Servers        │
-       └──┬──────┬──────┬──────┬─────────┘
-          │      │      │      │
-          ↓      ↓      ↓      ↓
-       ┌──────┬──────┬──────┬──────┐
-       │GDrive│Slack │GitHub│Custom│
-       └──────┴──────┴──────┴──────┘
+    Runs locally • in docker • any cloud
 
-       Run locally • in docker • any cloud
+  ┌─────────────────────────────────┐
+  │      AI Agents (Bring any LLM)  │
+  └──────────────-──────────────────┘
+                │ MCP
+                │ • list_functions
+                │ • get_function_details
+                │ • execute
+  ┌─────────────▼───────────────────┐
+  │            pctx                 │
+  │                                 │
+  │  ┌─────────────────────────┐    │
+  │  │  TypeScript Compiler    │    │
+  │  │  Sandbox (Deno)         │    │
+  │  │                         │    │
+  │  │  • Type checking        │    │
+  │  │  • Rich error feedback  │    │
+  │  │  • No network access    │    │
+  │  └──────────┬──────────────┘    │
+  │             │ Compiled JS       │
+  │  ┌──────────▼──────────────┐    │
+  │  │  Execution Sandbox      │    │
+  │  │  (Deno Runtime)         │    │
+  │  │                         │    │
+  │  │  • Authenticated MCP    │    │
+  │  │    client connections   │    │
+  │  │  • Restricted network   │    │
+  │  │  • Tool call execution  │    │
+  │  └──┬──────┬──────┬────────┘    │
+  └─────┼──────┼──────┼─────────────┘
+        │      │      │
+        ↓      ↓      ↓
+    ┌──────┬──────┬──────┬──────┐
+    │Local │Slack │GitHub│Custom│
+    └──────┴──────┴──────┴──────┘
 ```
 
 
