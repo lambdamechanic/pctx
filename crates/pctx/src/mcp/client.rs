@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use axum::http::{HeaderMap, HeaderName, HeaderValue, header};
-use indexmap::IndexMap;
 use log::debug;
 use pctx_config::auth::AuthConfig;
 use rmcp::{
@@ -71,8 +70,6 @@ pub(crate) async fn init_mcp_client(
             } => todo!("implement oauth creds"),
         }
     }
-
-    debug!("{default_headers:?}");
 
     let reqwest_client = reqwest::Client::builder()
         .default_headers(default_headers)

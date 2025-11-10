@@ -22,7 +22,7 @@ use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 use log::error;
 
-use crate::commands::{add::AddCmd, list::ListCmd, remove::RemoveCmd};
+use crate::commands::{add::AddCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd};
 use pctx_config::Config;
 
 #[derive(Parser)]
@@ -74,9 +74,9 @@ impl Cli {
             Commands::List(cmd) => cmd.handle(cfg).await?,
             Commands::Add(cmd) => cmd.handle(cfg).await?,
             Commands::Remove(cmd) => cmd.handle(cfg)?,
+            Commands::Start(cmd) => cmd.handle(cfg).await?,
             // Legacy
             Commands::Init => todo!(),
-            Commands::Start { .. } => todo!(),
         };
 
         Ok(())
@@ -102,51 +102,19 @@ enum Commands {
     #[command(long_about = "Removes an MCP server from the configuration.")]
     Remove(RemoveCmd),
 
+    /// Starts PCTX server
+    #[command(
+        long_about = "Starts the PCTX gateway server that aggregates all configured MCP servers. \
+The gateway exposes a single MCP endpoint at /mcp that provides access to tools from all configured servers."
+    )]
+    Start(StartCmd),
+
     /// Initialize PCTX configuration directory and files
     #[command(
         long_about = "Creates the ~/.pctx directory and initializes the configuration file. \
 This command is safe to run multiple times - it will not overwrite existing configuration."
     )]
     Init,
-
-    /// Start the MCP gateway server
-    #[command(
-        long_about = "Starts the PCTX gateway server that aggregates all configured MCP servers. \
-The gateway exposes a single MCP endpoint at /mcp that provides access to tools from all configured servers.\n\n\
-Before starting, ensure you have:\n\
-  1. Initialized configuration with 'pctx init'\n\
-  2. Added at least one MCP server with 'pctx mcp add'\n\
-  3. Configured authentication if required with 'pctx mcp auth'"
-    )]
-    Start {
-        /// Port to listen on
-        #[arg(short, long, default_value = "8080")]
-        port: u16,
-
-        /// Host address to bind to (use 0.0.0.0 for external access)
-        #[arg(long, default_value = "127.0.0.1")]
-        host: String,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum McpCommands {
-    /// Remove an MCP server from the configuration
-    #[command(
-        long_about = "Remove a configured MCP server. This will delete the server configuration \
-including any stored authentication credentials."
-    )]
-    Remove {
-        /// Name of the server to remove
-        name: String,
-    },
-
-    /// List all configured MCP servers and check their health
-    #[command(
-        long_about = "Display a list of all configured MCP servers showing their names, URLs, \
-authentication status, and connection health. This command tests each server's connectivity."
-    )]
-    List,
 }
 
 #[tokio::main]

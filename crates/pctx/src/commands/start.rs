@@ -1,49 +1,86 @@
 use anyhow::Result;
-use log::info;
-
-use crate::mcp::PtcxMcp;
-
-use crate::mcp::upstream::fetch_upstream_tools;
+use clap::Parser;
+use log::{info, warn};
 use pctx_config::Config;
 
-pub(crate) async fn handle(host: &str, port: u16) -> Result<()> {
-    todo!();
-    // let config = Config::load()?;
+use crate::{
+    mcp::{PctxMcp, upstream::fetch_upstream_tools},
+    utils::{
+        CHECK, MARK,
+        spinner::Spinner,
+        styles::{fmt_bold, fmt_cyan, fmt_error, fmt_green, fmt_red, fmt_yellow},
+    },
+};
 
-    // if config.servers.is_empty() {
-    //     anyhow::bail!("No MCP servers configured. Add servers with 'pctx mcp add <name> <url>'");
-    // }
+#[derive(Debug, Clone, Parser)]
+pub(crate) struct StartCmd {
+    /// Port to listen on
+    #[arg(short, long, default_value = "8080")]
+    port: u16,
 
-    // info!("Starting Intelligent MCP gateway...");
-    // info!("");
+    /// Host address to bind to (use 0.0.0.0 for external access)
+    #[arg(long, default_value = "127.0.0.1")]
+    host: String,
+}
 
-    // // Connect to each MCP server and fetch their tool definitions
-    // let mut upstream_servers = Vec::new();
-    // for server in &config.servers {
-    //     info!("Connecting to '{}'...", server.name);
-    //     match fetch_upstream_tools(server).await {
-    //         Ok(upstream) => {
-    //             info!("  ✓ Connected to '{}' at {}", server.name, server.url);
-    //             upstream_servers.push(upstream);
-    //         }
-    //         Err(e) => {
-    //             anyhow::bail!("Failed to connect to server '{}': {}", server.name, e);
-    //         }
-    //     }
-    // }
+impl StartCmd {
+    pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
+        if cfg.servers.is_empty() {
+            anyhow::bail!(
+                "No upstream MCP servers configured. Add servers with 'pctx mcp add <name> <url>'"
+            );
+        }
 
-    // info!("");
-    // info!("✓ Gateway starting on http://{host}:{port}");
-    // info!("✓ Configured servers:");
-    // for server in &config.servers {
-    //     info!("  - {} ({})", server.name, server.url);
-    // }
-    // info!("");
+        // Connect to each MCP server and fetch their tool definitions
+        let mut sp = Spinner::new("");
 
-    // // Start the gateway with multiple MCP servers
-    // PtcxMcp::serve(host, port, upstream_servers).await;
+        let mut upstream_servers = Vec::new();
+        let mut fails = Vec::new();
+        for server in &cfg.servers {
+            sp.update_text(format!(
+                "Creating {} interface for {}",
+                fmt_bold("Code Mode"),
+                fmt_cyan(&server.name)
+            ));
+            match fetch_upstream_tools(server).await {
+                Ok(upstream) => {
+                    upstream_servers.push(upstream);
+                }
+                Err(e) => {
+                    fails.push(fmt_error(&format!(
+                        "Failed creating {} for {}: {e}",
+                        fmt_bold("Code Mode"),
+                        fmt_cyan(&server.name)
+                    )));
+                }
+            }
+        }
 
-    // info!("Shutting down...");
+        let symbol = if upstream_servers.len() == cfg.servers.len() {
+            fmt_green(CHECK)
+        } else if upstream_servers.is_empty() {
+            fmt_red(MARK)
+        } else {
+            fmt_yellow("~")
+        };
 
-    Ok(())
+        sp.stop_and_persist(
+            &symbol,
+            format!(
+                "{} interface generated for {} upstream MCP servers",
+                fmt_bold("Code Mode"),
+                fmt_cyan(&upstream_servers.len().to_string())
+            ),
+        );
+        for fail in fails {
+            warn!("{fail}");
+        }
+
+        // Start the gateway with multiple MCP servers
+        PctxMcp::serve(&self.host, self.port, upstream_servers).await?;
+
+        info!("Shutting down...");
+
+        Ok(cfg)
+    }
 }

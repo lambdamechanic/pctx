@@ -1,52 +1,20 @@
 use anyhow::Result;
 use codegen::case::Case;
 use indexmap::IndexMap;
-use log::{debug, info};
+use log::debug;
 use pctx_config::server::ServerConfig;
 
 use super::tools::UpstreamMcp;
 use crate::mcp::{client::init_mcp_client, tools::UpstreamTool};
 
 /// Fetch tools from an upstream MCP server
-///
-/// This function:
-/// 1. Gets authentication credentials for the server (if configured)
-/// 2. Makes an HTTP request to the server with auth headers/query params
-/// 3. Parses the MCP server's tool list response
-/// 4. Returns an ``UpstreamMcp`` instance with the discovered tools
 pub(crate) async fn fetch_upstream_tools(server: &ServerConfig) -> Result<UpstreamMcp> {
-    info!("Fetching tools from '{}'...", server.name);
+    debug!("Fetching tools from '{}'({})...", &server.name, &server.url);
 
-    // TODO: extend init_mcp_client to support credentials
-    let mcp_client = init_mcp_client(&server.url, None).await?;
-
-    // Build the HTTP client and request
-    // let client = reqwest::Client::new();
-    // let mut request = client.get(&server.url);
-
-    // // Add auth headers and query params if available
-    // if let Some(creds) = &credentials {
-    //     for (key, value) in &creds.headers {
-    //         request = request.header(key, value);
-    //     }
-    //     for (key, value) in &creds.query {
-    //         request = request.query(&[(key, value)]);
-    //     }
-    // }
-
-    // // Make the request
-    // let response = request
-    //     .send()
-    //     .await
-    //     .context(format!("Failed to connect to server '{}'", server.name))?;
-
-    // let status = response.status();
-    // if !status.is_success() {
-    //     anyhow::bail!("Server '{}' returned error status: {}", server.name, status);
-    // }
+    let mcp_client = init_mcp_client(&server.url, server.auth.as_ref()).await?;
 
     debug!(
-        "Successfully connected to '{}', inspecting tools",
+        "Successfully connected to '{}', inspecting tools...",
         server.name
     );
 
