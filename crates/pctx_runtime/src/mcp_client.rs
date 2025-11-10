@@ -20,20 +20,54 @@ pub(crate) struct CallMCPToolArgs {
     pub arguments: Option<serde_json::Value>,
 }
 
-/// MCP tool call request (sent to server)
+/// MCP JSON-RPC request (sent to server)
 #[derive(Debug, Serialize)]
-struct ToolCallRequest {
+struct JsonRpcRequest {
+    jsonrpc: String,
+    id: u64,
+    method: String,
+    params: ToolCallParams,
+}
+
+/// MCP tool call parameters
+#[derive(Debug, Serialize)]
+struct ToolCallParams {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     arguments: Option<serde_json::Value>,
 }
 
-/// MCP tool call response (received from server)
+/// MCP JSON-RPC response (received from server)
 #[derive(Debug, Deserialize)]
-struct ToolCallResponse {
+struct JsonRpcResponse {
+    jsonrpc: String,
+    id: u64,
+    #[serde(flatten)]
+    result_or_error: JsonRpcResultOrError,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum JsonRpcResultOrError {
+    Result { result: ToolCallResult },
+    Error { error: JsonRpcError },
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolCallResult {
     #[serde(rename = "isError")]
     is_error: Option<bool>,
     content: Option<Vec<ContentItem>>,
+    #[serde(rename = "structuredContent", default)]
+    structured_content: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct JsonRpcError {
+    code: i32,
+    message: String,
+    #[serde(default)]
+    data: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -155,16 +189,24 @@ pub(crate) async fn call_mcp_tool(
     // Create HTTP client
     let client = reqwest::Client::new();
 
-    // Build the tool call request
-    let request_body = ToolCallRequest {
-        name: args.tool.clone(),
-        arguments: args.arguments,
+    // Build the JSON-RPC request
+    let request_body = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: 1,
+        method: "tools/call".to_string(),
+        params: ToolCallParams {
+            name: args.tool.clone(),
+            arguments: args.arguments,
+        },
     };
 
     // Make the HTTP request to the MCP server
-    // Using the MCP HTTP transport protocol
+    // Using the MCP JSON-RPC 2.0 protocol
+    // MCP servers require Accept header for both JSON and SSE
     let response = client
-        .post(format!("{}/tools/call", mcp_cfg.url))
+        .post(&mcp_cfg.url)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json, text/event-stream")
         .json(&request_body)
         .send()
         .await
@@ -179,22 +221,58 @@ pub(crate) async fn call_mcp_tool(
         )));
     }
 
-    // Parse response
-    let tool_response: ToolCallResponse = response
-        .json()
+    // Get response body as text (could be SSE or JSON)
+    let response_text = response
+        .text()
         .await
-        .map_err(|e| McpError::ToolCallError(format!("Failed to parse response: {e}")))?;
+        .map_err(|e| McpError::ToolCallError(format!("Failed to read response: {e}")))?;
+
+    // Parse response - handle both SSE and plain JSON
+    let json_text = if response_text.starts_with("event:") || response_text.starts_with("data:") {
+        // SSE format - extract JSON from "data:" line
+        response_text
+            .lines()
+            .find(|line| line.starts_with("data:"))
+            .and_then(|line| line.strip_prefix("data:"))
+            .map(str::trim)
+            .ok_or_else(|| {
+                McpError::ToolCallError("SSE response missing data line".to_string())
+            })?
+    } else {
+        // Plain JSON
+        response_text.trim()
+    };
+
+    // Parse JSON-RPC response
+    let jsonrpc_response: JsonRpcResponse = serde_json::from_str(json_text)
+        .map_err(|e| McpError::ToolCallError(format!("Failed to parse JSON response: {e}")))?;
+
+    // Handle JSON-RPC result or error
+    let tool_result = match jsonrpc_response.result_or_error {
+        JsonRpcResultOrError::Error { error } => {
+            return Err(McpError::ToolCallError(format!(
+                "JSON-RPC error {}: {}",
+                error.code, error.message
+            )));
+        }
+        JsonRpcResultOrError::Result { result } => result,
+    };
 
     // Check if the tool call resulted in an error
-    if tool_response.is_error.unwrap_or(false) {
+    if tool_result.is_error.unwrap_or(false) {
         return Err(McpError::ToolCallError(format!(
             "Tool call \"{}.{}\" failed",
             args.name, args.tool
         )));
     }
 
-    // Extract structured content from response
-    let content = tool_response.content.ok_or_else(|| {
+    // Prefer structuredContent if available, otherwise use content array
+    if let Some(structured) = tool_result.structured_content {
+        return Ok(structured);
+    }
+
+    // Extract content from response
+    let content = tool_result.content.ok_or_else(|| {
         McpError::ToolCallError(format!(
             "Tool call \"{}.{}\" returned no content",
             args.name, args.tool

@@ -183,18 +183,30 @@ namespace {namespace} {{
             .join("\n\n");
 
         let to_execute = format!(
-            "import {{ registerMCP, callMCPTool }} from \"mcp-client\"\n{registrations}\n{namespaces}\n{code}\n\nexport default await run();"
+            "
+{registrations}
+
+{namespaces}
+
+{code}
+
+export default await run();"
         );
 
         info!("Executing code in sandbox");
         trace!("Will execute: \n{to_execute}");
 
-        // Execute in a blocking task to handle V8 thread affinity (JsRuntime is !Send)
         let allowed_hosts = self.allowed_hosts.clone();
         let code_to_execute = to_execute.clone();
 
         let result = tokio::task::spawn_blocking(move || {
-            tokio::runtime::Handle::current().block_on(async {
+            // Create a new current-thread runtime for Deno ops that use deno_unsync
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
+
+            rt.block_on(async {
                 deno_executor::execute_code(&code_to_execute, Some(allowed_hosts)).await
             })
         })

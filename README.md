@@ -1,5 +1,5 @@
 <div align="center">
-  <img src=".github/assets/logo.png" alt="PCTX Logo" style="max-width: 100px; width: 90%;">
+  <img src=".github/assets/logo.png" alt="PCTX Logo" style="height: 128px">
 </div>
 
 # PCTX
