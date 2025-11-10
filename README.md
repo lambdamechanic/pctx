@@ -19,22 +19,14 @@ The open source framework to connect AI agents to tools and services with [code 
 
 </div>
 
-
-# Getting Started
-
-- Visit our [learn pctx](todo) course to get started.
-- Visit the [pctx showcase](todo) to see live mcp servers built with `pctx`.
-
-# Documentation
-
-Visit https://portofcontext.com/docs to view the full documentation.
-
-## Installation
+## Pick installation method
 
 ```bash
-brew install pctx
-npm
-choco
+# Homebrew
+brew install portofcontext/tap/pctx
+
+# Install script (always installs latest version)
+curl --proto '=https' --tlsv1.2 -LsSf https://raw.githubusercontent.com/portofcontext/pctx/main/install.sh | sh
 ```
 
 ## Quick Start
@@ -73,12 +65,11 @@ This example reduces the token usage from 150,000 tokens to 2,000 tokens leading
 - **Upstream MCP server aggregation**: Connect to multiple MCP servers through a single gateway. See [Upstream MCP Servers Guide](docs/upstream-mcp-servers.md).
 - **Secure authentication**: OAuth 2.1, environment variables, system keychain, and external commands. See [Authentication Guide](docs/mcp-auth.md).
 
-
 ### Architecture
 
 ```
        ┌─────────────────────────────────┐
-       │      AI Agents (Any LLM)        │
+       │      AI Agents (Bring any LLM)  │
        └────────────┬────────────────────┘
                     │ MCP Protocol
        ┌────────────▼────────────────────┐
@@ -95,15 +86,15 @@ This example reduces the token usage from 150,000 tokens to 2,000 tokens leading
        │GDrive│Slack │GitHub│Custom│
        └──────┴──────┴──────┴──────┘
 
-       Runs locally • in docker • any cloud
+       Run locally • in docker • any cloud
 ```
 
 
 ### Security
 
-- Code runs in an isolated [Deno](https://deno.com) sandbox that can only access the network hosts specified in the configuration file.
+- LLM generated code runs in an isolated [Deno](https://deno.com) sandbox that can only access the network hosts specified in the configuration file.
 - No filesystem, environment, network (beyond allowed hosts), or system access.
-- MCP clients are authenticated. LLMs cannot view the auth.
+- MCP clients are authenticated. LLMs cannot access auth.
 
 
 ## Learn More
