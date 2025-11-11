@@ -62,15 +62,11 @@ impl Cli {
 #[command(styles=utils::styles::get_styles())]
 pub enum Commands {
     /// List MCP servers and test connections
-    #[command(
-        long_about = "Lists configured MCP servers and tests the connection to each."
-    )]
+    #[command(long_about = "Lists configured MCP servers and tests the connection to each.")]
     List(ListCmd),
 
     /// Add an MCP server to configuration
-    #[command(
-        long_about = "Add a new MCP server to the configuration."
-    )]
+    #[command(long_about = "Add a new MCP server to the configuration.")]
     Add(AddCmd),
 
     /// Remove an MCP server from configuration
@@ -78,9 +74,7 @@ pub enum Commands {
     Remove(RemoveCmd),
 
     /// Start the PCTX gateway server
-    #[command(
-        long_about = "Start the PCTX gateway server (exposes /mcp endpoint)."
-    )]
+    #[command(long_about = "Start the PCTX gateway server (exposes /mcp endpoint).")]
     Start(StartCmd),
 
     /// Initialize configuration file
