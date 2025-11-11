@@ -2,7 +2,7 @@
   <img src=".github/assets/logo.png" alt="PCTX Logo" style="height: 128px">
   <h1>pctx</h1>
 
-[![Made by Port of Context](https://img.shields.io/badge/MADE%20BY-Port%20of%20Context-1e40af.svg?style=for-the-badge&labelColor=0c4a6e)](https://portofcontext.com)
+[![Made by Sideko](https://img.shields.io/badge/CLI%20FOR-Port%20of%20Context-1e40af.svg?style=for-the-badge&labelColor=0c4a6e)](https://portofcontext.com)
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/portofcontext/pctx/blob/main/LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.89%2B-blue.svg)](https://www.rust-lang.org)
@@ -45,7 +45,7 @@ pctx start
 
 ## What is pctx?
 
-`pctx` is an MCP gateway that sits between AI agents and MCP servers. It aggregates multiple upstream MCP servers, handles authentication, and exposes tools through a unified Code Mode interface. Instead of agents managing connections to individual MCP servers, they connect once to pctx.
+`pctx` sits between AI agents and MCP servers. It aggregates multiple upstream MCP servers, handles authentication, and exposes tools through a unified Code Mode interface. Instead of agents managing connections to individual MCP servers, they connect once to pctx.
 
 ## What is Code Mode?
 
@@ -68,19 +68,13 @@ console.log(`Found ${orders.length} orders`);
 
 **Result:** 98.7% reduction in tokens (150k → 2k) for this multi-step operation.
 
-####  Why this architecture:
-- **On-demand loading**: Only load tools needed for the current tasks
-- **Reduced token usage**: Intermediate data stays in the execution environment
-- **Native control flow**: Loops, conditionals, and error handling without round-trips
-
-
 ## Features
 
 - **Code mode interface**: Tools exposed as TypeScript functions for efficient agent interaction. See [Code Mode Guide](docs/code-mode.md).
 - **Upstream MCP server aggregation**: Connect to multiple MCP servers through a single gateway. See [Upstream MCP Servers Guide](docs/upstream-mcp-servers.md).
 - **Secure authentication**: OAuth, environment variables, system keychain, and external commands. See [Authentication Guide](docs/mcp-auth.md).
 
-### Architecture
+## Architecture
 
 ```
     Runs locally • in docker • any cloud
@@ -122,7 +116,7 @@ console.log(`Found ${orders.length} orders`);
 ```
 
 
-### Security
+## Security
 
 - LLM generated code runs in an isolated [Deno](https://deno.com) sandbox that can only access the network hosts specified in the configuration file.
 - No filesystem, environment, network (beyond allowed hosts), or system access.
