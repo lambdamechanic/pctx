@@ -101,3 +101,10 @@ typegen_test!(
     test_additional_properties,
     include_str!("./fixtures/typegen/additional_properties.yml")
 );
+
+typegen_test!(test_any, include_str!("./fixtures/typegen/any.yml"));
+typegen_test!(test_enum, include_str!("./fixtures/typegen/enum.yml"));
+typegen_test!(
+    test_optional_vs_nullable,
+    include_str!("./fixtures/typegen/optional_vs_nullable.yml")
+);

@@ -1,0 +1,11 @@
+---
+source: crates/codegen/tests/typegen.rs
+expression: "&typegen_res.types"
+---
+export type OptionalVsNullable = {
+  optional?: string | undefined;
+
+  required_nullable: string | null;
+
+  optional_nullable?: string | null | undefined;
+};

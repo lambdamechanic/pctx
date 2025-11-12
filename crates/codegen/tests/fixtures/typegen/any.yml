@@ -1,0 +1,28 @@
+schema:
+  type: object
+  required:
+    - required_any
+  properties:
+    required_any: {}
+    optional_any: {}
+
+tests:
+  valid:
+    - id: objects
+      value:
+        required_any:
+          foo: bar
+          fizz: buzz
+        optional_any:
+          bar: foo
+          buzz: fizz
+    - id: primitives
+      value:
+        required_any: hello world
+        optional_any: 123
+    - id: required-only
+      value:
+        required_any: true
+  invalid:
+    - id: missing-required
+      value: {}
