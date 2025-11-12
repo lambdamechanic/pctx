@@ -17,7 +17,7 @@ The open source framework to connect AI agents to tools and services with [code 
 
 </div>
 
-## Pick installation method
+## Install
 
 ```bash
 # Homebrew
@@ -26,7 +26,8 @@ brew install portofcontext/tap/pctx
 # Curl
 curl --proto '=https' --tlsv1.2 -LsSf https://raw.githubusercontent.com/portofcontext/pctx/main/install.sh | sh
 
-# npm and crates.io coming soon
+# NPM
+npm i -g @portofcontext/pctx
 ```
 
 ## Quick Start
@@ -47,7 +48,7 @@ For complete CLI documentation, see [CLI.md](docs/CLI.md).
 
 ## What is pctx?
 
-`pctx` sits between AI agents and MCP servers. It aggregates multiple upstream MCP servers, handles authentication, and exposes tools through a unified Code Mode interface. Instead of agents managing connections to individual MCP servers, they connect once to pctx.
+`pctx` sits between AI agents and MCP servers. It aggregates multiple upstream MCP servers, handles authentication, and exposes tools through a unified [Code Mode](#what-is-code-mode) interface. Instead of agents managing connections to individual MCP servers, they connect once to pctx.
 
 ## What is Code Mode?
 
@@ -120,7 +121,7 @@ console.log(`Found ${orders.length} orders`);
 
 - LLM generated code runs in an isolated [Deno](https://deno.com) sandbox that can only access the network hosts specified in the configuration file.
 - No filesystem, environment, network (beyond allowed hosts), or system access.
-- MCP clients are authenticated. LLMs cannot access auth.
+- MCP clients are authenticated in pctx. LLMs can never see your auth.
 
 
 ## Learn More

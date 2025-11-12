@@ -33,11 +33,10 @@ assignees: ''
 - OS: <!-- e.g., Ubuntu 22.04, macOS 14.2, Windows 11 -->
 - Architecture: <!-- e.g., x86_64, aarch64 -->
 - pctx version: <!-- Run `pctx --version` -->
-- Rust version: <!-- Run `rustc --version` (if building from source) -->
 - Installation method: <!-- e.g., Homebrew, npm, shell installer, cargo -->
 
 **Configuration:**
-<!-- If relevant, provide your pctx configuration (remove sensitive data) -->
+<!-- If relevant, provide your pctx configuration -->
 
 ```toml
 # Paste relevant configuration here
