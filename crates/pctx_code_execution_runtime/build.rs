@@ -16,17 +16,16 @@ use deno_core::snapshot::create_snapshot;
 use deno_error::JsErrorClass;
 use deno_error::PropertyValue;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct MCPServerConfig {
-    name: String,
-    url: String,
-}
+use pctx_config::server::ServerConfig;
+use rmcp::model::JsonObject;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct CallMCPToolArgs {
-    name: String,
-    tool: String,
-    arguments: Option<serde_json::Value>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct CallMCPToolArgs {
+    pub name: String,
+    pub tool: String,
+    #[serde(default)]
+    pub arguments: Option<JsonObject>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -56,7 +55,7 @@ impl JsErrorClass for McpError {
 /// Register an MCP server (stub)
 #[deno_core::op2]
 #[serde]
-fn op_register_mcp(_state: &mut OpState, #[serde] _config: MCPServerConfig) {}
+fn op_register_mcp(_state: &mut OpState, #[serde] _config: ServerConfig) {}
 
 /// Call an MCP tool (async stub)
 #[deno_core::op2(async)]
@@ -75,7 +74,7 @@ fn op_mcp_has(_state: &mut OpState, #[string] _name: String) -> bool {
 /// Get an MCP server configuration (stub)
 #[deno_core::op2]
 #[serde]
-fn op_mcp_get(_state: &mut OpState, #[string] _name: String) -> Option<MCPServerConfig> {
+fn op_mcp_get(_state: &mut OpState, #[string] _name: String) -> Option<ServerConfig> {
     None
 }
 

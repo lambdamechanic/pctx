@@ -47,17 +47,6 @@ let registry = MCPRegistry::new();
 // Pass to extension initializer
 ```
 
-#### `MCPServerConfig`
-
-Configuration for an MCP server.
-
-```rust
-pub struct MCPServerConfig {
-    pub name: String,
-    pub url: String,
-}
-```
-
 #### `AllowedHosts`
 
 Whitelist of hosts allowed for network access.
@@ -139,7 +128,6 @@ let code = r#"
 runtime.execute_script("<permissions>", code)?;
 ```
 
-
 ## Security
 
 ### Network Access
@@ -167,35 +155,6 @@ runtime.execute_script("<permissions>", code)?;
 - **MCP Operations**: Native Rust performance
 - **Console Capture**: Minimal overhead (~1% per log)
 
-## TypeScript Definitions
-
-The runtime provides full TypeScript type definitions:
-
-```typescript
-interface MCPServerConfig {
-    name: string;
-    url: string;
-}
-
-interface MCPToolCall {
-    name: string;
-    tool: string;
-    arguments?: any;
-}
-
-declare function registerMCP(config: MCPServerConfig): void;
-declare function callMCPTool<T = any>(call: MCPToolCall): Promise<T>;
-
-declare const REGISTRY: {
-    has(name: string): boolean;
-    get(name: string): MCPServerConfig | undefined;
-    delete(name: string): boolean;
-    clear(): void;
-};
-
-declare function fetch(url: string, init?: any): Promise<Response>;
-```
-
 ## License
 
 MIT
@@ -203,6 +162,7 @@ MIT
 ## Contributing
 
 Contributions welcome! Please ensure:
+
 - All tests pass: `cargo test --package pctx_runtime`
 - Code is formatted: `cargo fmt`
 - Documentation is updated
