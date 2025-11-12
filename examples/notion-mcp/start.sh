@@ -44,7 +44,7 @@ echo "Notion MCP server is ready!"
 export NOTION_MCP_AUTH_TOKEN="${NOTION_AUTH_TOKEN}"
 
 echo "Starting pctx on port ${PCTX_PORT}..."
-pctx --config /app/pctx.json start --port ${PCTX_PORT} --host 0.0.0.0 > >(tee -a "$NOTION_LOG") 2>&1 &
+pctx --config app/pctx.json start --port ${PCTX_PORT} --host 0.0.0.0 > >(tee -a "$NOTION_LOG") 2>&1 &
 PCTX_PID=$!
 
 # Keep tailing the log

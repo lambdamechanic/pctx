@@ -22,6 +22,7 @@ declare namespace Deno {
 interface MCPServerConfig {
   name: string;
   url: string;
+  auth?: any;
 }
 
 interface MCPToolCall {
@@ -202,13 +203,18 @@ function typeCheckCode(code) {
       getSourceFile: (fileName, languageVersion) => {
         const sourceText = files.get(fileName);
         if (sourceText !== undefined) {
-          return ts.createSourceFile(fileName, sourceText, languageVersion, true);
+          return ts.createSourceFile(
+            fileName,
+            sourceText,
+            languageVersion,
+            true,
+          );
         }
         // Return undefined for files we don't have
         return undefined;
       },
       getDefaultLibFileName: () => "lib.es.d.ts",
-      writeFile: () => { },
+      writeFile: () => {},
       getCurrentDirectory: () => "/",
       getDirectories: () => [],
       fileExists: (fileName) => files.has(fileName),
@@ -250,14 +256,23 @@ function typeCheckCode(code) {
       if (diagnostic.code === 7006) continue; // "Parameter implicitly has an 'any' type"
       if (diagnostic.code === 7053) continue; // "Element implicitly has an 'any' type" (dynamic object access)
       if (diagnostic.code === 18046) continue; // "'e' is of type 'unknown'"
-      if (diagnostic.code === 2304 && diagnostic.messageText.toString().includes("console")) continue;
+      if (
+        diagnostic.code === 2304 &&
+        diagnostic.messageText.toString().includes("console")
+      )
+        continue;
 
-      let message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
+      let message = ts.flattenDiagnosticMessageText(
+        diagnostic.messageText,
+        "\n",
+      );
       let line = undefined;
       let column = undefined;
 
       if (diagnostic.file && diagnostic.start !== undefined) {
-        const pos = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
+        const pos = diagnostic.file.getLineAndCharacterOfPosition(
+          diagnostic.start,
+        );
         line = pos.line + 1;
         column = pos.character + 1;
       }
@@ -266,7 +281,10 @@ function typeCheckCode(code) {
         message,
         line,
         column,
-        severity: diagnostic.category === ts.DiagnosticCategory.Error ? "error" : "warning",
+        severity:
+          diagnostic.category === ts.DiagnosticCategory.Error
+            ? "error"
+            : "warning",
         code: diagnostic.code,
       });
     }
