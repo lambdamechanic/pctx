@@ -96,3 +96,8 @@ typegen_test!(
     test_union_any_of,
     include_str!("./fixtures/typegen/union_any_of.yml")
 );
+
+typegen_test!(
+    test_additional_properties,
+    include_str!("./fixtures/typegen/additional_properties.yml")
+);

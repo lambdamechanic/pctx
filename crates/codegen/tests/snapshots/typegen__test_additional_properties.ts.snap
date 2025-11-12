@@ -1,0 +1,47 @@
+---
+source: crates/codegen/tests/typegen.rs
+expression: "&typegen_res.types"
+---
+export type AdditionalProperties = {
+  any_additional_props: AdditionalPropertiesAnyAdditionalProps;
+
+  obj_additional_props: AdditionalPropertiesObjAdditionalProps;
+
+  string_additional_props: AdditionalPropertiesStringAdditionalProps;
+};
+
+export type AdditionalPropertiesAnyAdditionalProps = {
+  foo: string;
+
+  // Additional property types must also accommodate all defined properties if present (typescript limitation)
+  // In reality all additional properties should only have type ``
+  // (there might be some duplication here)
+  [additionalProperty: string]: string | any | undefined;
+};
+
+export type AdditionalPropertiesObjAdditionalProps = {
+  foo: string;
+
+  // Additional property types must also accommodate all defined properties if present (typescript limitation)
+  // In reality all additional properties should only have type ``
+  // (there might be some duplication here)
+  [additionalProperty: string]:
+    | string
+    | AdditionalPropertiesObjAdditionalPropsAdditionalProps
+    | undefined;
+};
+
+export type AdditionalPropertiesObjAdditionalPropsAdditionalProps = {
+  fizz: string;
+
+  buzz: number;
+};
+
+export type AdditionalPropertiesStringAdditionalProps = {
+  foo: string;
+
+  // Additional property types must also accommodate all defined properties if present (typescript limitation)
+  // In reality all additional properties should only have type ``
+  // (there might be some duplication here)
+  [additionalProperty: string]: string | string | undefined;
+};

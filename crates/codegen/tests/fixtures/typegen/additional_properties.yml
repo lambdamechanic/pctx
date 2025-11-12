@@ -1,0 +1,172 @@
+schema:
+  type: object
+  required:
+    - any_additional_props
+    - obj_additional_props
+    - string_additional_props
+  properties:
+    any_additional_props:
+      type: object
+      required:
+        - foo
+      properties:
+        foo:
+          type: string
+      additionalProperties: true
+    obj_additional_props:
+      type: object
+      required:
+        - foo
+      properties:
+        foo:
+          type: string
+      additionalProperties:
+        type: object
+        required:
+          - fizz
+          - buzz
+        properties:
+          fizz:
+            type: string
+          buzz:
+            type: number
+    string_additional_props:
+      type: object
+      required:
+        - foo
+      properties:
+        foo:
+          type: string
+      additionalProperties:
+        type: string
+tests:
+  valid:
+    - id: no-additional-props
+      value:
+        any_additional_props:
+          foo: bar
+        obj_additional_props:
+          foo: bar
+        string_additional_props:
+          foo: bar
+    - id: with-additional-props
+      value:
+        any_additional_props:
+          foo: bar
+          first_additional: true
+          second_additional: fizzbuzz
+          third_additional: [1, 2, 3]
+        obj_additional_props:
+          foo: bar
+          first_additional:
+            fizz: one
+            buzz: 1
+          second_additional:
+            fizz: two
+            buzz: 2
+          third_additional:
+            fizz: three
+            buzz: 3
+        string_additional_props:
+          foo: bar
+          first_additional: first
+          second_additional: second
+          third_additional: third
+  invalid:
+    - id: obj-additional-props-wrong-type-number
+      value:
+        any_additional_props:
+          foo: bar
+        obj_additional_props:
+          foo: bar
+          invalid_prop: 123
+        string_additional_props:
+          foo: bar
+
+    - id: obj-additional-props-missing-fizz
+      value:
+        any_additional_props:
+          foo: bar
+        obj_additional_props:
+          foo: bar
+          invalid_prop:
+            buzz: 42
+        string_additional_props:
+          foo: bar
+
+    - id: obj-additional-props-missing-buzz
+      value:
+        any_additional_props:
+          foo: bar
+        obj_additional_props:
+          foo: bar
+          invalid_prop:
+            fizz: value
+        string_additional_props:
+          foo: bar
+
+    - id: obj-additional-props-wrong-fizz-type
+      value:
+        any_additional_props:
+          foo: bar
+        obj_additional_props:
+          foo: bar
+          invalid_prop:
+            fizz: 123
+            buzz: 42
+        string_additional_props:
+          foo: bar
+
+    - id: obj-additional-props-wrong-buzz-type
+      value:
+        any_additional_props:
+          foo: bar
+        obj_additional_props:
+          foo: bar
+          invalid_prop:
+            fizz: value
+            buzz: "should be number"
+        string_additional_props:
+          foo: bar
+
+    # Wrong types for additional properties in string_additional_props
+    - id: string-additional-props-wrong-type-number
+      value:
+        any_additional_props:
+          foo: bar
+        obj_additional_props:
+          foo: bar
+        string_additional_props:
+          foo: bar
+          invalid_prop: 123
+
+    - id: string-additional-props-wrong-type-boolean
+      value:
+        any_additional_props:
+          foo: bar
+        obj_additional_props:
+          foo: bar
+        string_additional_props:
+          foo: bar
+          invalid_prop: true
+
+    - id: string-additional-props-wrong-type-object
+      value:
+        any_additional_props:
+          foo: bar
+        obj_additional_props:
+          foo: bar
+        string_additional_props:
+          foo: bar
+          invalid_prop:
+            nested: object
+
+    - id: string-additional-props-wrong-type-array
+      value:
+        any_additional_props:
+          foo: bar
+        obj_additional_props:
+          foo: bar
+        string_additional_props:
+          foo: bar
+          invalid_prop: [1, 2, 3]
