@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED] - YYYY-MM-DD
 
+### Added
+
+- `pctx add` now accepts `--headers` and `--bearer` to add authentication without interaction
+
 ## [0.1.2] - 2025-12-10
 
 ### Fixed

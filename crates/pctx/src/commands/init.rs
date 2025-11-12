@@ -76,6 +76,8 @@ impl InitCmd {
                     name: name.clone(),
                     url: url.parse()?,
                     force: false,
+                    bearer: None,
+                    headers: None,
                 };
                 cfg = add_cmd.handle(cfg, false).await?;
                 info!(
