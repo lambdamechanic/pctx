@@ -1,0 +1,177 @@
+schema:
+  type: object
+  properties:
+    direct:
+      $ref: "#/$defs/DirectCircularRef"
+    two_node:
+      $ref: "#/$defs/TwoNode1"
+    three_node:
+      $ref: "#/$defs/ThreeNode1"
+
+  "$defs":
+    DirectCircularRef:
+      description: object with direct circular references
+      type: object
+      required:
+        - self_ref_array
+        - self_ref_array_nullable
+        - self_ref_any_of_nullable
+        - self_ref_one_of_nullable
+      properties:
+        self_ref_array:
+          type: array
+          description: array of myself
+          items:
+            $ref: "#/$defs/DirectCircularRef"
+        self_ref_array_nullable:
+          type: [array, "null"]
+          description: array of myself that can be null
+          items:
+            $ref: "#/$defs/DirectCircularRef"
+        self_ref_any_of_nullable:
+          description: myself that can be null using the anyOf strategy
+          anyOf:
+            - type: "null"
+            - $ref: "#/$defs/DirectCircularRef"
+        self_ref_one_of_nullable:
+          description: myself that can be null using the oneOf strategy
+          oneOf:
+            - type: "null"
+            - $ref: "#/$defs/DirectCircularRef"
+        self_ref_optional:
+          description: myself that can be undefined
+          $ref: "#/$defs/DirectCircularRef"
+        self_ref_patch:
+          description: myself that can be null or undefined
+          oneOf:
+            - type: "null"
+            - $ref: "#/$defs/DirectCircularRef"
+
+    TwoNode1:
+      type: object
+      required:
+        - first_foo
+        - second
+      properties:
+        first_foo:
+          type: string
+        second:
+          $ref: "#/$defs/TwoNode2"
+    TwoNode2:
+      type: object
+      required:
+        - second_foo
+        - first
+      properties:
+        second_foo:
+          type: string
+        first:
+          type: array
+          items: # arrays to break the infinite loop
+            $ref: "#/$defs/TwoNode1"
+
+    ThreeNode1:
+      type: object
+      required:
+        - first_foo
+        - second
+      properties:
+        first_foo:
+          type: string
+        second:
+          $ref: "#/$defs/ThreeNode2"
+    ThreeNode2:
+      type: object
+      required:
+        - second_foo
+        - third
+      properties:
+        second_foo:
+          type: string
+        third:
+          $ref: "#/$defs/ThreeNode3"
+    ThreeNode3:
+      type: object
+      required:
+        - third_foo
+      properties:
+        third_foo:
+          type: string
+        first: # optional to break the infinite loop
+          $ref: "#/$defs/ThreeNode1"
+
+tests:
+  valid:
+    - id: direct-array
+      value:
+        direct:
+          self_ref_array: []
+          self_ref_array_nullable: null
+          self_ref_any_of_nullable: null
+          self_ref_one_of_nullable: null
+    - id: direct-array_nullable
+      value:
+        direct:
+          self_ref_array: []
+          self_ref_array_nullable: null
+          self_ref_any_of_nullable: null
+          self_ref_one_of_nullable: null
+    - id: direct-any_of_nullable
+      value:
+        direct:
+          self_ref_array: []
+          self_ref_array_nullable: null
+          self_ref_any_of_nullable: null
+          self_ref_one_of_nullable: null
+    - id: direct-one_of_nullable
+      value:
+        direct:
+          self_ref_array: []
+          self_ref_array_nullable: null
+          self_ref_any_of_nullable: null
+          self_ref_one_of_nullable: null
+    - id: direct-optional
+      value:
+        direct:
+          self_ref_array: []
+          self_ref_array_nullable: null
+          self_ref_any_of_nullable: null
+          self_ref_one_of_nullable: null
+    - id: direct-patch
+      value:
+        direct:
+          self_ref_array: []
+          self_ref_array_nullable: null
+          self_ref_any_of_nullable: null
+          self_ref_one_of_nullable: null
+    - id: 2-node-single-loop
+      value:
+        two_node:
+          first_foo: bar
+          second:
+            second_foo: bar
+            first:
+              - first_foo: bar2
+                second:
+                  second_foo: bar2
+                  first: []
+    - id: 3-node-two-loops
+      value:
+        three_node:
+          first_foo: bar_0
+          second:
+            second_foo: bar_0
+            third:
+              third_foo: bar_0
+              first:
+                first_foo: bar_1
+                second:
+                  second_foo: bar_1
+                  third:
+                    third_foo: bar_1
+                    first:
+                      first_foo: bar_2
+                      second:
+                        second_foo: bar_2
+                        third:
+                          third_foo: bar_2

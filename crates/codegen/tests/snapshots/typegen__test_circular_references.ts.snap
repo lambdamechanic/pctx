@@ -1,0 +1,77 @@
+---
+source: crates/codegen/tests/typegen.rs
+expression: "&typegen_res.types"
+---
+export type CircularReferences = {
+  /**
+   * object with direct circular references
+   */
+  direct?: CircularReferencesDirectCircularRef | undefined | undefined;
+
+  two_node?: CircularReferencesTwoNode1 | undefined | undefined;
+
+  three_node?: CircularReferencesThreeNode1 | undefined | undefined;
+};
+
+/**
+ * object with direct circular references
+ */
+export type CircularReferencesDirectCircularRef = {
+  /**
+   * array of myself
+   */
+  self_ref_array: CircularReferencesDirectCircularRef[];
+  /**
+   * array of myself that can be null
+   */
+  self_ref_array_nullable: CircularReferencesDirectCircularRef[] | null;
+  /**
+   * myself that can be null using the anyOf strategy
+   */
+  self_ref_any_of_nullable: CircularReferencesDirectCircularRef | null;
+  /**
+   * myself that can be null using the oneOf strategy
+   */
+  self_ref_one_of_nullable: CircularReferencesDirectCircularRef | null;
+  /**
+   * myself that can be undefined
+   */
+  self_ref_optional?:
+    | CircularReferencesDirectCircularRef
+    | undefined
+    | undefined;
+  /**
+   * myself that can be null or undefined
+   */
+  self_ref_patch?: CircularReferencesDirectCircularRef | null | undefined;
+};
+
+export type CircularReferencesTwoNode1 = {
+  first_foo: string;
+
+  second: CircularReferencesTwoNode2;
+};
+
+export type CircularReferencesTwoNode2 = {
+  second_foo: string;
+
+  first: CircularReferencesTwoNode1[];
+};
+
+export type CircularReferencesThreeNode1 = {
+  first_foo: string;
+
+  second: CircularReferencesThreeNode2;
+};
+
+export type CircularReferencesThreeNode2 = {
+  second_foo: string;
+
+  third: CircularReferencesThreeNode3;
+};
+
+export type CircularReferencesThreeNode3 = {
+  third_foo: string;
+
+  first?: CircularReferencesThreeNode1 | undefined | undefined;
+};

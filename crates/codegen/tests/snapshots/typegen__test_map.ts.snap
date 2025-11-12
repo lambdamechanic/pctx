@@ -1,0 +1,35 @@
+---
+source: crates/codegen/tests/typegen.rs
+expression: "&typegen_res.types"
+---
+export type Map = {
+  /**
+   * object with no defined properties should create a map of str -> any
+   */
+  empty_object: { [key: string]: any | undefined };
+  /**
+   * object with no defined properties & defined additionalProps should create a map of str -> any
+   */
+  map_any: { [key: string]: any | undefined };
+  /**
+   * object with no defined properties & defined additionalProps (int) should create a map of str -> int
+   */
+  map_int: { [key: string]: number | undefined };
+  /**
+   * object with no defined properties & defined additionalProps (object) should create a map of str -> ComplexObject
+   */
+  map_complex: { [key: string]: MapMapComplex | undefined };
+
+  map_optional_nullable?:
+    | { [key: string]: number | undefined }
+    | null
+    | undefined;
+};
+
+export type MapMapComplex = {
+  my_int: number;
+
+  my_str: string;
+
+  my_arr: string[];
+};

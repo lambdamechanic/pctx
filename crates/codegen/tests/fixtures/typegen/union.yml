@@ -1,0 +1,123 @@
+schema:
+  type: object
+  properties:
+    one_of:
+      description: union using the oneOf key
+      oneOf:
+        - type: string
+        - type: number
+        - $ref: "#/$defs/FooBar"
+        - $ref: "#/$defs/FizzBuzz"
+    any_of:
+      description: union using the anyOf key
+      anyOf:
+        - type: string
+        - type: number
+        - $ref: "#/$defs/FooBar"
+        - $ref: "#/$defs/FizzBuzz"
+    type_array:
+      description: union of primitives using type key
+      type:
+        - string
+        - integer
+        - number
+        - boolean
+  "$defs":
+    FooBar:
+      type: object
+      required:
+        - foo
+        - bar
+      properties:
+        foo:
+          type: array
+          items:
+            type: integer
+        bar:
+          type: boolean
+    FizzBuzz:
+      type: object
+      required:
+        - fizz
+      properties:
+        fizz:
+          type: string
+        buzz:
+          type: integer
+
+tests:
+  valid:
+    - id: one-of-string
+      value:
+        one_of: string value
+    - id: one-of-number
+      value:
+        one_of: 123
+    - id: one-of-foobar
+      value:
+        one_of:
+          foo: [1, 2, 3]
+          bar: true
+    - id: one-of-fizzbuzz-all
+      value:
+        one_of:
+          fizz: bubbles
+          buzz: 987
+    - id: one-of-fizzbuzz-required
+      value:
+        one_of:
+          fizz: tea
+    - id: any-of-string
+      value:
+        any_of: string value
+    - id: any-of-number
+      value:
+        any_of: 123
+    - id: any-of-foobar
+      value:
+        any_of:
+          foo: [1, 2, 3]
+          bar: true
+    - id: any-of-fizzbuzz-all
+      value:
+        any_of:
+          fizz: bubbles
+          buzz: 987
+    - id: any-of-fizzbuzz-required
+      value:
+        any_of:
+          fizz: tea
+    - id: type-array-string
+      value:
+        type_array: string value
+    - id: type-array-integer
+      value:
+        type_array: 12
+    - id: type-array-number
+      value:
+        type_array: 1.2
+    - id: type-array-boolean
+      value:
+        type_array: false
+  invalid:
+    - id: one-of-boolean
+      value:
+        one_of: true
+    - id: one-of-object
+      value:
+        one_of:
+          boo: abc
+          hoo: 123
+    - id: any-of-boolean
+      value:
+        any_of: true
+    - id: any-of-object
+      value:
+        any_of:
+          boo: abc
+          hoo: 123
+    - id: type-array-array
+      value:
+        type_array:
+          - foo
+          - bar

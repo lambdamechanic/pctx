@@ -78,33 +78,23 @@ typegen_test!(
     test_basic_required,
     include_str!("./fixtures/typegen/basic_required.yml")
 );
-
 typegen_test!(
     test_basic_optional,
     include_str!("./fixtures/typegen/basic_optional.yml")
 );
-
-typegen_test!(
-    test_union_type_array,
-    include_str!("./fixtures/typegen/union_type_array.yml")
-);
-typegen_test!(
-    test_union_one_of,
-    include_str!("./fixtures/typegen/union_one_of.yml")
-);
-typegen_test!(
-    test_union_any_of,
-    include_str!("./fixtures/typegen/union_any_of.yml")
-);
-
+typegen_test!(test_union, include_str!("./fixtures/typegen/union.yml"));
 typegen_test!(
     test_additional_properties,
     include_str!("./fixtures/typegen/additional_properties.yml")
 );
-
 typegen_test!(test_any, include_str!("./fixtures/typegen/any.yml"));
 typegen_test!(test_enum, include_str!("./fixtures/typegen/enum.yml"));
+typegen_test!(test_map, include_str!("./fixtures/typegen/map.yml"));
 typegen_test!(
     test_optional_vs_nullable,
     include_str!("./fixtures/typegen/optional_vs_nullable.yml")
+);
+typegen_test!(
+    test_circular_references,
+    include_str!("./fixtures/typegen/circular_references.yml")
 );
