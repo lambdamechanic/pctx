@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED] - YYYY-MM-DD
 
+### Added
+
+- `pctx add` now accepts `--header` and `--bearer` to add authentication without interaction
+
+### Fixed
+
+- Catch user cancellations when adding MCP servers in `pctx init`
+
 ## [0.1.2] - 2025-12-10
 
 ### Fixed

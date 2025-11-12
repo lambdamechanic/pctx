@@ -1,15 +1,20 @@
+use std::str::FromStr;
+
 use anyhow::Result;
-use async_recursion::async_recursion;
 use clap::Parser;
 use log::info;
 
-use crate::utils::{
-    prompts,
-    spinner::Spinner,
-    styles::{fmt_bold, fmt_dimmed, fmt_success},
+use crate::{
+    commands::USER_CANCELLED,
+    utils::{
+        prompts,
+        spinner::Spinner,
+        styles::{fmt_bold, fmt_dimmed, fmt_success},
+    },
 };
 use pctx_config::{
     Config,
+    auth::{AuthConfig, SecretString},
     server::{McpConnectionError, ServerConfig},
 };
 
@@ -21,6 +26,21 @@ pub struct AddCmd {
     /// HTTP(S) URL of the MCP server endpoint
     pub url: url::Url,
 
+    /// use bearer authentication to connect to MCP server
+    /// using PCTX's secret string syntax.
+    ///
+    /// e.g. `--bearer '${env:BEARER_TOKEN}'`
+    #[arg(long, short, conflicts_with = "header")]
+    pub bearer: Option<SecretString>,
+
+    /// use custom headers to connect to MCP server
+    /// using PCTX's secret string syntax. Many headers can
+    /// be defined.
+    ///
+    /// e.g. `--headers 'x-api-key: ${keychain:API_KEY}'`
+    #[arg(long, short = 'H')]
+    pub header: Option<Vec<ClapHeader>>,
+
     /// Overrides any existing server under the same name &
     /// skips testing connection to the MCP server
     #[arg(long, short)]
@@ -29,13 +49,88 @@ pub struct AddCmd {
 
 impl AddCmd {
     pub(crate) async fn handle(&self, mut cfg: Config, save: bool) -> Result<Config> {
-        let mut server_cfg = ServerConfig::new(self.name.clone(), self.url.clone());
+        let mut server = ServerConfig::new(self.name.clone(), self.url.clone());
 
-        if !self.force {
-            server_cfg = try_connection(server_cfg, true).await?;
+        // check for name clash
+        if cfg.servers.iter().any(|s| s.name == server.name) {
+            let re_add = self.force
+                || inquire::Confirm::new(&format!(
+                    "{} already exists, overwrite it?",
+                    fmt_bold(&server.name)
+                ))
+                .with_default(false)
+                .prompt()?;
+
+            if !re_add {
+                anyhow::bail!(USER_CANCELLED)
+            }
         }
 
-        cfg.add_server(server_cfg, self.force)?;
+        // apply authentication (clap ensures bearer & header are mutually exclusive)
+        server.auth = if let Some(bearer) = &self.bearer {
+            Some(AuthConfig::Bearer {
+                token: bearer.clone(),
+            })
+        } else if let Some(headers) = &self.header {
+            Some(AuthConfig::Custom {
+                headers: headers
+                    .iter()
+                    .map(|h| (h.name.clone(), h.value.clone()))
+                    .collect(),
+            })
+        } else {
+            let add_auth =
+                inquire::Confirm::new("Do you want to add authentication interactively?")
+                    .with_default(false)
+                    .with_help_message(
+                        "you can also manually update the auth configuration later in the config",
+                    );
+            if !self.force && add_auth.prompt()? {
+                Some(prompts::prompt_auth(&server.name)?)
+            } else {
+                None
+            }
+        };
+
+        // try connection
+        if !self.force {
+            let mut sp = Spinner::new("Testing MCP connection...");
+            let connected = match server.connect().await {
+                Ok(client) => {
+                    sp.stop_success("Successfully connected");
+                    client.cancel().await?;
+                    true
+                }
+                Err(McpConnectionError::RequiresAuth) => {
+                    sp.stop_and_persist(
+                        "🔒",
+                        if server.auth.is_none() {
+                            "MCP requires authentication"
+                        } else {
+                            "Invalid authentication"
+                        },
+                    );
+                    false
+                }
+                Err(McpConnectionError::Failed(msg)) => {
+                    sp.stop_error(msg);
+                    false
+                }
+            };
+
+            if !connected {
+                let add_anyway = inquire::Confirm::new(
+                    "Do you still want to add the MCP server with the current settings?",
+                )
+                .with_default(false)
+                .prompt()?;
+                if !add_anyway {
+                    anyhow::bail!(USER_CANCELLED)
+                }
+            }
+        }
+
+        cfg.add_server(server);
 
         if save {
             cfg.save()?;
@@ -53,54 +148,45 @@ impl AddCmd {
     }
 }
 
-#[async_recursion]
-async fn try_connection(mut server: ServerConfig, first_attempt: bool) -> Result<ServerConfig> {
-    let mut sp = Spinner::new(if first_attempt {
-        "Testing MCP connection..."
-    } else {
-        "Retrying MCP connection..."
-    });
+/// A header in the format "Name: value" where value is a `SecretString`
+#[derive(Debug, Clone)]
+pub struct ClapHeader {
+    pub name: String,
+    pub value: SecretString,
+}
 
-    match server.connect().await {
-        Ok(client) => {
-            sp.stop_success("Successfully connected");
-            client.cancel().await?;
+impl FromStr for ClapHeader {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (mut name, mut value) = s.split_once(':').ok_or_else(|| {
+            anyhow::anyhow!("Header must be in format '<HEADER NAME>: <SECRETS STRING>'")
+        })?;
+        if name.contains("${") {
+            // edge case where the : is missing but exists in the secret string
+            name = "";
+            value = s;
         }
-        Err(McpConnectionError::RequiresAuth) => {
-            sp.stop_and_persist(
-                "🔒",
-                if first_attempt {
-                    "MCP requires authentication"
-                } else {
-                    "Invalid authentication"
-                },
+
+        let name = name.trim();
+        if name.is_empty() {
+            anyhow::bail!(
+                "Header name cannot be empty in format '<HEADER NAME>: <SECRETS STRING>'"
             );
-            let add_auth = inquire::Confirm::new(if first_attempt {
-                "Do you want to add authentication interactively?"
-            } else {
-                "Do you want to update authentication interactively?"
-            })
-            .with_default(true)
-            .with_help_message(
-                "you can also manually update the auth configuration later in the config",
-            )
-            .prompt()?;
+        }
 
-            if add_auth {
-                server.auth = Some(prompts::prompt_auth(&server.name)?);
-                return try_connection(server, false).await;
-            }
+        let value_str = value.trim();
+        if value_str.is_empty() {
+            anyhow::bail!(
+                "Header value cannot be empty in format '<HEADER NAME>: <SECRETS STRING>'"
+            );
         }
-        Err(McpConnectionError::Failed(msg)) => {
-            sp.stop_error(msg);
-            let add_anyway = inquire::Confirm::new("Do you still want to add the MCP server?")
-                .with_default(false)
-                .prompt()?;
-            if !add_anyway {
-                anyhow::bail!("User cancelled")
-            }
-        }
+
+        let value = SecretString::parse(value_str)?;
+
+        Ok(ClapHeader {
+            name: name.to_string(),
+            value,
+        })
     }
-
-    Ok(server)
 }

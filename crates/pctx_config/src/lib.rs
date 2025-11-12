@@ -81,17 +81,19 @@ impl Config {
     }
 
     /// Adds server to the config
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if a server name already exists
-    pub fn add_server(&mut self, server: ServerConfig, force: bool) -> Result<()> {
-        if !force && self.servers.iter().any(|s| s.name == server.name) {
-            anyhow::bail!("Server '{}' already exists", server.name);
-        }
+    pub fn add_server(&mut self, server: ServerConfig) -> bool {
+        let orig_len = self.servers.len();
+
+        // remove servers of matching names
+        self.servers = self
+            .servers
+            .clone()
+            .into_iter()
+            .filter(|s| s.name != server.name)
+            .collect();
 
         self.servers.push(server);
-        Ok(())
+        orig_len != self.servers.len()
     }
 
     /// Removes server from the config
