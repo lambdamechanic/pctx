@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `pctx add` now accepts `--headers` and `--bearer` to add authentication without interaction
+- `pctx add` now accepts `--header` and `--bearer` to add authentication without interaction
 
 ### Fixed
 

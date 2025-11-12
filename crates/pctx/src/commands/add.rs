@@ -30,15 +30,16 @@ pub struct AddCmd {
     /// using PCTX's secret string syntax.
     ///
     /// e.g. `--bearer '${env:BEARER_TOKEN}'`
-    #[arg(long, conflicts_with = "headers")]
+    #[arg(long, short, conflicts_with = "header")]
     pub bearer: Option<SecretString>,
 
     /// use custom headers to connect to MCP server
-    /// using PCTX's secret string syntax.
+    /// using PCTX's secret string syntax. Many headers can
+    /// be defined.
     ///
     /// e.g. `--headers 'x-api-key: ${keychain:API_KEY}'`
-    #[arg(long)]
-    pub headers: Option<Vec<ClapHeader>>,
+    #[arg(long, short = 'H')]
+    pub header: Option<Vec<ClapHeader>>,
 
     /// Overrides any existing server under the same name &
     /// skips testing connection to the MCP server
@@ -65,12 +66,12 @@ impl AddCmd {
             }
         }
 
-        // apply authentication
+        // apply authentication (clap ensures bearer & header are mutually exclusive)
         server.auth = if let Some(bearer) = &self.bearer {
             Some(AuthConfig::Bearer {
                 token: bearer.clone(),
             })
-        } else if let Some(headers) = &self.headers {
+        } else if let Some(headers) = &self.header {
             Some(AuthConfig::Custom {
                 headers: headers
                     .iter()

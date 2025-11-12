@@ -63,6 +63,12 @@ Add a new MCP server to the configuration.
 
 ###### **Options:**
 
+* `-b`, `--bearer <BEARER>` — use bearer authentication to connect to MCP server using PCTX's secret string syntax.
+
+   e.g. `--bearer '${env:BEARER_TOKEN}'`
+* `-H`, `--header <HEADER>` — use custom headers to connect to MCP server using PCTX's secret string syntax. Many headers can be defined.
+
+   e.g. `--headers 'x-api-key: ${keychain:API_KEY}'`
 * `-f`, `--force` — Overrides any existing server under the same name & skips testing connection to the MCP server
 
 
