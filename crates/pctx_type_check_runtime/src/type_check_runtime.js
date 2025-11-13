@@ -334,51 +334,15 @@ function typeCheckCode(code) {
       getNewLine: () => "\n",
     };
 
-    // Create a program with balanced type checking options for LLM-generated code
+    // TODO: more granular control over type check strictness
     const program = ts.createProgram({
       rootNames: [fileName, "lib.es.d.ts", "lib.deno.d.ts"],
       options: {
-        // Target ES2020 for modern JavaScript features (async/await, optional chaining, etc.)
         target: ts.ScriptTarget.ES2020,
-
-        // Use ES2020 modules (import/export syntax)
         module: ts.ModuleKind.ES2020,
-
-        // STRICT NULL CHECKS: TRUE - Catch real bugs
-        // Prevents passing null to non-nullable fields, forces handling of null/undefined
-        // Example: function(x: string) - rejects null, function(x: string | null) - accepts null
-        strictNullChecks: true,
-
-        // STRICT FUNCTION TYPES: FALSE - Allow parameter bivariance
-        // Allows functions with slightly different signatures to be compatible
-        // Fixes issues like JSON.stringify(x, null, 2) where parameter types don't match exactly
-        strictFunctionTypes: false,
-
-        // STRICT BIND/CALL/APPLY: FALSE - Don't check bind/call/apply strictly
-        // Allows dynamic function invocation without strict type checking
-        strictBindCallApply: false,
-
-        // STRICT PROPERTY INITIALIZATION: FALSE - Don't require class properties to be initialized
-        // Classes don't need to initialize all properties in constructor
-        strictPropertyInitialization: false,
-
-        // NO IMPLICIT THIS: FALSE - Allow 'this' without explicit type
-        // Don't require explicit typing of 'this' in functions
-        noImplicitThis: false,
-
-        // ALWAYS STRICT: FALSE - Don't add "use strict" to emitted code
-        // We're not emitting code, just type checking
-        alwaysStrict: false,
-
-        // NO EMIT: TRUE - Don't generate output files, only type check
+        strict: true,
         noEmit: true,
-
-        // SKIP LIB CHECK: FALSE - Check type definitions in lib files
-        // Ensure our custom lib.d.ts is validated
         skipLibCheck: false,
-
-        // NO LIB: TRUE - Don't include default TypeScript lib files
-        // We provide our own minimal lib.d.ts for the runtime environment
         noLib: true,
       },
       host: compilerHost,
