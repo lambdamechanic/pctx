@@ -61,7 +61,8 @@ impl PctxMcp {
 
         self.banner();
 
-        let tools = PtcxTools::new(allowed_hosts.clone()).with_upstream_mcps(self.upstream.clone());
+        let tools = PtcxTools::new(self.config.clone(), allowed_hosts.clone())
+            .with_upstream_mcps(self.upstream.clone());
         let service = StreamableHttpService::new(
             move || Ok(tools.clone()),
             LocalSessionManager::default().into(),
@@ -100,6 +101,7 @@ impl PctxMcp {
             let mut builder = Builder::default();
 
             builder.push_record(["🦀 Server Name", &self.config.name]);
+            builder.push_record(["🤖 Server Version", &self.config.version]);
             builder.push_record(["🌎 Server URL", &mcp_url]);
             builder.push_record([
                 "🔨 Tools",
@@ -143,7 +145,7 @@ impl PctxMcp {
             let logo_panel = Panel::header(format!("\n{LOGO}\n\n"));
             let logo_row = 0;
             let version_panel = Panel::header(format!(
-                "v{}\n\n",
+                "pctx v{}\n\n",
                 option_env!("CARGO_PKG_VERSION").unwrap_or_default()
             ));
             let version_row = 1;

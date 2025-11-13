@@ -2,6 +2,7 @@ use anyhow::Result;
 use codegen::generate_docstring;
 use indexmap::{IndexMap, IndexSet};
 use log::info;
+use pctx_config::Config;
 use rmcp::{
     ErrorData as McpError, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -18,14 +19,16 @@ type McpResult<T> = Result<T, McpError>;
 
 #[derive(Clone)]
 pub(crate) struct PtcxTools {
+    config: Config,
     allowed_hosts: Vec<String>,
     upstream: Vec<UpstreamMcp>,
     tool_router: ToolRouter<PtcxTools>,
 }
 #[tool_router]
 impl PtcxTools {
-    pub(crate) fn new(allowed_hosts: Vec<String>) -> Self {
+    pub(crate) fn new(config: Config, allowed_hosts: Vec<String>) -> Self {
         Self {
+            config,
             allowed_hosts,
             upstream: vec![],
             tool_router: Self::tool_router(),
@@ -301,18 +304,30 @@ pub(crate) struct ExecuteInput {
 #[tool_handler]
 impl ServerHandler for PtcxTools {
     fn get_info(&self) -> ServerInfo {
+        let default_description = format!(
+            "This server provides tools to explore SDK functions and execute SDK scripts for the following services: {}",
+            self.upstream
+                .iter()
+                .map(|m| m.name.as_str())
+                .collect::<Vec<&str>>()
+                .join(", ")
+        );
+
         ServerInfo {
             protocol_version: ProtocolVersion::V_2024_11_05,
             capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: Implementation::from_build_env(),
-            instructions: Some(format!(
-                "This server provides tools to explore SDK functions and execute SDK scripts for the following services: {}",
-                self.upstream
-                    .iter()
-                    .map(|m| m.name.as_str())
-                    .collect::<Vec<&str>>()
-                    .join(", ")
-            )),
+            server_info: Implementation {
+                name: self.config.name.clone(),
+                title: Some(self.config.name.clone()),
+                version: self.config.version.clone(),
+                ..Default::default()
+            },
+            instructions: Some(
+                self.config
+                    .description
+                    .clone()
+                    .unwrap_or(default_description),
+            ),
         }
     }
 }

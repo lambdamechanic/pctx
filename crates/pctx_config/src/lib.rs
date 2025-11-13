@@ -18,6 +18,10 @@ pub struct Config {
     /// Name of pctx mcp server
     pub name: String,
 
+    /// Version of pctx mcp server
+    #[serde(default = "default_version")]
+    pub version: String,
+
     /// Description of the pctx mcp server
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -25,6 +29,10 @@ pub struct Config {
     /// Upstream MCP server configurations
     #[serde(default)]
     pub servers: Vec<ServerConfig>,
+}
+
+fn default_version() -> String {
+    "0.1.0".into()
 }
 
 impl Config {

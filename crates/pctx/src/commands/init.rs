@@ -48,13 +48,18 @@ impl InitCmd {
 
         if self.yes {
             cfg.name = parent_name;
+            cfg.version = "0.1.0".into();
         } else {
-            cfg.name = inquire::Text::new("pctx name:")
+            cfg.name = inquire::Text::new("name:")
                 .with_validator(inquire::required!("name is required"))
                 .with_default(&parent_name)
                 .prompt()?;
+            cfg.version = inquire::Text::new("version:")
+                .with_default("0.1.0")
+                .with_validator(inquire::required!("version is required"))
+                .prompt()?;
             cfg.description =
-                inquire::Text::new(&format!("pctx description {}:", fmt_dimmed("(optional)")))
+                inquire::Text::new(&format!("description {}:", fmt_dimmed("(optional)")))
                     .prompt_skippable()?;
 
             let mut add_upstream =
