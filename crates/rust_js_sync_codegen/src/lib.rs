@@ -39,7 +39,7 @@ pub enum JsValue {
 impl fmt::Display for JsValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JsValue::Number(n) => write!(f, "{}", n),
+            JsValue::Number(n) => write!(f, "{n}"),
             JsValue::String(s) => {
                 // Escape special characters
                 let escaped = s
@@ -48,16 +48,16 @@ impl fmt::Display for JsValue {
                     .replace('\n', "\\n")
                     .replace('\r', "\\r")
                     .replace('\t', "\\t");
-                write!(f, "\"{}\"", escaped)
+                write!(f, "\"{escaped}\"")
             }
-            JsValue::Boolean(b) => write!(f, "{}", b),
+            JsValue::Boolean(b) => write!(f, "{b}"),
             JsValue::Array(items) => {
                 write!(f, "[")?;
                 for (i, item) in items.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", item)?;
+                    write!(f, "{item}")?;
                 }
                 write!(f, "]")
             }
@@ -67,7 +67,7 @@ impl fmt::Display for JsValue {
                     if i > 0 {
                         writeln!(f, ",")?;
                     }
-                    write!(f, "  {}: {}", key, value)?;
+                    write!(f, "  {key}: {value}")?;
                 }
                 write!(f, "\n}}")
             }
@@ -110,9 +110,11 @@ impl JsCodegen {
 
         for (name, value, is_exported) in &self.constants {
             if *is_exported {
-                output.push_str(&format!("export const {} = {};\n", name, value));
+                #[allow(clippy::format_push_string)]
+                output.push_str(&format!("export const {name} = {value};\n"));
             } else {
-                output.push_str(&format!("const {} = {};\n", name, value));
+                #[allow(clippy::format_push_string)]
+                output.push_str(&format!("const {name} = {value};\n"));
             }
         }
 
@@ -120,6 +122,7 @@ impl JsCodegen {
     }
 
     /// Generate and write to a file
+    #[allow(clippy::missing_errors_doc)]
     pub fn write_to_file(&self, path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
         std::fs::write(path, self.generate())
     }
@@ -131,12 +134,12 @@ impl Default for JsCodegen {
     }
 }
 
-/// Helper function to convert a slice of numbers to a JsValue array
+/// Helper function to convert a slice of numbers to a `JsValue` array
 pub fn numbers_to_js_array<T: Into<i64> + Copy>(numbers: &[T]) -> JsValue {
     JsValue::Array(numbers.iter().map(|&n| JsValue::Number(n.into())).collect())
 }
 
-/// Helper function to convert a slice of strings to a JsValue array
+/// Helper function to convert a slice of strings to a `JsValue` array
 pub fn strings_to_js_array(strings: &[&str]) -> JsValue {
     JsValue::Array(
         strings

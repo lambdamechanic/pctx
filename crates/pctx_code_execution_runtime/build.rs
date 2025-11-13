@@ -4,17 +4,13 @@
 //! with all its JavaScript code pre-compiled. This snapshot can be loaded by
 //! `pctx_executor` for faster startup times.
 
-use std::borrow::Cow;
 use std::env;
-use std::error::Error as StdError;
 use std::path::PathBuf;
 
 use deno_core::OpState;
 use deno_core::extension;
 use deno_core::snapshot::CreateSnapshotOptions;
 use deno_core::snapshot::create_snapshot;
-use deno_error::JsErrorClass;
-use deno_error::PropertyValue;
 
 use pctx_config::server::ServerConfig;
 use rmcp::model::JsonObject;
@@ -32,25 +28,33 @@ pub(crate) struct CallMCPToolArgs {
 #[error("MCP error: {0}")]
 struct McpError(String);
 
-impl JsErrorClass for McpError {
-    fn get_class(&self) -> Cow<'static, str> {
-        "Error".into()
-    }
+// Macro for implementing JsErrorClass (duplicated from src/js_error_impl.rs for build.rs)
+macro_rules! impl_js_error_class {
+    ($error_type:ty) => {
+        impl deno_error::JsErrorClass for $error_type {
+            fn get_class(&self) -> std::borrow::Cow<'static, str> {
+                std::borrow::Cow::Borrowed("Error")
+            }
 
-    fn get_message(&self) -> Cow<'static, str> {
-        self.to_string().into()
-    }
+            fn get_message(&self) -> std::borrow::Cow<'static, str> {
+                std::borrow::Cow::Owned(self.to_string())
+            }
 
-    fn get_additional_properties(
-        &self,
-    ) -> Box<dyn Iterator<Item = (Cow<'static, str>, PropertyValue)>> {
-        Box::new(std::iter::empty())
-    }
+            fn get_additional_properties(
+                &self,
+            ) -> Box<dyn Iterator<Item = (std::borrow::Cow<'static, str>, deno_error::PropertyValue)>>
+            {
+                Box::new(std::iter::empty())
+            }
 
-    fn get_ref(&self) -> &(dyn StdError + Send + Sync + 'static) {
-        self
-    }
+            fn get_ref(&self) -> &(dyn std::error::Error + Send + Sync + 'static) {
+                self
+            }
+        }
+    };
 }
+
+impl_js_error_class!(McpError);
 
 /// Register an MCP server (stub)
 #[deno_core::op2]

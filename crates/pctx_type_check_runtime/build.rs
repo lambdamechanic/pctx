@@ -24,7 +24,7 @@ fn generate_runtime_js_string() -> String {
     // Generate the codes array
     let codes: Vec<String> = ignored_codes::IGNORED_DIAGNOSTIC_CODES
         .iter()
-        .map(|c| c.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
     let codes_js = format!(
         "// AUTO-GENERATED CODE - DO NOT EDIT\n\
