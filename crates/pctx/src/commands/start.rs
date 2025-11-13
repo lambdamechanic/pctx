@@ -27,7 +27,7 @@ impl StartCmd {
     pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
         if cfg.servers.is_empty() {
             anyhow::bail!(
-                "No upstream MCP servers configured. Add servers with 'pctx mcp add <name> <url>'"
+                "No upstream MCP servers configured. Add servers with 'pctx add <name> <url>'"
             );
         }
 
@@ -64,12 +64,14 @@ impl StartCmd {
             fmt_yellow("~")
         };
 
+        let plural = if upstream_servers.len() > 1 { "s" } else { "" };
         sp.stop_and_persist(
             &symbol,
             format!(
-                "{} interface generated for {} upstream MCP servers",
+                "{} interface generated for {} upstream MCP server{}",
                 fmt_bold("Code Mode"),
-                fmt_cyan(&upstream_servers.len().to_string())
+                fmt_cyan(&upstream_servers.len().to_string()),
+                plural
             ),
         );
         for fail in fails {
