@@ -1,9 +1,9 @@
 use crate::utils::{CHECK, MARK};
 
 use super::styles::{fmt_green, fmt_red, fmt_yellow};
-use log::{error, info, log_enabled, warn};
 use spinoff::{Color, spinners};
 use std::borrow::Cow;
+use tracing::log::{Level, error, info, log_enabled, warn};
 
 /// Wrapper around `spinoff::Spinner` to handle only
 /// showing if log level is INFO
@@ -14,9 +14,9 @@ pub(crate) struct Spinner {
 #[allow(unused)]
 impl Spinner {
     pub(crate) fn new<M: Into<Cow<'static, str>>>(msg: M) -> Self {
-        let sp = if log_enabled!(log::Level::Debug) || !log_enabled!(log::Level::Info) {
+        let sp = if log_enabled!(Level::Debug) || !log_enabled!(Level::Info) {
             // level debug or quiet mode
-            info!("{}...", msg.into());
+            info!("⣯ {}", msg.into());
             None
         } else {
             Some(spinoff::Spinner::new(spinners::Dots, msg, Color::Cyan))

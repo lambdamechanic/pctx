@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
-use log::info;
 use pctx_config::Config;
+use tracing::info;
 
 use crate::utils::styles::{fmt_bold, fmt_dimmed, fmt_success};
 

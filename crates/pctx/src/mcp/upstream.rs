@@ -1,10 +1,10 @@
 use anyhow::Result;
 use codegen::{case::Case, generate_docstring};
 use indexmap::IndexMap;
-use log::debug;
 use pctx_config::server::ServerConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tracing::debug;
 use url::Url;
 
 #[derive(Clone, Serialize, Deserialize)]

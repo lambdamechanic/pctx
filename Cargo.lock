@@ -6394,7 +6394,6 @@ dependencies = [
  "env_logger",
  "indexmap 2.12.0",
  "inquire",
- "log",
  "mimalloc",
  "oauth2",
  "open",
@@ -6410,6 +6409,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tikv-jemallocator",
  "tokio",
+ "tracing",
  "url",
 ]
 
@@ -6440,13 +6440,13 @@ dependencies = [
  "http 1.3.1",
  "indexmap 2.12.0",
  "keyring",
- "log",
  "reqwest",
  "rmcp",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
  "tokio",
+ "tracing",
  "url",
 ]
 

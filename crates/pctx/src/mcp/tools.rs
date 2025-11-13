@@ -1,7 +1,6 @@
 use anyhow::Result;
 use codegen::generate_docstring;
 use indexmap::{IndexMap, IndexSet};
-use log::info;
 use pctx_config::Config;
 use rmcp::{
     ErrorData as McpError, ServerHandler,
@@ -12,6 +11,7 @@ use rmcp::{
     schemars, tool, tool_handler, tool_router,
 };
 use serde_json::json;
+use tracing::{error, info, warn};
 
 use crate::mcp::upstream::UpstreamMcp;
 
@@ -239,18 +239,18 @@ export default await run();"
         })
         .await
         .map_err(|e| {
-            log::error!("Task join failed: {e}");
+            error!("Task join failed: {e}");
             McpError::internal_error(format!("Task join failed: {e}"), None)
         })?
         .map_err(|e| {
-            log::error!("Sandbox execution error: {e}");
+            error!("Sandbox execution error: {e}");
             McpError::internal_error(format!("Execution failed: {e}"), None)
         })?;
 
         if result.success {
-            log::info!("Sandbox execution completed successfully");
+            info!("Sandbox execution completed successfully");
         } else {
-            log::warn!("Sandbox execution failed: {:?}", result.stderr);
+            warn!("Sandbox execution failed: {:?}", result.stderr);
         }
 
         let text_result = format!(

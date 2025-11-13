@@ -2,9 +2,9 @@ use std::{fmt::Display, process::Stdio, str::FromStr};
 
 use anyhow::{Context, Result};
 use indexmap::IndexMap;
-use log::debug;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tokio::process::Command;
+use tracing::debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -331,7 +331,7 @@ pub fn write_to_keychain(key: &str, val: &str) -> Result<()> {
         .set_password(val)
         .context("Failed to store password in keychain")?;
 
-    log::debug!("Value stored in keychain service=\"pctx\", user=\"{key}\"");
+    debug!("Value stored in keychain service=\"pctx\", user=\"{key}\"");
 
     Ok(())
 }

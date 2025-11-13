@@ -1,8 +1,8 @@
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
-use log::{info, warn};
 use pctx_config::Config;
+use tracing::{info, warn};
 
 use crate::{
     commands::{USER_CANCELLED, add::AddCmd},

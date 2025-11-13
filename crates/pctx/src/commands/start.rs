@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
-use log::{info, warn};
 use pctx_config::Config;
+use tracing::{info, warn};
 
 use crate::{
     mcp::{PctxMcp, upstream::UpstreamMcp},

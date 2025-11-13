@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use clap::Parser;
-use log::info;
+use tracing::info;
 
 use crate::{
     commands::USER_CANCELLED,

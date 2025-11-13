@@ -3,7 +3,6 @@ pub(crate) mod tools;
 pub(crate) mod upstream;
 
 use anyhow::Result;
-use log::info;
 use pctx_config::Config;
 use rmcp::transport::{
     StreamableHttpServerConfig,
@@ -20,6 +19,7 @@ use tabled::{
     },
 };
 use terminal_size::terminal_size;
+use tracing::info;
 
 use crate::utils::{LOGO, styles::fmt_dimmed};
 use crate::{

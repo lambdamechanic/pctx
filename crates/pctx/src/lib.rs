@@ -5,8 +5,9 @@ pub mod utils;
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 
-use crate::commands::{
-    add::AddCmd, init::InitCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd,
+use crate::{
+    commands::{add::AddCmd, init::InitCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd},
+    utils::telemetry::TelemetryMode,
 };
 use pctx_config::Config;
 
@@ -42,6 +43,27 @@ pub struct Cli {
 }
 
 impl Cli {
+    pub fn telemetry_mode(&self) -> TelemetryMode {
+        match self.command {
+            Commands::Start(_) => TelemetryMode::OpenTelemetry,
+            Commands::List(_) | Commands::Add(_) | Commands::Remove(_) | Commands::Init(_) => {
+                TelemetryMode::Local
+            }
+        }
+    }
+
+    pub fn tracing_level(&self) -> tracing::Level {
+        if self.quiet {
+            tracing::Level::WARN
+        } else if self.verbose == 0 {
+            tracing::Level::INFO
+        } else if self.verbose == 1 {
+            tracing::Level::DEBUG
+        } else {
+            tracing::Level::TRACE
+        }
+    }
+
     #[allow(clippy::missing_errors_doc)]
     pub async fn handle(&self) -> anyhow::Result<()> {
         let cfg = Config::load(&self.config);

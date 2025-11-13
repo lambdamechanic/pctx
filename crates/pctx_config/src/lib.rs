@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use camino::Utf8PathBuf;
-use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fs;
+use tracing::debug;
 
 use crate::server::ServerConfig;
 
