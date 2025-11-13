@@ -1,0 +1,49 @@
+schema:
+  type: object
+  required:
+    - string_enum
+    - number_enum
+    - integer_enum
+  properties:
+    string_enum:
+      type: string
+      enum:
+        - "some**val"
+        - "some other val"
+        - "some-final-val"
+    number_enum:
+      type: number
+      enum:
+        - 1.2
+        - 3.4
+        - 4.5
+    integer_enum:
+      type: integer
+      enum:
+        - 1
+        - 2
+        - 3
+
+tests:
+  valid:
+    - id: known-enums
+      value:
+        string_enum: some-final-val
+        number_enum: 4.5
+        integer_enum: 3
+  invalid:
+    - id: invalid-string
+      value:
+        string_enum: not-enum
+        number_enum: 4.5
+        integer_enum: 3
+    - id: invalid-number
+      value:
+        string_enum: some-final-val
+        number_enum: 12.0
+        integer_enum: 3
+    - id: invalid-integer
+      value:
+        string_enum: some-final-val
+        number_enum: 4.5
+        integer_enum: 300

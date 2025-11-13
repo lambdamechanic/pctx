@@ -1,0 +1,28 @@
+---
+source: crates/codegen/tests/typegen.rs
+expression: "&typegen_res.types"
+---
+export type Union = {
+  /**
+   * union using the oneOf key
+   */
+  one_of?: string | number | UnionFooBar | UnionFizzBuzz | undefined;
+  /**
+   * union using the anyOf key
+   */
+  any_of?: string | number | UnionFooBar | UnionFizzBuzz | undefined;
+
+  type_array?: string | number | number | boolean | undefined;
+};
+
+export type UnionFooBar = {
+  foo: number[];
+
+  bar: boolean;
+};
+
+export type UnionFizzBuzz = {
+  fizz: string;
+
+  buzz?: number | undefined;
+};

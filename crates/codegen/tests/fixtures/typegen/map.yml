@@ -1,0 +1,75 @@
+schema:
+  type: object
+  required:
+    - empty_object
+    - map_any
+    - map_int
+    - map_complex
+  properties:
+    empty_object:
+      type: object
+      description: object with no defined properties should create a map of str -> any
+    map_any:
+      type: object
+      description: object with no defined properties & defined additionalProps should create a map of str -> any
+      additionalProperties: true
+    map_int:
+      type: object
+      description: object with no defined properties & defined additionalProps (int) should create a map of str -> int
+      additionalProperties:
+        type: integer
+    map_complex:
+      type: object
+      description: object with no defined properties & defined additionalProps (object) should create a map of str -> ComplexObject
+      additionalProperties:
+        type: object
+        required:
+          - my_int
+          - my_str
+          - my_arr
+        properties:
+          my_int:
+            type: integer
+          my_str:
+            type: string
+          my_arr:
+            type: array
+            items:
+              type: string
+    map_optional_nullable:
+      oneOf:
+        - type: "null"
+        - type: object
+          additionalProperties:
+            type: integer
+
+tests:
+  valid:
+    - id: maps
+      value:
+        empty_object:
+          foo: bar
+          fizz: buzz
+          answer:
+            correct: true
+            value: 42
+        map_any:
+          foo: bar
+          fizz: buzz
+          answer:
+            correct: true
+            value: 42
+        map_int:
+          foo: 1
+          bar: 2
+          fizz: 3
+          buzz: 4
+        map_complex:
+          key0:
+            my_int: 0
+            my_str: first key
+            my_arr: [one, two, three]
+          key1:
+            my_int: 1
+            my_str: second key
+            my_arr: [four, five, six]

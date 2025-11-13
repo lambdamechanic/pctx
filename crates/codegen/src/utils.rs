@@ -79,7 +79,8 @@ pub fn assign_type_names(schema: Schema, type_name: &str) -> Schema {
                 .collect();
             mutable_obj_validation.additional_properties =
                 obj.additional_properties.map(|additional| {
-                    let additional_class_name = format!("{type_name} AdditionalProps");
+                    let additional_class_name =
+                        Case::Pascal.sanitize(format!("{type_name} AdditionalProps"));
 
                     Box::new(assign_type_names(*additional, &additional_class_name))
                 });

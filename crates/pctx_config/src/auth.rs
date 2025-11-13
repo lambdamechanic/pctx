@@ -1,4 +1,4 @@
-use std::{fmt::Display, process::Stdio};
+use std::{fmt::Display, process::Stdio, str::FromStr};
 
 use anyhow::{Context, Result};
 use indexmap::IndexMap;
@@ -216,6 +216,14 @@ impl Serialize for SecretString {
         S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl FromStr for SecretString {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        SecretString::parse(s)
     }
 }
 
