@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED] - YYYY-MM-DD
 
+## [v0.1.3] - 2025-11-13
+
 ### Added
 
 - `pctx add` now accepts `--header` and `--bearer` to add authentication without interaction
@@ -18,13 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Catch user cancellations when adding MCP servers in `pctx init`
 
-## [0.1.2] - 2025-12-10
+## [v0.1.2] - 2025-11-12
 
 ### Fixed
 
 - Synced deno runtime op stubs and JS config interfaces to match dev, supporting auth in built CLI.
 
-## [0.1.1] - 2025-11-10
+## [v0.1.1] - 2025-11-10
 
 ### Added
 
@@ -42,13 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No filesystem, environment, or system access beyond allowed hosts
 - MCP clients are authenticated, credentials hidden from LLMs an Deno env
 
-## [0.1.0] - 2025-11-10
+## [v0.1.0] - 2025-11-10
 
 ### Added
 
 - Initial public release
 
-[Unreleased]: https://github.com/portofcontext/pctx/compare/v0.1.2...HEAD
-[0.1.2]: https://github.com/portofcontext/pctx/compare/v0.1.2
-[0.1.1]: https://github.com/portofcontext/pctx/compare/v0.1.1
-[0.1.0]: https://github.com/portofcontext/pctx/releases/tag/v0.1.0
+[Unreleased]: https://github.com/portofcontext/pctx/compare/v0.1.3...HEAD
+[v0.1.3]: https://github.com/portofcontext/pctx/compare/v0.1.3
+[v0.1.2]: https://github.com/portofcontext/pctx/compare/v0.1.2
+[v0.1.1]: https://github.com/portofcontext/pctx/compare/v0.1.1
+[v0.1.0]: https://github.com/portofcontext/pctx/releases/tag/v0.1.0
