@@ -20,7 +20,8 @@ const server = new McpServer({
 });
 
 // Tool handlers
-async function searchAsteroids({ start_date, end_date }) {
+async function searchAsteroids(params) {
+  const { start_date, end_date } = params || {};
   let url = `https://api.nasa.gov/neo/rest/v1/feed?start_date=${start_date}&api_key=${NASA_API_KEY}`;
   if (end_date) {
     url += `&end_date=${end_date}`;
@@ -63,7 +64,8 @@ async function searchAsteroids({ start_date, end_date }) {
   return result;
 }
 
-async function lookupAsteroid({ asteroid_id }) {
+async function lookupAsteroid(params) {
+  const { asteroid_id } = params || {};
   const url = `https://api.nasa.gov/neo/rest/v1/neo/${asteroid_id}?api_key=${NASA_API_KEY}`;
 
   const response = await fetch(url);
@@ -95,7 +97,8 @@ async function lookupAsteroid({ asteroid_id }) {
   };
 }
 
-async function browseAsteroids({ page = 0, size = 20 }) {
+async function browseAsteroids(params) {
+  const { page = 0, size = 20 } = params || {};
   const url = `https://api.nasa.gov/neo/rest/v1/neo/browse?page=${page}&size=${size}&api_key=${NASA_API_KEY}`;
 
   const response = await fetch(url);
@@ -121,7 +124,8 @@ async function browseAsteroids({ page = 0, size = 20 }) {
   };
 }
 
-async function searchSatellites({ search, page = 1, page_size = 20 }) {
+async function searchSatellites(params) {
+  const { search, page = 1, page_size = 20 } = params || {};
   const url = `https://tle.ivanstanojevic.me/api/tle/?search=${encodeURIComponent(search)}&page=${page}&page-size=${page_size}`;
 
   const response = await fetch(url);
@@ -145,7 +149,8 @@ async function searchSatellites({ search, page = 1, page_size = 20 }) {
   };
 }
 
-async function lookupSatellite({ satellite_id }) {
+async function lookupSatellite(params) {
+  const { satellite_id } = params || {};
   const url = `https://tle.ivanstanojevic.me/api/tle/${satellite_id}`;
 
   const response = await fetch(url);
@@ -180,11 +185,25 @@ server.registerTool(
         start: z.string(),
         end: z.string()
       }),
-      asteroids_by_date: z.record(z.array(z.any()))
+      asteroids_by_date: z.record(z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        is_potentially_hazardous: z.boolean(),
+        estimated_diameter_km: z.object({
+          min: z.number(),
+          max: z.number()
+        }),
+        close_approach: z.object({
+          date: z.string(),
+          velocity_kph: z.string(),
+          miss_distance_km: z.string()
+        }).nullable(),
+        nasa_jpl_url: z.string()
+      })))
     }
   },
-  async ({ start_date, end_date }) => {
-    const output = await searchAsteroids({ start_date, end_date });
+  async (params) => {
+    const output = await searchAsteroids(params);
     return {
       content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
       structuredContent: output
@@ -203,17 +222,26 @@ server.registerTool(
     outputSchema: {
       id: z.string(),
       name: z.string(),
+      designation: z.string(),
       is_potentially_hazardous: z.boolean(),
+      absolute_magnitude: z.number(),
       estimated_diameter_km: z.object({
         min: z.number(),
         max: z.number()
       }),
-      close_approaches: z.array(z.any()),
+      close_approaches: z.array(z.object({
+        date: z.string(),
+        date_full: z.string(),
+        velocity_kph: z.string(),
+        miss_distance_km: z.string(),
+        orbiting_body: z.string()
+      })),
+      total_close_approaches: z.number(),
       nasa_jpl_url: z.string()
     }
   },
-  async ({ asteroid_id }) => {
-    const output = await lookupAsteroid({ asteroid_id });
+  async (params) => {
+    const output = await lookupAsteroid(params);
     return {
       content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
       structuredContent: output
@@ -231,12 +259,27 @@ server.registerTool(
       size: z.number().min(1).max(100).optional().describe('Number of results per page (default: 20)')
     },
     outputSchema: {
-      page: z.any(),
-      asteroids: z.array(z.any())
+      page: z.object({
+        size: z.number(),
+        total_elements: z.number(),
+        total_pages: z.number(),
+        number: z.number()
+      }),
+      asteroids: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        is_potentially_hazardous: z.boolean(),
+        absolute_magnitude: z.number(),
+        estimated_diameter_km: z.object({
+          min: z.number(),
+          max: z.number()
+        }),
+        nasa_jpl_url: z.string()
+      }))
     }
   },
-  async ({ page, size }) => {
-    const output = await browseAsteroids({ page, size });
+  async (params) => {
+    const output = await browseAsteroids(params);
     return {
       content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
       structuredContent: output
@@ -258,11 +301,17 @@ server.registerTool(
       total_items: z.number(),
       page: z.number(),
       page_size: z.number(),
-      satellites: z.array(z.any())
+      satellites: z.array(z.object({
+        satellite_id: z.number(),
+        name: z.string(),
+        date: z.string(),
+        line1: z.string(),
+        line2: z.string()
+      }))
     }
   },
-  async ({ search, page, page_size }) => {
-    const output = await searchSatellites({ search, page, page_size });
+  async (params) => {
+    const output = await searchSatellites(params);
     return {
       content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
       structuredContent: output
@@ -286,8 +335,8 @@ server.registerTool(
       line2: z.string()
     }
   },
-  async ({ satellite_id }) => {
-    const output = await lookupSatellite({ satellite_id });
+  async (params) => {
+    const output = await lookupSatellite(params);
     return {
       content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
       structuredContent: output
@@ -299,7 +348,17 @@ server.registerTool(
 const app = express();
 app.use(express.json());
 
+// In-memory session storage
+// WARNING: This stores sessions in memory, which means:
+// 1. Sessions are lost on server restart
+// 2. Won't work with multiple instances (needs Redis or similar for production)
+// For single-instance deployments (like Fly.io with min_machines_running = 1), this is acceptable
 const transports = {};
+
+// Health check endpoint
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'healthy', service: 'nasa-mcp-server' });
+});
 
 app.post('/mcp', async (req, res) => {
   const sessionId = req.headers['mcp-session-id'];
@@ -352,6 +411,7 @@ app.delete('/mcp', async (req, res) => {
   }
 });
 
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`NASA MCP Server listening on http://127.0.0.1:${PORT}/mcp`);
+const HOST = process.env.HOST || '127.0.0.1';
+app.listen(PORT, HOST, () => {
+  console.log(`NASA MCP Server listening on http://${HOST}:${PORT}/mcp`);
 });

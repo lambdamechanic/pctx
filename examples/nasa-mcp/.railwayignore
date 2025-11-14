@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log
+.git
+.env
+.DS_Store
+README.md
+DEPLOYMENT.md
+DEPLOY_NOW.md
+RAILWAY.md
+# Do NOT ignore pctx.json - we need it!

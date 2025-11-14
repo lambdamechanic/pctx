@@ -289,14 +289,19 @@ pub(crate) struct GetFunctionDetailsInput {
     pub functions: Vec<String>,
 }
 
+#[allow(clippy::doc_markdown)]
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub(crate) struct ExecuteInput {
     /// Typescript code to execute.
-    /// Example:
+    ///
+    /// REQUIRED FORMAT:
     /// async function ``run()`` {
-    ///   // YOUR CODE GOES HERE e.g. const result = await ``client.method();``
+    ///   // YOUR CODE GOES HERE e.g. const result = await ``Namespace.method();``
     ///   // ALWAYS RETURN THE RESULT e.g. return result;
     /// }
+    ///
+    /// IMPORTANT: Your code should ONLY contain the function definition.
+    /// The sandbox automatically calls run() and exports the result.
     ///
     pub code: String,
 }
