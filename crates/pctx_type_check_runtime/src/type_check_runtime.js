@@ -46,327 +46,6 @@ declare const REGISTRY: {
 };
 `;
 
-const LIB_ES_BASIC = `
-interface Console {
-  log(...args: any[]): void;
-  error(...args: any[]): void;
-  warn(...args: any[]): void;
-  info(...args: any[]): void;
-  debug(...args: any[]): void;
-}
-declare const console: Console;
-
-interface PromiseConstructor {
-  new <T>(executor: (resolve: (value: T) => void, reject: (reason?: any) => void) => void): Promise<T>;
-  resolve<T>(value: T | PromiseLike<T>): Promise<T>;
-  reject<T = never>(reason?: any): Promise<T>;
-  all<T>(values: Iterable<T | PromiseLike<T>>): Promise<Awaited<T>[]>;
-  race<T>(values: Iterable<T | PromiseLike<T>>): Promise<Awaited<T>>;
-}
-declare const Promise: PromiseConstructor;
-
-interface Promise<T> {
-  then<TResult1 = T, TResult2 = never>(
-    onFulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-    onRejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
-  ): Promise<TResult1 | TResult2>;
-  catch<TResult = never>(
-    onRejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null
-  ): Promise<T | TResult>;
-  finally(onFinally?: (() => void) | null): Promise<T>;
-}
-
-interface PromiseLike<T> {
-  then<TResult1 = T, TResult2 = never>(
-    onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
-  ): PromiseLike<TResult1 | TResult2>;
-}
-
-type Awaited<T> = T extends PromiseLike<infer U> ? U : T;
-
-interface Iterable<T> {
-  [Symbol.iterator](): Iterator<T>;
-}
-
-interface Iterator<T, TReturn = any, TNext = undefined> {
-  next(...args: [] | [TNext]): IteratorResult<T, TReturn>;
-  return?(value?: TReturn): IteratorResult<T, TReturn>;
-  throw?(e?: any): IteratorResult<T, TReturn>;
-}
-
-interface IteratorResult<T, TReturn = any> {
-  done: boolean;
-  value: T | TReturn;
-}
-
-interface Symbol {
-  readonly [Symbol.toStringTag]: string;
-}
-
-interface SymbolConstructor {
-  readonly iterator: symbol;
-  readonly toStringTag: symbol;
-}
-
-declare const Symbol: SymbolConstructor;
-
-interface Array<T> extends Iterable<T> {
-  length: number;
-  push(...items: T[]): number;
-  pop(): T | undefined;
-  shift(): T | undefined;
-  unshift(...items: T[]): number;
-  concat(...items: (T | T[])[]): T[];
-  map<U>(callbackfn: (value: T, index: number, array: T[]) => U, thisArg?: any): U[];
-  filter(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T[];
-  reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U;
-  forEach(callbackfn: (value: T, index: number, array: T[]) => void, thisArg?: any): void;
-  find(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): T | undefined;
-  some(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean;
-  every(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean;
-  join(separator?: string): string;
-  slice(start?: number, end?: number): T[];
-  indexOf(searchElement: T, fromIndex?: number): number;
-  includes(searchElement: T, fromIndex?: number): boolean;
-  reverse(): T[];
-  sort(compareFn?: (a: T, b: T) => number): this;
-  [Symbol.iterator](): Iterator<T>;
-}
-
-interface String {
-  length: number;
-  charAt(pos: number): string;
-  charCodeAt(index: number): number;
-  concat(...strings: string[]): string;
-  indexOf(searchString: string, position?: number): number;
-  lastIndexOf(searchString: string, position?: number): number;
-  localeCompare(that: string): number;
-  match(regexp: string | RegExp): RegExpMatchArray | null;
-  replace(searchValue: string | RegExp, replaceValue: string): string;
-  search(regexp: string | RegExp): number;
-  slice(start?: number, end?: number): string;
-  split(separator: string | RegExp, limit?: number): string[];
-  substring(start: number, end?: number): string;
-  toLowerCase(): string;
-  toLocaleLowerCase(): string;
-  toUpperCase(): string;
-  toLocaleUpperCase(): string;
-  trim(): string;
-  substr(from: number, length?: number): string;
-  valueOf(): string;
-  includes(searchString: string, position?: number): boolean;
-  startsWith(searchString: string, position?: number): boolean;
-  endsWith(searchString: string, length?: number): boolean;
-  repeat(count: number): string;
-  padStart(maxLength: number, fillString?: string): string;
-  padEnd(maxLength: number, fillString?: string): string;
-  [index: number]: string;
-}
-
-interface StringConstructor {
-  new (value?: any): String;
-  (value?: any): string;
-  readonly prototype: String;
-}
-
-declare const String: StringConstructor;
-
-interface Number {
-  toString(radix?: number): string;
-  toFixed(fractionDigits?: number): string;
-  toExponential(fractionDigits?: number): string;
-  toPrecision(precision?: number): string;
-  valueOf(): number;
-}
-
-interface NumberConstructor {
-  new (value?: any): Number;
-  (value?: any): number;
-  readonly prototype: Number;
-  readonly MAX_VALUE: number;
-  readonly MIN_VALUE: number;
-  readonly NaN: number;
-  readonly NEGATIVE_INFINITY: number;
-  readonly POSITIVE_INFINITY: number;
-  isNaN(number: number): boolean;
-  isFinite(number: number): boolean;
-  parseInt(string: string, radix?: number): number;
-  parseFloat(string: string): number;
-}
-
-declare const Number: NumberConstructor;
-
-interface Boolean {
-  valueOf(): boolean;
-}
-
-interface BooleanConstructor {
-  new (value?: any): Boolean;
-  (value?: any): boolean;
-  readonly prototype: Boolean;
-}
-
-declare const Boolean: BooleanConstructor;
-
-interface RegExp {
-  exec(string: string): RegExpExecArray | null;
-  test(string: string): boolean;
-  readonly source: string;
-  readonly global: boolean;
-  readonly ignoreCase: boolean;
-  readonly multiline: boolean;
-  lastIndex: number;
-}
-
-interface RegExpConstructor {
-  new (pattern: string | RegExp, flags?: string): RegExp;
-  (pattern: string | RegExp, flags?: string): RegExp;
-  readonly prototype: RegExp;
-}
-
-declare const RegExp: RegExpConstructor;
-
-interface RegExpMatchArray extends Array<string> {
-  index?: number;
-  input?: string;
-}
-
-interface RegExpExecArray extends Array<string> {
-  index: number;
-  input: string;
-}
-
-type Record<K extends string | number | symbol, T> = {
-  [P in K]: T;
-};
-
-interface Response {
-  ok: boolean;
-  status: number;
-  statusText: string;
-  headers: any;
-  text(): Promise<string>;
-  json(): Promise<any>;
-}
-
-declare function fetch(url: string, init?: any): Promise<Response>;
-
-interface Error {
-  name: string;
-  message: string;
-  stack?: string;
-}
-
-interface ErrorConstructor {
-  new (message?: string): Error;
-  (message?: string): Error;
-  readonly prototype: Error;
-}
-
-declare const Error: ErrorConstructor;
-
-interface JSON {
-  parse(text: string, reviver?: (key: any, value: any) => any): any;
-  stringify(value: any, replacer?: ((key: string, value: any) => any) | null, space?: string | number): string;
-  stringify(value: any, replacer?: (string | number)[] | null, space?: string | number): string;
-  stringify(value: any, replacer?: any, space?: string | number): string;
-}
-
-declare const JSON: JSON;
-
-type PropertyKey = string | number | symbol;
-
-interface Object {
-  toString(): string;
-  valueOf(): Object;
-  hasOwnProperty(v: PropertyKey): boolean;
-}
-
-interface ObjectConstructor {
-  new (value?: any): Object;
-  (value?: any): any;
-  keys(o: object): string[];
-  values(o: object): any[];
-  entries(o: object): [string, any][];
-  assign<T, U>(target: T, source: U): T & U;
-}
-
-declare const Object: ObjectConstructor;
-
-// ES2015 Collections
-interface Map<K, V> {
-  clear(): void;
-  delete(key: K): boolean;
-  forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void;
-  get(key: K): V | undefined;
-  has(key: K): boolean;
-  set(key: K, value: V): this;
-  readonly size: number;
-}
-
-interface MapConstructor {
-  new (): Map<any, any>;
-  new <K, V>(entries?: readonly (readonly [K, V])[] | null): Map<K, V>;
-  readonly prototype: Map<any, any>;
-}
-declare var Map: MapConstructor;
-
-interface ReadonlyMap<K, V> {
-  forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: any): void;
-  get(key: K): V | undefined;
-  has(key: K): boolean;
-  readonly size: number;
-}
-
-type WeakKey = object | symbol;
-
-interface WeakMap<K extends WeakKey, V> {
-  delete(key: K): boolean;
-  get(key: K): V | undefined;
-  has(key: K): boolean;
-  set(key: K, value: V): this;
-}
-
-interface WeakMapConstructor {
-  new <K extends WeakKey = WeakKey, V = any>(entries?: readonly (readonly [K, V])[] | null): WeakMap<K, V>;
-  readonly prototype: WeakMap<WeakKey, any>;
-}
-declare var WeakMap: WeakMapConstructor;
-
-interface Set<T> {
-  add(value: T): this;
-  clear(): void;
-  delete(value: T): boolean;
-  forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void;
-  has(value: T): boolean;
-  readonly size: number;
-}
-
-interface SetConstructor {
-  new <T = any>(values?: readonly T[] | null): Set<T>;
-  readonly prototype: Set<any>;
-}
-declare var Set: SetConstructor;
-
-interface ReadonlySet<T> {
-  forEach(callbackfn: (value: T, value2: T, set: ReadonlySet<T>) => void, thisArg?: any): void;
-  has(value: T): boolean;
-  readonly size: number;
-}
-
-interface WeakSet<T extends WeakKey> {
-  add(value: T): this;
-  delete(value: T): boolean;
-  has(value: T): boolean;
-}
-
-interface WeakSetConstructor {
-  new <T extends WeakKey = WeakKey>(values?: readonly T[] | null): WeakSet<T>;
-  readonly prototype: WeakSet<WeakKey>;
-}
-declare var WeakSet: WeakSetConstructor;
-`;
 
 /**
  * Type check TypeScript code using the full TypeScript compiler
@@ -382,7 +61,6 @@ function typeCheckCode(code) {
     const fileName = "check.ts";
     const files = new Map();
     files.set(fileName, code);
-    files.set("lib.es.d.ts", LIB_ES_BASIC);
     files.set("lib.deno.d.ts", LIB_DENO_NS);
 
     // Create a custom compiler host
@@ -400,7 +78,7 @@ function typeCheckCode(code) {
         // Return undefined for files we don't have
         return undefined;
       },
-      getDefaultLibFileName: () => "lib.es.d.ts",
+      getDefaultLibFileName: () => "lib.deno.d.ts",
       writeFile: () => { },
       getCurrentDirectory: () => "/",
       getDirectories: () => [],
@@ -413,14 +91,14 @@ function typeCheckCode(code) {
 
     // TODO: more granular control over type check strictness
     const program = ts.createProgram({
-      rootNames: [fileName, "lib.es.d.ts", "lib.deno.d.ts"],
+      rootNames: [fileName, "lib.deno.d.ts"],
       options: {
         target: ts.ScriptTarget.ES2020,
         module: ts.ModuleKind.ES2020,
         strict: true,
         noEmit: true,
         skipLibCheck: false,
-        noLib: true,
+        noLib: false,
       },
       host: compilerHost,
     });

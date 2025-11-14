@@ -24,38 +24,6 @@ pub(crate) struct CallMCPToolArgs {
     pub arguments: Option<JsonObject>,
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("MCP error: {0}")]
-struct McpError(String);
-
-// Macro for implementing JsErrorClass (duplicated from src/js_error_impl.rs for build.rs)
-macro_rules! impl_js_error_class {
-    ($error_type:ty) => {
-        impl deno_error::JsErrorClass for $error_type {
-            fn get_class(&self) -> std::borrow::Cow<'static, str> {
-                std::borrow::Cow::Borrowed("Error")
-            }
-
-            fn get_message(&self) -> std::borrow::Cow<'static, str> {
-                std::borrow::Cow::Owned(self.to_string())
-            }
-
-            fn get_additional_properties(
-                &self,
-            ) -> Box<dyn Iterator<Item = (std::borrow::Cow<'static, str>, deno_error::PropertyValue)>>
-            {
-                Box::new(std::iter::empty())
-            }
-
-            fn get_ref(&self) -> &(dyn std::error::Error + Send + Sync + 'static) {
-                self
-            }
-        }
-    };
-}
-
-impl_js_error_class!(McpError);
-
 /// Register an MCP server (stub)
 #[deno_core::op2]
 #[serde]
@@ -65,8 +33,8 @@ fn op_register_mcp(_state: &mut OpState, #[serde] _config: ServerConfig) {}
 #[deno_core::op2(async)]
 #[serde]
 #[allow(clippy::unused_async)]
-async fn op_call_mcp_tool(#[serde] _args: CallMCPToolArgs) -> Result<serde_json::Value, McpError> {
-    Ok(serde_json::Value::Null)
+async fn op_call_mcp_tool(#[serde] _args: CallMCPToolArgs) -> serde_json::Value {
+    serde_json::Value::Null
 }
 
 /// Check if an MCP server is registered (stub)
@@ -99,8 +67,8 @@ fn op_mcp_clear(_state: &mut OpState) {}
 async fn op_fetch(
     #[string] _url: String,
     #[serde] _options: Option<serde_json::Value>,
-) -> Result<serde_json::Value, McpError> {
-    Ok(serde_json::Value::Null)
+) -> serde_json::Value {
+    serde_json::Value::Null
 }
 
 // We need to define the extension here as well for snapshot creation
