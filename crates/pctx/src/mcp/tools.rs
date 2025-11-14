@@ -3,12 +3,15 @@ use codegen::generate_docstring;
 use indexmap::{IndexMap, IndexSet};
 use pctx_config::Config;
 use rmcp::{
-    ErrorData as McpError, ServerHandler,
-    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    ErrorData as McpError, RoleServer, ServerHandler,
+    handler::server::{router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters},
     model::{
-        CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
+        CallToolRequestParam, CallToolResult, Content, Implementation, ListToolsResult,
+        PaginatedRequestParam, ProtocolVersion, ServerCapabilities, ServerInfo,
     },
-    schemars, tool, tool_handler, tool_router,
+    schemars,
+    service::RequestContext,
+    tool, tool_router,
 };
 use serde_json::json;
 use tracing::{error, info, warn};
@@ -312,7 +315,6 @@ pub(crate) struct ExecuteInput {
     pub code: String,
 }
 
-#[tool_handler]
 impl ServerHandler for PtcxTools {
     fn get_info(&self) -> ServerInfo {
         let default_description = format!(
@@ -340,5 +342,45 @@ impl ServerHandler for PtcxTools {
                     .unwrap_or(default_description),
             ),
         }
+    }
+
+    async fn list_tools(
+        &self,
+        _req: Option<PaginatedRequestParam>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, McpError> {
+        let start = std::time::Instant::now();
+        let res = ListToolsResult::with_all_items(self.tool_router.list_all());
+        let latency = start.elapsed();
+        info!(
+            tools.length = res.tools.len(),
+            tools.next_cursor = res.next_cursor.is_some(),
+            latency_ms = latency.as_millis(),
+            "tools/list"
+        );
+
+        Ok(res)
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParam,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let start = std::time::Instant::now();
+        let tool_name = request.name.clone();
+
+        let tcc = ToolCallContext::new(self, request, context);
+        let res = self.tool_router.call(tcc).await?;
+
+        let latency = start.elapsed();
+        info!(
+            tool_result.is_error = res.is_error.unwrap_or_default(),
+            tool_result.has_structured_content = res.structured_content.is_some(),
+            latency_ms = latency.as_millis(),
+            "tools/call - {tool_name}"
+        );
+
+        Ok(res)
     }
 }
