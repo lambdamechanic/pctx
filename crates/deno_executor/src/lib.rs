@@ -7,6 +7,7 @@ pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, ty
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 use thiserror::Error;
+use tracing::{debug, info, warn};
 
 pub type Result<T> = std::result::Result<T, DenoExecutorError>;
 
@@ -67,11 +68,24 @@ pub enum DenoExecutorError {
 /// * Returns error only if internal tooling fails (not for type errors or runtime errors)
 ///
 pub async fn execute(code: &str, allowed_hosts: Option<Vec<String>>) -> Result<ExecuteResult> {
+    debug!(
+        runtime = "type_check",
+        code_length = code.len(),
+        "Code submitted for execution"
+    );
+    info!(runtime = "type_check", "Starting type check");
+
     let check_result = type_check(code).await?;
 
     let relevant_diagnostics = filter_relevant_diagnostics(check_result.diagnostics);
 
     if !relevant_diagnostics.is_empty() {
+        warn!(
+            runtime = "type_check",
+            diagnostic_count = relevant_diagnostics.len(),
+            "Type check failed with diagnostics"
+        );
+
         // Format diagnostics as stderr output
         let stderr = relevant_diagnostics
             .iter()
@@ -88,6 +102,8 @@ pub async fn execute(code: &str, allowed_hosts: Option<Vec<String>>) -> Result<E
             stderr,
         });
     }
+
+    info!(runtime = "type_check", "Type check passed");
 
     let exec_result = execute_code(code, allowed_hosts)
         .await
@@ -147,10 +163,20 @@ async fn execute_code(
     code: &str,
     allowed_hosts: Option<Vec<String>>,
 ) -> std::result::Result<InternalExecuteResult, AnyError> {
+    info!(runtime = "execution", "Starting code execution");
+
     // Transpile TypeScript to JavaScript
     let js_code = match deno_transpiler::transpile(code, None) {
-        Ok(js) => js,
+        Ok(js) => {
+            debug!(
+                runtime = "execution",
+                transpiled_code_length = js.len(),
+                "Code transpiled successfully"
+            );
+            js
+        }
         Err(e) => {
+            warn!(runtime = "execution", error = %e, "Transpilation failed");
             return Ok(InternalExecuteResult {
                 success: false,
                 output: None,
@@ -185,12 +211,21 @@ async fn execute_code(
     let main_module = deno_core::resolve_url("file:///execute.js")?;
 
     // Load and evaluate the transpiled code as a module
+    debug!(runtime = "execution", "Loading module into runtime");
     let mod_id = match js_runtime
         .load_side_es_module_from_code(&main_module, ModuleCodeString::from(js_code))
         .await
     {
-        Ok(id) => id,
+        Ok(id) => {
+            debug!(
+                runtime = "execution",
+                module_id = id,
+                "Module loaded successfully"
+            );
+            id
+        }
         Err(e) => {
+            warn!(runtime = "execution", error = %e, "Failed to load module");
             return Ok(InternalExecuteResult {
                 success: false,
                 output: None,
@@ -205,9 +240,11 @@ async fn execute_code(
     };
 
     // Evaluate the module
+    debug!(runtime = "execution", "Evaluating module");
     let eval_future = js_runtime.mod_evaluate(mod_id);
 
     // Run the event loop to completion
+    debug!(runtime = "execution", "Running event loop");
     let event_loop_future = js_runtime.run_event_loop(deno_core::PollEventLoopOptions {
         wait_for_inspector: false,
         pump_v8_message_loop: true,
@@ -218,14 +255,20 @@ async fn execute_code(
 
     // Check for errors from either future
     let (success, error) = match (eval_result, event_loop_result) {
-        (Ok(()), Ok(())) => (true, None),
-        (Err(e), _) | (_, Err(e)) => (
-            false,
-            Some(ExecutionError {
-                message: e.to_string(),
-                stack: None,
-            }),
-        ),
+        (Ok(()), Ok(())) => {
+            info!(runtime = "execution", "Code executed successfully");
+            (true, None)
+        }
+        (Err(e), _) | (_, Err(e)) => {
+            warn!(runtime = "execution", error = %e, "Code execution failed");
+            (
+                false,
+                Some(ExecutionError {
+                    message: e.to_string(),
+                    stack: None,
+                }),
+            )
+        }
     };
 
     // Get console output (even if there was an error)

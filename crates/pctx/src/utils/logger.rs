@@ -13,8 +13,8 @@ pub enum LoggerMode {
 const WHITELISTED_CRATES: &[&str] = &[
     "pctx",
     "pctx_config",
-    "pctx_code_execution_runtime",
-    "pctx_type_check_runtime",
+    // "pctx_code_execution_runtime",
+    // "pctx_type_check_runtime",
     "deno_executor",
     "codegen",
     "tower_http",

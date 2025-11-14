@@ -183,6 +183,12 @@ namespace {namespace} {{
         &self,
         Parameters(ExecuteInput { code }): Parameters<ExecuteInput>,
     ) -> McpResult<CallToolResult> {
+        tracing::debug!(
+            code_from_llm = %code,
+            code_length = code.len(),
+            "Received code to execute"
+        );
+
         let registrations = self
             .upstream
             .iter()
