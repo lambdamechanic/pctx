@@ -5,9 +5,10 @@ use serde_json::json;
 use std::fs;
 use tracing::debug;
 
-use crate::server::ServerConfig;
+use crate::{logger::LoggerConfig, server::ServerConfig};
 
 pub mod auth;
+pub mod logger;
 pub mod server;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -29,6 +30,10 @@ pub struct Config {
     /// Upstream MCP server configurations
     #[serde(default)]
     pub servers: Vec<ServerConfig>,
+
+    /// MCP server logger configuration
+    #[serde(default)]
+    pub logger: LoggerConfig,
 }
 
 fn default_version() -> String {

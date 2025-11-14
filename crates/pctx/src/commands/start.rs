@@ -8,7 +8,7 @@ use crate::{
     utils::{
         CHECK, MARK,
         spinner::Spinner,
-        styles::{fmt_bold, fmt_cyan, fmt_error, fmt_green, fmt_red, fmt_yellow},
+        styles::{fmt_bold, fmt_cyan, fmt_green, fmt_red, fmt_yellow},
     },
 };
 
@@ -21,6 +21,10 @@ pub struct StartCmd {
     /// Host address to bind to (use 0.0.0.0 for external access)
     #[arg(long, default_value = "127.0.0.1")]
     pub host: String,
+
+    /// Don't show the server banner
+    #[arg(long)]
+    pub no_banner: bool,
 }
 
 impl StartCmd {
@@ -47,11 +51,10 @@ impl StartCmd {
                     upstream_servers.push(upstream);
                 }
                 Err(e) => {
-                    fails.push(fmt_error(&format!(
-                        "Failed creating {} for {}: {e}",
-                        fmt_bold("Code Mode"),
-                        fmt_cyan(&server.name)
-                    )));
+                    fails.push(format!(
+                        "Failed creating CodeMode for {}: {e}",
+                        &server.name
+                    ));
                 }
             }
         }
@@ -78,9 +81,15 @@ impl StartCmd {
             warn!("{fail}");
         }
 
-        PctxMcp::new(cfg.clone(), upstream_servers, &self.host, self.port)
-            .serve()
-            .await?;
+        PctxMcp::new(
+            cfg.clone(),
+            upstream_servers,
+            &self.host,
+            self.port,
+            !self.no_banner,
+        )
+        .serve()
+        .await?;
 
         info!("Shutting down...");
 

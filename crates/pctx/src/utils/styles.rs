@@ -3,7 +3,7 @@ use clap::builder::Styles;
 
 use crate::utils::{CHECK, MARK};
 
-pub fn get_styles() -> Styles {
+pub(crate) fn get_styles() -> Styles {
     Styles::styled()
         .usage(
             Style::new()

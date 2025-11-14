@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 
 use crate::{
     commands::{add::AddCmd, init::InitCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd},
-    utils::telemetry::TelemetryMode,
+    utils::logger::{LoggerMode, init_logger},
 };
 use pctx_config::Config;
 
@@ -43,30 +43,26 @@ pub struct Cli {
 }
 
 impl Cli {
-    pub fn telemetry_mode(&self) -> TelemetryMode {
+    pub fn logger_mode(&self) -> LoggerMode {
         match self.command {
-            Commands::Start(_) => TelemetryMode::OpenTelemetry,
+            Commands::Start(_) => LoggerMode::Tracing,
             Commands::List(_) | Commands::Add(_) | Commands::Remove(_) | Commands::Init(_) => {
-                TelemetryMode::Local
+                LoggerMode::EnvLogger {
+                    verbose: self.verbose,
+                    quiet: self.quiet,
+                }
             }
-        }
-    }
-
-    pub fn tracing_level(&self) -> tracing::Level {
-        if self.quiet {
-            tracing::Level::WARN
-        } else if self.verbose == 0 {
-            tracing::Level::INFO
-        } else if self.verbose == 1 {
-            tracing::Level::DEBUG
-        } else {
-            tracing::Level::TRACE
         }
     }
 
     #[allow(clippy::missing_errors_doc)]
     pub async fn handle(&self) -> anyhow::Result<()> {
         let cfg = Config::load(&self.config);
+
+        init_logger(
+            &cfg.as_ref().map(|c| c.logger.clone()).unwrap_or_default(),
+            self.logger_mode(),
+        );
 
         let _updated_cfg = match &self.command {
             Commands::Init(cmd) => cmd.handle(&self.config).await?,

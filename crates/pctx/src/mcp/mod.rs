@@ -19,6 +19,11 @@ use tabled::{
     },
 };
 use terminal_size::terminal_size;
+use tower::ServiceBuilder;
+use tower_http::{
+    request_id::{MakeRequestUuid, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
+    trace::TraceLayer,
+};
 use tracing::info;
 
 use crate::utils::{LOGO, styles::fmt_dimmed};
@@ -32,15 +37,23 @@ pub(crate) struct PctxMcp {
     upstream: Vec<UpstreamMcp>,
     host: String,
     port: u16,
+    banner: bool,
 }
 
 impl PctxMcp {
-    pub(crate) fn new(config: Config, upstream: Vec<UpstreamMcp>, host: &str, port: u16) -> Self {
+    pub(crate) fn new(
+        config: Config,
+        upstream: Vec<UpstreamMcp>,
+        host: &str,
+        port: u16,
+        banner: bool,
+    ) -> Self {
         Self {
             config,
             upstream,
             host: host.into(),
             port,
+            banner,
         }
     }
 
@@ -72,7 +85,32 @@ impl PctxMcp {
             },
         );
 
-        let router = axum::Router::new().nest_service("/mcp", service);
+        let router = axum::Router::new().nest_service("/mcp", service).layer(
+            ServiceBuilder::new()
+                // Generate UUID if x-request-id header doesn't exist
+                .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+                // Propagate x-request-id to response headers
+                .layer(PropagateRequestIdLayer::x_request_id())
+                // Add tracing layer that includes request_id in spans
+                .layer(TraceLayer::new_for_http().make_span_with(
+                    |request: &axum::http::Request<_>| {
+                        let request_id = request
+                            .extensions()
+                            .get::<RequestId>()
+                            .map_or("unknown".to_string(), |id| {
+                                id.header_value().to_str().unwrap_or("invalid").to_string()
+                            });
+
+                        tracing::error_span!(
+                            "request",
+                            method = %request.method(),
+                            uri = %request.uri(),
+                            version = ?request.version(),
+                            request_id = %request_id,
+                        )
+                    },
+                )),
+        );
         let tcp_listener =
             tokio::net::TcpListener::bind(format!("{}:{}", &self.host, self.port)).await?;
 
@@ -97,7 +135,7 @@ impl PctxMcp {
         let min_term_width = logo_max_length + 4; // account for padding
         let term_width = terminal_size().map(|(w, _)| w.0).unwrap_or_default() as usize;
 
-        if term_width >= min_term_width {
+        if self.banner && term_width >= min_term_width {
             let mut builder = Builder::default();
 
             builder.push_record(["🦀 Server Name", &self.config.name]);
@@ -167,9 +205,9 @@ impl PctxMcp {
                 ))
                 .to_string();
 
-            info!("\n{banner}\n");
-        } else {
-            info!("PCTX listening at {mcp_url}...");
+            println!("\n{banner}\n"); // tracing::info doesn't work well with colors / formatting
         }
+
+        info!("PCTX listening at {mcp_url}...");
     }
 }

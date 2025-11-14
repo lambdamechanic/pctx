@@ -14,7 +14,7 @@ default-run = "pctx"
 
 [[bin]]
 name = "pctx"
-path = "src/cli.rs"
+path = "src/bin/cli.rs"
 
 [[bin]]
 name = "generate-cli-docs"
@@ -36,6 +36,7 @@ rmcp = { version = "0.8.0", features = [
     "auth",
 ] }
 axum = { version = "0.8", features = ["macros"] }
+tower-http = { version = "^0.6.6", features = ["trace", "request-id"] }
 serde = "1.0.228"
 indexmap = { version = "2.12.0", features = ["serde"] }
 serde_json = "1.0.145"
@@ -51,6 +52,12 @@ anyhow = "1.0"
 thiserror = { workspace = true }
 async-trait = "0.1"
 tracing = { workspace = true }
+tracing-subscriber = { version = "^0.3.20", features = [
+    "env-filter",
+    # "fmt",
+    "ansi",
+    "json",
+] }
 env_logger = "0.11"
 reqwest = { version = "0.12", features = ["json"] }
 open = "5.3"
@@ -66,6 +73,7 @@ inquire = "0.9.1"
 tabled = { version = "0.17", features = ["ansi"] }
 terminal_size = "0.4.3"
 clap-markdown = "0.1.4"
+tower = "0.5.2"
 
 [target.'cfg(all(not(target_env = "msvc"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "powerpc64")))'.dependencies]
 tikv-jemallocator = "0.6.0"

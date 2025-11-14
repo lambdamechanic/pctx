@@ -14,8 +14,7 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use clap::Parser;
-use pctx::{Cli, utils};
-use tracing::error;
+use pctx::Cli;
 
 #[tokio::main]
 async fn main() {
@@ -24,11 +23,8 @@ async fn main() {
 
     let cli = Cli::parse();
 
-    // Initialize telemetry/logging
-    utils::telemetry::init_telemetry(cli.tracing_level(), cli.telemetry_mode());
-
     if let Err(e) = cli.handle().await {
-        error!("{e}");
+        println!("{e}");
         std::process::exit(1);
     }
 }
