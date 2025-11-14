@@ -32,6 +32,7 @@ This creates a basic `pctx.json` and prompts you to add upstream MCP servers.
 | `version`     | `string`              | Yes      | Version of your MCP server                             |
 | `description` | `string`              | No       | Optional description of your MCP server                |
 | `servers`     | `array[ServerConfig]` | Yes      | List of upstream MCP server configurations (see below) |
+| `logger`      | `LoggerConfig`        | No       | Logger configuration (see below)                       |
 
 ### Server Configuration
 
@@ -205,12 +206,95 @@ You can use plain text values, but this is not recommended for production:
 
 **Warning:** Never commit credentials to version control. Use secret strings instead.
 
+## Logger Configuration
+
+The optional `logger` field controls logging behavior for the pctx server MPC server. This configuration only applies
+to `pctx start`, other commands like `pctx add` use the CLI verbosity controls (`-v/-vv/-q`).
+
+| Field     | Type           | Required | Default     | Description                                        |
+| --------- | -------------- | -------- | ----------- | -------------------------------------------------- |
+| `enabled` | `boolean`      | No       | `true`      | Enable or disable logging                          |
+| `level`   | `LogLevel`     | No       | `"info"`    | Minimum log level to display (see levels below)    |
+| `format`  | `LoggerFormat` | No       | `"compact"` | Output format for log messages (see formats below) |
+| `colors`  | `boolean`      | No       | `true`      | Enable or disable colorized output                 |
+
+### Log Levels
+
+Valid values for `level` (in order of increasing severity):
+
+- `"trace"` - Most verbose, shows all logs including detailed execution traces
+- `"debug"` - Detailed debugging information
+- `"info"` - General informational messages (default)
+- `"warn"` - Warning messages for potentially problematic situations
+- `"error"` - Error messages only
+
+### Log Formats
+
+Valid values for `format`:
+
+- `"compact"` - Condensed single-line format (default)
+- `"pretty"` - Human-readable multi-line format with indentation
+- `"json"` - Structured JSON format for log aggregation tools
+
+### Examples
+
+**Minimal logging (errors only):**
+
+```json
+{
+  "logger": {
+    "level": "error"
+  }
+}
+```
+
+**Debug mode with pretty formatting:**
+
+```json
+{
+  "logger": {
+    "enabled": true,
+    "level": "debug",
+    "format": "pretty",
+    "colors": true
+  }
+}
+```
+
+**JSON logging for production (no colors):**
+
+```json
+{
+  "logger": {
+    "level": "info",
+    "format": "json",
+    "colors": false
+  }
+}
+```
+
+**Disable logging completely:**
+
+```json
+{
+  "logger": {
+    "enabled": false
+  }
+}
+```
+
 ## Complete Example
 
 ```json
 {
   "name": "my-ai-agent",
   "description": "MCP server aggregation for my AI agent",
+  "logger": {
+    "enabled": true,
+    "level": "info",
+    "format": "compact",
+    "colors": true
+  },
   "servers": [
     {
       "name": "stripe",

@@ -99,6 +99,7 @@ Start the PCTX server (exposes /mcp endpoint).
 * `--host <HOST>` — Host address to bind to (use 0.0.0.0 for external access)
 
   Default value: `127.0.0.1`
+* `--no-banner` — Don't show the server banner
 
 
 
