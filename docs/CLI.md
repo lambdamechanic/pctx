@@ -9,6 +9,7 @@ This document contains the help content for the `pctx` command-line program.
 * [`pctx add`↴](#pctx-add)
 * [`pctx remove`↴](#pctx-remove)
 * [`pctx start`↴](#pctx-start)
+* [`pctx dev`↴](#pctx-dev)
 * [`pctx init`↴](#pctx-init)
 
 ## `pctx`
@@ -20,8 +21,7 @@ PCTX aggregates multiple MCP servers into a single endpoint, exposing them as a 
 EXAMPLES:
   pctx init 
   pctx add my-server https://mcp.example.com
-  pctx list 
-  pctx start --port 8080
+  pctx dev
 
 
 ###### **Subcommands:**
@@ -30,6 +30,7 @@ EXAMPLES:
 * `add` — Add an MCP server to configuration
 * `remove` — Remove an MCP server from configuration
 * `start` — Start the PCTX server
+* `dev` — Start the PCTX server with terminal UI
 * `init` — Initialize configuration file
 
 ###### **Options:**
@@ -100,6 +101,26 @@ Start the PCTX server (exposes /mcp endpoint).
 
   Default value: `127.0.0.1`
 * `--no-banner` — Don't show the server banner
+
+
+
+## `pctx dev`
+
+Start the PCTX server in development mode with an interactive terminal UI with data and logging.
+
+**Usage:** `pctx dev [OPTIONS]`
+
+###### **Options:**
+
+* `-p`, `--port <PORT>` — Port to listen on
+
+  Default value: `8080`
+* `--host <HOST>` — Host address to bind to (use 0.0.0.0 for external access)
+
+  Default value: `127.0.0.1`
+* `--log-file <LOG_FILE>` — Path to JSONL log file
+
+  Default value: `pctx-dev.jsonl`
 
 
 

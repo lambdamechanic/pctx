@@ -6,7 +6,9 @@ use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 
 use crate::{
-    commands::{add::AddCmd, init::InitCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd},
+    commands::{
+        add::AddCmd, dev::DevCmd, init::InitCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd,
+    },
     utils::logger::{LoggerMode, init_logger},
 };
 use pctx_config::Config;
@@ -22,8 +24,7 @@ for AI agents to call via code execution."
 #[command(after_help = "EXAMPLES:\n  \
     pctx init \n  \
     pctx add my-server https://mcp.example.com\n  \
-    pctx list \n  \
-    pctx start --port 8080\n\
+    pctx dev\n\
 ")]
 pub struct Cli {
     #[command(subcommand)]
@@ -44,8 +45,11 @@ pub struct Cli {
 
 impl Cli {
     pub fn logger_mode(&self) -> LoggerMode {
-        match self.command {
+        match &self.command {
             Commands::Start(_) => LoggerMode::Tracing,
+            Commands::Dev(dev_cmd) => LoggerMode::Dev {
+                log_file: dev_cmd.log_file.clone(),
+            },
             Commands::List(_) | Commands::Add(_) | Commands::Remove(_) | Commands::Init(_) => {
                 LoggerMode::EnvLogger {
                     verbose: self.verbose,
@@ -70,6 +74,7 @@ impl Cli {
             Commands::Add(cmd) => cmd.handle(cfg?, true).await?,
             Commands::Remove(cmd) => cmd.handle(cfg?)?,
             Commands::Start(cmd) => cmd.handle(cfg?).await?,
+            Commands::Dev(cmd) => cmd.handle(cfg?).await?,
         };
 
         Ok(())
@@ -94,6 +99,12 @@ pub enum Commands {
     /// Start the PCTX server
     #[command(long_about = "Start the PCTX server (exposes /mcp endpoint).")]
     Start(StartCmd),
+
+    /// Start the PCTX server with terminal UI
+    #[command(
+        long_about = "Start the PCTX server in development mode with an interactive terminal UI with data and logging."
+    )]
+    Dev(DevCmd),
 
     /// Initialize configuration file
     #[command(long_about = "Initialize pctx.json configuration file.")]

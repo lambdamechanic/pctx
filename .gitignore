@@ -8,3 +8,4 @@
 *.iml
 .claude
 pctx.json
+pctx-dev.jsonl

@@ -19,7 +19,7 @@ impl Spinner {
             info!("⣯ {}", msg.into());
             None
         } else {
-            Some(spinoff::Spinner::new(spinners::Dots, msg, Color::Cyan))
+            Some(spinoff::Spinner::new(spinners::Dots, msg, Color::Blue))
         };
         Self { sp }
     }

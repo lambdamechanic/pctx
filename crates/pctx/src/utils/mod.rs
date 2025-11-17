@@ -1,3 +1,4 @@
+pub(crate) mod jsonl_logger;
 pub(crate) mod logger;
 pub(crate) mod prompts;
 pub(crate) mod spinner;

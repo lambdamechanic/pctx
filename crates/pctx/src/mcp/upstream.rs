@@ -75,10 +75,6 @@ impl UpstreamTool {
 
         let input_types =
             codegen::typegen::generate_types(json!(tool.input_schema), &format!("{fn_name}Input"))?;
-        debug!(
-            "Generated {} types for input schema",
-            input_types.types_generated
-        );
 
         let mut types = input_types.types;
 
@@ -87,10 +83,6 @@ impl UpstreamTool {
                 json!(output_schema),
                 &format!("{fn_name}Output"),
             )?;
-            debug!(
-                "Generated {} types for output schema",
-                output_types.types_generated
-            );
             types = format!("{types}\n\n{}", output_types.types);
             output_types.type_signature
         } else {
