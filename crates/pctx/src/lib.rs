@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 
 use crate::{
     commands::{add::AddCmd, init::InitCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd},
-    utils::logger::{LoggerMode, init_logger},
+    utils::{logger::init_cli_logger, telemetry::init_telemetry},
 };
 use pctx_config::Config;
 
@@ -43,33 +43,28 @@ pub struct Cli {
 }
 
 impl Cli {
-    pub fn logger_mode(&self) -> LoggerMode {
-        match self.command {
-            Commands::Start(_) => LoggerMode::Tracing,
-            Commands::List(_) | Commands::Add(_) | Commands::Remove(_) | Commands::Init(_) => {
-                LoggerMode::EnvLogger {
-                    verbose: self.verbose,
-                    quiet: self.quiet,
-                }
-            }
-        }
+    pub fn cli_logger(&self) -> bool {
+        !matches!(&self.command, Commands::Start(_))
     }
 
     #[allow(clippy::missing_errors_doc)]
     pub async fn handle(&self) -> anyhow::Result<()> {
         let cfg = Config::load(&self.config);
 
-        init_logger(
-            &cfg.as_ref().map(|c| c.logger.clone()).unwrap_or_default(),
-            self.logger_mode(),
-        );
+        if self.cli_logger() {
+            init_cli_logger(self.verbose, self.quiet);
+        }
 
         let _updated_cfg = match &self.command {
             Commands::Init(cmd) => cmd.handle(&self.config).await?,
             Commands::List(cmd) => cmd.handle(cfg?).await?,
             Commands::Add(cmd) => cmd.handle(cfg?, true).await?,
             Commands::Remove(cmd) => cmd.handle(cfg?)?,
-            Commands::Start(cmd) => cmd.handle(cfg?).await?,
+            Commands::Start(cmd) => {
+                let config = cfg?;
+                init_telemetry(&config)?;
+                cmd.handle(config).await?
+            }
         };
 
         Ok(())
