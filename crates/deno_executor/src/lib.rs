@@ -7,7 +7,7 @@ pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, ty
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 use thiserror::Error;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 pub type Result<T> = std::result::Result<T, DenoExecutorError>;
 
@@ -73,7 +73,7 @@ pub async fn execute(code: &str, allowed_hosts: Option<Vec<String>>) -> Result<E
         code_length = code.len(),
         "Code submitted for execution"
     );
-    info!(runtime = "type_check", "Starting type check");
+    debug!(runtime = "type_check", "Starting type check");
 
     let check_result = type_check(code).await?;
 
@@ -103,7 +103,7 @@ pub async fn execute(code: &str, allowed_hosts: Option<Vec<String>>) -> Result<E
         });
     }
 
-    info!(runtime = "type_check", "Type check passed");
+    debug!(runtime = "type_check", "Type check passed");
 
     let exec_result = execute_code(code, allowed_hosts)
         .await
@@ -163,7 +163,7 @@ async fn execute_code(
     code: &str,
     allowed_hosts: Option<Vec<String>>,
 ) -> std::result::Result<InternalExecuteResult, AnyError> {
-    info!(runtime = "execution", "Starting code execution");
+    debug!(runtime = "execution", "Starting code execution");
 
     // Transpile TypeScript to JavaScript
     let js_code = match deno_transpiler::transpile(code, None) {
@@ -256,7 +256,7 @@ async fn execute_code(
     // Check for errors from either future
     let (success, error) = match (eval_result, event_loop_result) {
         (Ok(()), Ok(())) => {
-            info!(runtime = "execution", "Code executed successfully");
+            debug!(runtime = "execution", "Code executed successfully");
             (true, None)
         }
         (Err(e), _) | (_, Err(e)) => {

@@ -14,7 +14,7 @@ use rmcp::{
     tool, tool_router,
 };
 use serde_json::json;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::mcp::upstream::UpstreamMcp;
 
@@ -228,7 +228,7 @@ namespace {namespace} {{
 export default await run();"
         );
 
-        info!("Executing code in sandbox");
+        debug!("Executing code in sandbox");
 
         let allowed_hosts = self.allowed_hosts.clone();
         let code_to_execute = to_execute.clone();
@@ -257,7 +257,7 @@ export default await run();"
         })?;
 
         if result.success {
-            info!("Sandbox execution completed successfully");
+            debug!("Sandbox execution completed successfully");
         } else {
             warn!("Sandbox execution failed: {:?}", result.stderr);
         }
@@ -344,10 +344,11 @@ impl ServerHandler for PtcxTools {
         }
     }
 
+    #[instrument(skip_all, fields(mcp.method = "tools/list", mcp.id = %ctx.id))]
     async fn list_tools(
         &self,
         _req: Option<PaginatedRequestParam>,
-        _ctx: RequestContext<RoleServer>,
+        ctx: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
         let start = std::time::Instant::now();
         let res = ListToolsResult::with_all_items(self.tool_router.list_all());
@@ -362,21 +363,22 @@ impl ServerHandler for PtcxTools {
         Ok(res)
     }
 
+    #[instrument(skip_all, fields(mcp.method = "tools/call", mcp.id = %ctx.id, tool.name = %req.name))]
     async fn call_tool(
         &self,
-        request: CallToolRequestParam,
-        context: RequestContext<RoleServer>,
+        req: CallToolRequestParam,
+        ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let start = std::time::Instant::now();
-        let tool_name = request.name.clone();
+        let tool_name = req.name.clone();
 
-        let tcc = ToolCallContext::new(self, request, context);
+        let tcc = ToolCallContext::new(self, req, ctx);
         let res = self.tool_router.call(tcc).await?;
 
         let latency = start.elapsed();
         info!(
-            tool_result.is_error = res.is_error.unwrap_or_default(),
-            tool_result.has_structured_content = res.structured_content.is_some(),
+            tool.result.is_error = res.is_error.unwrap_or_default(),
+            tool.result.has_structured_content = res.structured_content.is_some(),
             latency_ms = latency.as_millis(),
             "tools/call - {tool_name}"
         );
