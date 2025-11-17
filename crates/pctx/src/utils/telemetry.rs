@@ -19,18 +19,6 @@ use crate::utils::logger;
 pub(crate) fn init_telemetry(cfg: &Config) -> Result<()> {
     let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = Vec::new();
 
-    if cfg.logger.enabled {
-        let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
-            logger::default_env_filter(cfg.logger.level.as_str()),
-        ));
-        layers.push(init_tracing_layer(
-            std::io::stdout,
-            &cfg.logger.format,
-            cfg.logger.colors,
-        ));
-        layers.push(env_filter.boxed());
-    }
-
     let resource = Resource::builder()
         .with_attributes([
             KeyValue::new("service.name", cfg.name.clone()),
@@ -50,6 +38,17 @@ pub(crate) fn init_telemetry(cfg: &Config) -> Result<()> {
         let tracer = provider.tracer("pctx");
 
         layers.push(tracing_opentelemetry::layer().with_tracer(tracer).boxed());
+    }
+
+    if cfg.logger.enabled {
+        let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
+            logger::default_env_filter(cfg.logger.level.as_str()),
+        ));
+        layers.push(
+            init_tracing_layer(std::io::stdout, &cfg.logger.format, cfg.logger.colors)
+                .with_filter(env_filter)
+                .boxed(),
+        );
     }
 
     tracing_subscriber::registry().with(layers).try_init()?;

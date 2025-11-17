@@ -10,11 +10,15 @@ const WHITELISTED_CRATES: &[&str] = &[
 ];
 
 pub(crate) fn default_env_filter(level: &str) -> String {
-    WHITELISTED_CRATES
+    let mut filters: Vec<String> = WHITELISTED_CRATES
         .iter()
         .map(|crate_name| format!("{crate_name}={level}"))
-        .collect::<Vec<_>>()
-        .join(",")
+        .collect();
+
+    // Set default level for all other crates to warn
+    filters.insert(0, "warn".to_string());
+
+    filters.join(",")
 }
 
 pub(crate) fn init_cli_logger(verbose: u8, quiet: bool) {
