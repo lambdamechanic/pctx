@@ -3,15 +3,18 @@ use codegen::generate_docstring;
 use indexmap::{IndexMap, IndexSet};
 use pctx_config::Config;
 use rmcp::{
-    ErrorData as McpError, ServerHandler,
-    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    ErrorData as McpError, RoleServer, ServerHandler,
+    handler::server::{router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters},
     model::{
-        CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
+        CallToolRequestParam, CallToolResult, Content, Implementation, ListToolsResult,
+        PaginatedRequestParam, ProtocolVersion, ServerCapabilities, ServerInfo,
     },
-    schemars, tool, tool_handler, tool_router,
+    schemars,
+    service::RequestContext,
+    tool, tool_router,
 };
 use serde_json::json;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::mcp::upstream::UpstreamMcp;
 
@@ -183,6 +186,12 @@ namespace {namespace} {{
         &self,
         Parameters(ExecuteInput { code }): Parameters<ExecuteInput>,
     ) -> McpResult<CallToolResult> {
+        tracing::debug!(
+            code_from_llm = %code,
+            code_length = code.len(),
+            "Received code to execute"
+        );
+
         let registrations = self
             .upstream
             .iter()
@@ -219,7 +228,7 @@ namespace {namespace} {{
 export default await run();"
         );
 
-        info!("Executing code in sandbox");
+        debug!("Executing code in sandbox");
 
         let allowed_hosts = self.allowed_hosts.clone();
         let code_to_execute = to_execute.clone();
@@ -248,7 +257,7 @@ export default await run();"
         })?;
 
         if result.success {
-            info!("Sandbox execution completed successfully");
+            debug!("Sandbox execution completed successfully");
         } else {
             warn!("Sandbox execution failed: {:?}", result.stderr);
         }
@@ -289,19 +298,23 @@ pub(crate) struct GetFunctionDetailsInput {
     pub functions: Vec<String>,
 }
 
+#[allow(clippy::doc_markdown)]
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub(crate) struct ExecuteInput {
     /// Typescript code to execute.
-    /// Example:
+    ///
+    /// REQUIRED FORMAT:
     /// async function ``run()`` {
-    ///   // YOUR CODE GOES HERE e.g. const result = await ``client.method();``
+    ///   // YOUR CODE GOES HERE e.g. const result = await ``Namespace.method();``
     ///   // ALWAYS RETURN THE RESULT e.g. return result;
     /// }
+    ///
+    /// IMPORTANT: Your code should ONLY contain the function definition.
+    /// The sandbox automatically calls run() and exports the result.
     ///
     pub code: String,
 }
 
-#[tool_handler]
 impl ServerHandler for PtcxTools {
     fn get_info(&self) -> ServerInfo {
         let default_description = format!(
@@ -329,5 +342,47 @@ impl ServerHandler for PtcxTools {
                     .unwrap_or(default_description),
             ),
         }
+    }
+
+    #[instrument(skip_all, fields(mcp.method = "tools/list", mcp.id = %ctx.id))]
+    async fn list_tools(
+        &self,
+        _req: Option<PaginatedRequestParam>,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, McpError> {
+        let start = std::time::Instant::now();
+        let res = ListToolsResult::with_all_items(self.tool_router.list_all());
+        let latency = start.elapsed();
+        info!(
+            tools.length = res.tools.len(),
+            tools.next_cursor = res.next_cursor.is_some(),
+            latency_ms = latency.as_millis(),
+            "tools/list"
+        );
+
+        Ok(res)
+    }
+
+    #[instrument(skip_all, fields(mcp.method = "tools/call", mcp.id = %ctx.id, tool.name = %req.name))]
+    async fn call_tool(
+        &self,
+        req: CallToolRequestParam,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let start = std::time::Instant::now();
+        let tool_name = req.name.clone();
+
+        let tcc = ToolCallContext::new(self, req, ctx);
+        let res = self.tool_router.call(tcc).await?;
+
+        let latency = start.elapsed();
+        info!(
+            tool.result.is_error = res.is_error.unwrap_or_default(),
+            tool.result.has_structured_content = res.structured_content.is_some(),
+            latency_ms = latency.as_millis(),
+            "tools/call - {tool_name}"
+        );
+
+        Ok(res)
     }
 }
