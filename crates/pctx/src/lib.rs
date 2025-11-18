@@ -62,7 +62,7 @@ impl Cli {
             Commands::Remove(cmd) => cmd.handle(cfg?)?,
             Commands::Start(cmd) => {
                 let config = cfg?;
-                init_telemetry(&config)?;
+                init_telemetry(&config).await?;
                 cmd.handle(config).await?
             }
         };

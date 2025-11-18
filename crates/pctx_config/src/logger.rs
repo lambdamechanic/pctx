@@ -2,18 +2,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoggerConfig {
-    #[serde(default = "default_true")]
+    #[serde(default = "crate::defaults::default_true")]
     pub enabled: bool,
     #[serde(default)]
     pub level: LogLevel,
     #[serde(default)]
     pub format: LoggerFormat,
-    #[serde(default = "default_true")]
+    #[serde(default = "crate::defaults::default_true")]
     pub colors: bool,
-}
-
-fn default_true() -> bool {
-    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
