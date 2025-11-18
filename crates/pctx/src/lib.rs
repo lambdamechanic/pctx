@@ -6,7 +6,9 @@ use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 
 use crate::{
-    commands::{add::AddCmd, init::InitCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd},
+    commands::{
+        add::AddCmd, dev::DevCmd, init::InitCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd,
+    },
     utils::{logger::init_cli_logger, telemetry::init_telemetry},
 };
 use pctx_config::Config;
@@ -22,8 +24,7 @@ for AI agents to call via code execution."
 #[command(after_help = "EXAMPLES:\n  \
     pctx init \n  \
     pctx add my-server https://mcp.example.com\n  \
-    pctx list \n  \
-    pctx start --port 8080\n\
+    pctx dev\n\
 ")]
 pub struct Cli {
     #[command(subcommand)]
@@ -44,7 +45,7 @@ pub struct Cli {
 
 impl Cli {
     pub fn cli_logger(&self) -> bool {
-        !matches!(&self.command, Commands::Start(_))
+        !matches!(&self.command, Commands::Start(_) | Commands::Dev(_))
     }
 
     #[allow(clippy::missing_errors_doc)]
@@ -53,6 +54,10 @@ impl Cli {
 
         if self.cli_logger() {
             init_cli_logger(self.verbose, self.quiet);
+        } else {
+            if let Ok(c) = &cfg {
+                init_telemetry(c).await?;
+            }
         }
 
         let _updated_cfg = match &self.command {
@@ -60,11 +65,8 @@ impl Cli {
             Commands::List(cmd) => cmd.handle(cfg?).await?,
             Commands::Add(cmd) => cmd.handle(cfg?, true).await?,
             Commands::Remove(cmd) => cmd.handle(cfg?)?,
-            Commands::Start(cmd) => {
-                let config = cfg?;
-                init_telemetry(&config).await?;
-                cmd.handle(config).await?
-            }
+            Commands::Start(cmd) => cmd.handle(cfg?).await?,
+            Commands::Dev(cmd) => cmd.handle(cfg?).await?,
         };
 
         Ok(())
@@ -89,6 +91,12 @@ pub enum Commands {
     /// Start the PCTX server
     #[command(long_about = "Start the PCTX server (exposes /mcp endpoint).")]
     Start(StartCmd),
+
+    /// Start the PCTX server with terminal UI
+    #[command(
+        long_about = "Start the PCTX server in development mode with an interactive terminal UI with data and logging."
+    )]
+    Dev(DevCmd),
 
     /// Initialize configuration file
     #[command(long_about = "Initialize pctx.json configuration file.")]

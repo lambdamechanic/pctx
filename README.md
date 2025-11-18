@@ -39,8 +39,8 @@ pctx init
 pctx add my-local-server http://localhost:3000/mcp
 pctx add stripe https://mcp.stripe.com
 
-# Start the unified MCP server
-pctx start
+# Start the unified MCP server in dev mode
+pctx dev
 ```
 
 For complete CLI documentation, see [CLI.md](docs/CLI.md).

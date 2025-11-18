@@ -92,3 +92,36 @@ where
             .boxed(),
     }
 }
+
+// For dev mode, always enable logging to JSONL file
+// // Set filter to debug level to capture all relevant logs
+// let env_filter = WHITELISTED_CRATES
+//     .iter()
+//     .map(|crate_name| format!("{crate_name}=debug"))
+//     .collect::<Vec<_>>()
+//     .join(",");
+
+// let env_filter =
+//     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
+
+// match JsonlWriter::new(&log_file) {
+//     Ok(writer) => {
+//         let jsonl_layer = JsonlLayer::new(writer);
+
+//         if let Err(e) = tracing_subscriber::registry()
+//             .with(jsonl_layer)
+//             .with(env_filter)
+//             .try_init()
+//         {
+//             eprintln!(
+//                 "pctx: Failed initializing tracing_subscriber for dev mode: {e:?}"
+//             );
+//         }
+//     }
+//     Err(e) => {
+//         eprintln!(
+//             "pctx: Failed to create JSONL log file at {}: {e:?}",
+//             log_file.display()
+//         );
+//     }
+// }
