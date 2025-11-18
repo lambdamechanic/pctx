@@ -33,6 +33,7 @@ This creates a basic `pctx.json` and prompts you to add upstream MCP servers.
 | `description` | `string`              | No       | Optional description of your MCP server                |
 | `servers`     | `array[ServerConfig]` | Yes      | List of upstream MCP server configurations (see below) |
 | `logger`      | `LoggerConfig`        | No       | Logger configuration (see below)                       |
+| `telemetry`   | `TelemetryConfig`     | No       | OpenTelemetry configuration (see below)                |
 
 ### Server Configuration
 
@@ -104,6 +105,315 @@ This adds an `Authorization: Bearer <token>` header to all requests.
 ```
 
 Use this for API key authentication or any custom header requirements.
+
+## Logger Configuration
+
+The optional `logger` field controls logging behavior for the pctx server MPC server. This configuration only applies
+to `pctx start`, other commands like `pctx add` use the CLI verbosity controls (`-v/-vv/-q`).
+
+| Field     | Type           | Required | Default     | Description                                        |
+| --------- | -------------- | -------- | ----------- | -------------------------------------------------- |
+| `enabled` | `boolean`      | No       | `true`      | Enable or disable logging                          |
+| `level`   | `LogLevel`     | No       | `"info"`    | Minimum log level to display (see levels below)    |
+| `format`  | `LoggerFormat` | No       | `"compact"` | Output format for log messages (see formats below) |
+| `colors`  | `boolean`      | No       | `true`      | Enable or disable colorized output                 |
+
+### Log Levels
+
+Valid values for `level` (in order of increasing severity):
+
+- `"trace"` - Most verbose, shows all logs including detailed execution traces
+- `"debug"` - Detailed debugging information
+- `"info"` - General informational messages (default)
+- `"warn"` - Warning messages for potentially problematic situations
+- `"error"` - Error messages only
+
+### Log Formats
+
+Valid values for `format`:
+
+- `"compact"` - Condensed single-line format (default)
+- `"pretty"` - Human-readable multi-line format with indentation
+- `"json"` - Structured JSON format for log aggregation tools
+
+### Examples
+
+**Minimal logging (errors only):**
+
+```json
+{
+  "logger": {
+    "level": "error"
+  }
+}
+```
+
+**Debug mode with pretty formatting:**
+
+```json
+{
+  "logger": {
+    "enabled": true,
+    "level": "debug",
+    "format": "pretty",
+    "colors": true
+  }
+}
+```
+
+**JSON logging for production (no colors):**
+
+```json
+{
+  "logger": {
+    "level": "info",
+    "format": "json",
+    "colors": false
+  }
+}
+```
+
+**Disable logging completely:**
+
+```json
+{
+  "logger": {
+    "enabled": false
+  }
+}
+```
+
+## Telemetry Configuration
+
+The optional `telemetry` field enables OpenTelemetry (OTLP) integration for distributed tracing and metrics collection. This allows you to observe and monitor the behavior of your MCP server and its interactions with upstream servers.
+
+| Field     | Type            | Required | Default | Description                       |
+| --------- | --------------- | -------- | ------- | --------------------------------- |
+| `traces`  | `TracesConfig`  | No       | -       | Distributed tracing configuration |
+| `metrics` | `MetricsConfig` | No       | -       | Metrics collection configuration  |
+
+### Traces Configuration
+
+| Field       | Type                    | Required | Default | Description                              |
+| ----------- | ----------------------- | -------- | ------- | ---------------------------------------- |
+| `enabled`   | `boolean`               | No       | `false` | Enable or disable trace collection       |
+| `exporters` | `array[ExporterConfig]` | No       | `[]`    | List of OTLP trace exporters (see below) |
+
+### Metrics Configuration
+
+| Field       | Type                    | Required | Default | Description                                |
+| ----------- | ----------------------- | -------- | ------- | ------------------------------------------ |
+| `enabled`   | `boolean`               | No       | `false` | Enable or disable metrics collection       |
+| `exporters` | `array[ExporterConfig]` | No       | `[]`    | List of OTLP metrics exporters (see below) |
+
+### Exporter Configuration
+
+Each exporter in the `exporters` array has the following fields:
+
+| Field      | Type               | Required | Default | Description                                            |
+| ---------- | ------------------ | -------- | ------- | ------------------------------------------------------ |
+| `name`     | `string`           | Yes      | -       | Identifier for this exporter                           |
+| `url`      | `string`           | Yes      | -       | OTLP endpoint URL (see protocol-specific format below) |
+| `protocol` | `"http" \| "grpc"` | Yes      | -       | Protocol to use for OTLP export                        |
+| `timeout`  | `number`           | No       | `10000` | Request timeout in milliseconds                        |
+| `auth`     | `AuthConfig`       | No       | -       | Authentication configuration (see below)               |
+
+#### Authentication Configuration
+
+The `auth` field supports multiple authentication methods:
+
+**Bearer Token Authentication:**
+
+| Field   | Type           | Required | Description                                  |
+| ------- | -------------- | -------- | -------------------------------------------- |
+| `type`  | `"bearer"`     | Yes      | Authentication type                          |
+| `token` | `SecretString` | Yes      | Bearer token (supports secret string syntax) |
+
+**Basic Authentication:**
+
+| Field      | Type           | Required | Description                              |
+| ---------- | -------------- | -------- | ---------------------------------------- |
+| `type`     | `"basic"`      | Yes      | Authentication type                      |
+| `username` | `SecretString` | Yes      | Username (supports secret string syntax) |
+| `password` | `SecretString` | Yes      | Password (supports secret string syntax) |
+
+**Custom Headers:**
+
+| Field     | Type                      | Required | Description                                   |
+| --------- | ------------------------- | -------- | --------------------------------------------- |
+| `type`    | `"headers"`               | Yes      | Authentication type                           |
+| `headers` | `map[string]SecretString` | Yes      | Custom headers (support secret string syntax) |
+
+### Protocol-Specific URLs
+
+**HTTP Protocol:**
+
+- For traces: Include the full path including `/v1/traces`
+- For metrics: Include the full path including `/v1/metrics`
+- Example: `http://localhost:4318/v1/traces`
+
+**gRPC Protocol:**
+
+- Use the base URL without path
+- Example: `http://localhost:4317`
+
+### Examples
+
+**Basic tracing configuration:**
+
+```json
+{
+  "telemetry": {
+    "traces": {
+      "enabled": true,
+      "exporters": [
+        {
+          "name": "tempo",
+          "url": "http://localhost:4318/v1/traces",
+          "protocol": "http"
+        }
+      ]
+    }
+  }
+}
+```
+
+**Traces and metrics with gRPC:**
+
+```json
+{
+  "telemetry": {
+    "traces": {
+      "enabled": true,
+      "exporters": [
+        {
+          "name": "otlp-traces",
+          "url": "http://localhost:4317",
+          "protocol": "grpc"
+        }
+      ]
+    },
+    "metrics": {
+      "enabled": true,
+      "exporters": [
+        {
+          "name": "otlp-metrics",
+          "url": "http://localhost:4317",
+          "protocol": "grpc"
+        }
+      ]
+    }
+  }
+}
+```
+
+**With bearer token authentication:**
+
+```json
+{
+  "telemetry": {
+    "traces": {
+      "enabled": true,
+      "exporters": [
+        {
+          "name": "grafana-cloud",
+          "url": "https://otlp-gateway.grafana.net/otlp/v1/traces",
+          "protocol": "http",
+          "auth": {
+            "type": "bearer",
+            "token": "${env:GRAFANA_CLOUD_TOKEN}"
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+**With basic authentication:**
+
+```json
+{
+  "telemetry": {
+    "traces": {
+      "enabled": true,
+      "exporters": [
+        {
+          "name": "secure-collector",
+          "url": "https://collector.example.com/v1/traces",
+          "protocol": "http",
+          "auth": {
+            "type": "basic",
+            "username": "${env:OTEL_USERNAME}",
+            "password": "${env:OTEL_PASSWORD}"
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+**With custom headers:**
+
+```json
+{
+  "telemetry": {
+    "traces": {
+      "enabled": true,
+      "exporters": [
+        {
+          "name": "custom-collector",
+          "url": "https://collector.example.com/v1/traces",
+          "protocol": "http",
+          "auth": {
+            "type": "headers",
+            "headers": {
+              "X-API-Key": "${env:OTEL_API_KEY}",
+              "X-Custom-Header": "custom-value"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+**Multiple exporters:**
+
+```json
+{
+  "telemetry": {
+    "traces": {
+      "enabled": true,
+      "exporters": [
+        {
+          "name": "local-tempo",
+          "url": "http://localhost:4318/v1/traces",
+          "protocol": "http"
+        },
+        {
+          "name": "production-collector",
+          "url": "https://otel-collector.company.com:4317",
+          "protocol": "grpc",
+          "timeout": 5000,
+          "auth": {
+            "type": "headers",
+            "headers": {
+              "x-api-key": "${keychain:otel-api-key}"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+### Getting Started with Telemetry
+
+For a complete example with OpenTelemetry Collector, Tempo, Prometheus, and Grafana, see the [telemetry example](../examples/telemetry/README.md).
 
 ## Secret String Syntax
 
@@ -206,94 +516,40 @@ You can use plain text values, but this is not recommended for production:
 
 **Warning:** Never commit credentials to version control. Use secret strings instead.
 
-## Logger Configuration
-
-The optional `logger` field controls logging behavior for the pctx server MPC server. This configuration only applies
-to `pctx start`, other commands like `pctx add` use the CLI verbosity controls (`-v/-vv/-q`).
-
-| Field     | Type           | Required | Default     | Description                                        |
-| --------- | -------------- | -------- | ----------- | -------------------------------------------------- |
-| `enabled` | `boolean`      | No       | `true`      | Enable or disable logging                          |
-| `level`   | `LogLevel`     | No       | `"info"`    | Minimum log level to display (see levels below)    |
-| `format`  | `LoggerFormat` | No       | `"compact"` | Output format for log messages (see formats below) |
-| `colors`  | `boolean`      | No       | `true`      | Enable or disable colorized output                 |
-
-### Log Levels
-
-Valid values for `level` (in order of increasing severity):
-
-- `"trace"` - Most verbose, shows all logs including detailed execution traces
-- `"debug"` - Detailed debugging information
-- `"info"` - General informational messages (default)
-- `"warn"` - Warning messages for potentially problematic situations
-- `"error"` - Error messages only
-
-### Log Formats
-
-Valid values for `format`:
-
-- `"compact"` - Condensed single-line format (default)
-- `"pretty"` - Human-readable multi-line format with indentation
-- `"json"` - Structured JSON format for log aggregation tools
-
-### Examples
-
-**Minimal logging (errors only):**
-
-```json
-{
-  "logger": {
-    "level": "error"
-  }
-}
-```
-
-**Debug mode with pretty formatting:**
-
-```json
-{
-  "logger": {
-    "enabled": true,
-    "level": "debug",
-    "format": "pretty",
-    "colors": true
-  }
-}
-```
-
-**JSON logging for production (no colors):**
-
-```json
-{
-  "logger": {
-    "level": "info",
-    "format": "json",
-    "colors": false
-  }
-}
-```
-
-**Disable logging completely:**
-
-```json
-{
-  "logger": {
-    "enabled": false
-  }
-}
-```
-
 ## Complete Example
 
 ```json
 {
   "name": "my-ai-agent",
+  "version": "1.0.0",
   "description": "MCP server aggregation for my AI agent",
   "logger": {
     "enabled": true,
     "level": "info",
     "format": "compact",
     "colors": true
+  },
+  "telemetry": {
+    "traces": {
+      "enabled": true,
+      "exporters": [
+        {
+          "name": "tempo",
+          "url": "http://localhost:4318/v1/traces",
+          "protocol": "http"
+        }
+      ]
+    },
+    "metrics": {
+      "enabled": true,
+      "exporters": [
+        {
+          "name": "prometheus",
+          "url": "http://localhost:4318/v1/metrics",
+          "protocol": "http"
+        }
+      ]
+    }
   },
   "servers": [
     {
@@ -332,39 +588,7 @@ Valid values for `format`:
 
 ## Managing Configuration
 
-### Add a Server
-
-```bash
-pctx add my-server https://mcp.example.com
-```
-
-With authentication:
-
-```bash
-pctx add stripe https://mcp.stripe.com --bearer '${env:STRIPE_KEY}'
-```
-
-With custom headers:
-
-```bash
-pctx add gdrive https://mcp.example.com \
-  --header 'x-api-key: ${keychain:api-key}' \
-  --header 'x-custom: value'
-```
-
-### Remove a Server
-
-```bash
-pctx remove my-server
-```
-
-### List Servers
-
-```bash
-pctx list
-```
-
-This shows all configured servers and tests their connections.
+The server configurations can be added, removed, and listed via the CLI, see [CLI Docs](./CLI.md) for details.
 
 ## Troubleshooting
 
