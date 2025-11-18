@@ -1,4 +1,5 @@
 use anyhow::Result;
+use camino::Utf8PathBuf;
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use crossterm::{
@@ -31,7 +32,6 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{self, BufRead, BufReader, Seek, SeekFrom},
-    path::PathBuf,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -51,7 +51,7 @@ pub struct DevCmd {
 
     /// Path to JSONL log file
     #[arg(long, default_value = "pctx-dev.jsonl")]
-    pub log_file: PathBuf,
+    pub log_file: Utf8PathBuf,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -142,7 +142,7 @@ struct App {
     port: u16,
     start_time: Option<Instant>,
     log_scroll_offset: usize,
-    log_file_path: PathBuf,
+    log_file_path: Utf8PathBuf,
     log_file_pos: u64,
 
     // UI State
@@ -165,7 +165,7 @@ struct App {
 }
 
 impl App {
-    fn new(host: String, port: u16, log_file_path: PathBuf) -> Self {
+    fn new(host: String, port: u16, log_file_path: Utf8PathBuf) -> Self {
         Self {
             logs: Vec::new(),
             upstream_servers: Vec::new(),
@@ -1539,9 +1539,9 @@ impl DevCmd {
 
             // Watch the parent directory since the log file might not exist yet
             let watch_path = if log_file_path.exists() {
-                log_file_path.as_path()
+                log_file_path.as_std_path()
             } else if let Some(parent) = log_file_path.parent() {
-                parent
+                parent.as_std_path()
             } else {
                 tracing::error!("Cannot determine parent directory for log file");
                 return;
@@ -1552,7 +1552,7 @@ impl DevCmd {
                 return;
             }
 
-            tracing::info!("Watching log file for changes: {}", log_file_path.display());
+            tracing::info!("Watching log file for changes: {log_file_path}");
 
             // Use recv_timeout so we can check periodically and exit cleanly
             loop {
@@ -1900,7 +1900,7 @@ mod tests {
     #[test]
     fn test_track_tool_usage_with_banking_namespace() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let log_file = temp_dir.path().join("test.jsonl");
+        let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
 
         let mut app = App::new("localhost".to_string(), 8080, log_file);
 
@@ -1946,7 +1946,7 @@ mod tests {
     #[test]
     fn test_track_tool_usage_with_freeze_account() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let log_file = temp_dir.path().join("test.jsonl");
+        let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
 
         let mut app = App::new("localhost".to_string(), 8080, log_file);
 
@@ -1991,7 +1991,7 @@ mod tests {
     #[test]
     fn test_track_multiple_calls() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let log_file = temp_dir.path().join("test.jsonl");
+        let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
 
         let mut app = App::new("localhost".to_string(), 8080, log_file);
 

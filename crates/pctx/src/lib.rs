@@ -44,8 +44,16 @@ pub struct Cli {
 }
 
 impl Cli {
-    pub fn cli_logger(&self) -> bool {
+    fn cli_logger(&self) -> bool {
         !matches!(&self.command, Commands::Start(_) | Commands::Dev(_))
+    }
+
+    fn json_l(&self) -> Option<Utf8PathBuf> {
+        if let Commands::Dev(dev) = &self.command {
+            Some(dev.log_file.clone())
+        } else {
+            None
+        }
     }
 
     #[allow(clippy::missing_errors_doc)]
@@ -54,10 +62,8 @@ impl Cli {
 
         if self.cli_logger() {
             init_cli_logger(self.verbose, self.quiet);
-        } else {
-            if let Ok(c) = &cfg {
-                init_telemetry(c).await?;
-            }
+        } else if let Ok(c) = &cfg {
+            init_telemetry(c, self.json_l()).await?;
         }
 
         let _updated_cfg = match &self.command {

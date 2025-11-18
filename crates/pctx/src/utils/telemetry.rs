@@ -1,15 +1,17 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use opentelemetry::KeyValue;
 use opentelemetry::trace::TracerProvider;
 
+use camino::Utf8PathBuf;
 use opentelemetry_sdk::Resource;
 use pctx_config::{Config, logger::LoggerFormat};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt};
 use tracing_subscriber::{Layer, Registry, util::SubscriberInitExt};
 
+use crate::utils::jsonl_logger::{JsonlLayer, JsonlWriter};
 use crate::utils::{logger, metrics};
 
-pub(crate) async fn init_telemetry(cfg: &Config) -> Result<()> {
+pub(crate) async fn init_telemetry(cfg: &Config, json_l: Option<Utf8PathBuf>) -> Result<()> {
     let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = Vec::new();
 
     let resource = Resource::builder()
@@ -50,7 +52,13 @@ pub(crate) async fn init_telemetry(cfg: &Config) -> Result<()> {
         metrics::init_mcp_tool_metrics();
     }
 
-    if cfg.logger.enabled {
+    if let Some(log_file) = json_l {
+        let env_filter = EnvFilter::try_from_default_env()
+            .unwrap_or(EnvFilter::new(logger::default_env_filter("debug")));
+        let writer = JsonlWriter::new(&log_file)
+            .context(format!("Failed to create JSONL log file at {log_file}"))?;
+        layers.push(JsonlLayer::new(writer).with_filter(env_filter).boxed());
+    } else if cfg.logger.enabled {
         let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
             logger::default_env_filter(cfg.logger.level.as_str()),
         ));
@@ -92,36 +100,3 @@ where
             .boxed(),
     }
 }
-
-// For dev mode, always enable logging to JSONL file
-// // Set filter to debug level to capture all relevant logs
-// let env_filter = WHITELISTED_CRATES
-//     .iter()
-//     .map(|crate_name| format!("{crate_name}=debug"))
-//     .collect::<Vec<_>>()
-//     .join(",");
-
-// let env_filter =
-//     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
-
-// match JsonlWriter::new(&log_file) {
-//     Ok(writer) => {
-//         let jsonl_layer = JsonlLayer::new(writer);
-
-//         if let Err(e) = tracing_subscriber::registry()
-//             .with(jsonl_layer)
-//             .with(env_filter)
-//             .try_init()
-//         {
-//             eprintln!(
-//                 "pctx: Failed initializing tracing_subscriber for dev mode: {e:?}"
-//             );
-//         }
-//     }
-//     Err(e) => {
-//         eprintln!(
-//             "pctx: Failed to create JSONL log file at {}: {e:?}",
-//             log_file.display()
-//         );
-//     }
-// }
