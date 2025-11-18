@@ -101,42 +101,44 @@ Direct access to metrics: [http://localhost:9090](http://localhost:9090)
 
 You can also query metrics directly in Prometheus or via Grafana. Here are some example queries:
 
-**Request rate (requests per second):**
+**MCP tool call rate (calls per second):**
 
 ```promql
-rate(pctx_mcp_requests_total[5m])
+rate(mcp_tool_calls_total[5m])
 ```
 
-**Request duration percentiles:**
+**MCP tool error rate:**
 
 ```promql
-histogram_quantile(0.95, rate(pctx_mcp_request_duration_bucket[5m]))
+rate(mcp_tool_errors_total[5m])
 ```
 
-**Error rate:**
+**MCP tool call duration (95th percentile):**
 
 ```promql
-rate(pctx_mcp_requests_total{status="error"}[5m])
+histogram_quantile(0.95, rate(mcp_tool_call_duration_ms_bucket[5m]))
 ```
 
-**Average Duration Per Tool:**
+**MCP tool list duration (average):**
 
 ```promql
-sum(rate(mcp_tool_call_duration_ms_milliseconds_sum[5m])) by (tool_name)
+rate(mcp_tool_list_duration_ms_sum[5m])
 /
-sum(rate(mcp_tool_call_duration_ms_milliseconds_count[5m])) by (tool_name)
+rate(mcp_tool_list_duration_ms_count[5m])
 ```
 
-**Active connections by server:**
+**MCP tool call duration (average by tool):**
 
 ```promql
-pctx_mcp_active_connections{server="stripe"}
+sum(rate(mcp_tool_call_duration_ms_sum[5m])) by (tool_name)
+/
+sum(rate(mcp_tool_call_duration_ms_count[5m])) by (tool_name)
 ```
 
-**Request count by tool:**
+**Total MCP tool calls:**
 
 ```promql
-sum by (tool) (pctx_mcp_requests_total)
+sum(mcp_tool_calls_total)
 ```
 
 ## Configuration Options

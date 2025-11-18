@@ -50,8 +50,6 @@ pub(crate) fn init_mcp_tool_metrics() {
     MCP_TOOL_METRICS.get_or_init(|| McpToolMetrics::new(meter()));
 }
 
-pub(crate) fn mcp_tool_metrics() -> &'static McpToolMetrics {
-    MCP_TOOL_METRICS
-        .get()
-        .expect("MCP tool metrics not initialized")
+pub(crate) fn mcp_tool_metrics() -> Option<&'static McpToolMetrics> {
+    MCP_TOOL_METRICS.get()
 }

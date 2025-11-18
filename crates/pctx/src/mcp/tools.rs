@@ -369,7 +369,7 @@ impl ServerHandler for PtcxTools {
         );
 
         // Record metrics
-        if let Ok(metrics) = std::panic::catch_unwind(mcp_tool_metrics) {
+        if let Some(metrics) = mcp_tool_metrics() {
             metrics
                 .list_duration
                 .record(latency.as_secs_f64() * 1000.0, &[]);
@@ -397,7 +397,7 @@ impl ServerHandler for PtcxTools {
             .unwrap_or(true);
 
         // Record metrics
-        if let Ok(metrics) = std::panic::catch_unwind(mcp_tool_metrics) {
+        if let Some(metrics) = mcp_tool_metrics() {
             let attrs = vec![
                 KeyValue::new("tool_name", tool_name.clone()),
                 KeyValue::new("status", if is_error { "error" } else { "success" }),
