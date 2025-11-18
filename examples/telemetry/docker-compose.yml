@@ -4,6 +4,7 @@ networks:
 volumes:
   tempo-data:
   prometheus-data:
+  grafana-data:
 
 services:
   # OTLP Collector - receives OTLP and exposes metrics for Prometheus
@@ -69,5 +70,6 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
     volumes:
       - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - grafana-data:/var/lib/grafana
     networks:
       - otlp

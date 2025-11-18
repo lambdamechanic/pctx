@@ -7,7 +7,7 @@ use pctx_config::{Config, logger::LoggerFormat};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt};
 use tracing_subscriber::{Layer, Registry, util::SubscriberInitExt};
 
-use crate::utils::logger;
+use crate::utils::{logger, metrics};
 
 pub(crate) async fn init_telemetry(cfg: &Config) -> Result<()> {
     let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = Vec::new();
@@ -26,11 +26,28 @@ pub(crate) async fn init_telemetry(cfg: &Config) -> Result<()> {
             .traces
             .tracer_provider_builder()
             .await?
-            .with_resource(resource);
+            .with_resource(resource.clone());
 
         let tracer = builder.build().tracer("pctx");
 
         layers.push(tracing_opentelemetry::layer().with_tracer(tracer).boxed());
+    }
+
+    // build meter provider with all configured exporters
+    if cfg.telemetry.metrics.enabled {
+        let meter_provider = cfg
+            .telemetry
+            .metrics
+            .meter_provider_builder()
+            .await?
+            .with_resource(resource)
+            .build();
+
+        opentelemetry::global::set_meter_provider(meter_provider);
+
+        // Initialize metrics instruments after meter provider is set
+        metrics::init_meter();
+        metrics::init_mcp_tool_metrics();
     }
 
     if cfg.logger.enabled {

@@ -1,8 +1,13 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
-use anyhow::Result;
-use opentelemetry_otlp::{SpanExporter, WithExportConfig, WithHttpConfig, WithTonicConfig};
-use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider, TracerProviderBuilder};
+use anyhow::{Ok, Result};
+use opentelemetry_otlp::{
+    MetricExporter, SpanExporter, WithExportConfig, WithHttpConfig, WithTonicConfig,
+};
+use opentelemetry_sdk::{
+    metrics::{MeterProviderBuilder, SdkMeterProvider},
+    trace::{Sampler, SdkTracerProvider, TracerProviderBuilder},
+};
 use serde::{Deserialize, Serialize};
 use tonic::metadata::{MetadataKey, MetadataMap};
 use url::Url;
@@ -11,7 +16,10 @@ use crate::auth::SecretString;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TelemetryConfig {
+    #[serde(default)]
     pub traces: TracesConfig,
+    #[serde(default)]
+    pub metrics: MetricsConfig,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -117,17 +125,11 @@ pub struct ExporterConfig {
 }
 
 impl ExporterConfig {
-    /// Creates a span exporter according to the config
-    ///
-    /// # Errors
-    ///
-    /// This will error if the config fails populating the
-    /// authentication data via `SecretString`
-    pub async fn span_exporter(&self) -> Result<SpanExporter> {
-        let endpoint = self.url.to_string();
-        let timeout = Duration::from_millis(self.timeout);
+    fn timeout_duration(&self) -> Duration {
+        Duration::from_millis(self.timeout)
+    }
 
-        // Build headers from auth config
+    async fn auth_headers(&self) -> Result<HashMap<String, String>> {
         let mut headers = std::collections::HashMap::new();
         if let Some(auth) = &self.auth {
             match auth {
@@ -157,6 +159,20 @@ impl ExporterConfig {
             }
         }
 
+        Ok(headers)
+    }
+
+    /// Creates a span exporter according to the config
+    ///
+    /// # Errors
+    ///
+    /// This will error if the config fails populating the
+    /// authentication data via `SecretString`
+    pub async fn span_exporter(&self) -> Result<SpanExporter> {
+        let endpoint = self.url.to_string();
+        let timeout = self.timeout_duration();
+        let headers = self.auth_headers().await?;
+
         let exporter = match self.protocol {
             Protocol::Http => {
                 let mut builder = SpanExporter::builder()
@@ -177,12 +193,10 @@ impl ExporterConfig {
                     .with_endpoint(endpoint)
                     .with_timeout(timeout);
 
-                // Add metadata (gRPC headers) if any
                 if !headers.is_empty() {
                     // Convert HashMap to MetadataMap
                     let mut metadata = MetadataMap::new();
                     for (key, value) in headers {
-                        // Parse header name and value for gRPC metadata
                         metadata.insert(MetadataKey::from_bytes(key.as_bytes())?, value.parse()?);
                     }
                     builder = builder.with_metadata(metadata);
@@ -193,5 +207,78 @@ impl ExporterConfig {
         };
 
         Ok(exporter)
+    }
+
+    /// Creates a metrics exporter according to the config
+    ///
+    /// # Errors
+    ///
+    /// This will error if the config fails populating the
+    /// authentication data via `SecretString`
+    pub async fn metrics_exporter(&self) -> Result<MetricExporter> {
+        let endpoint = self.url.to_string();
+        let timeout = self.timeout_duration();
+        let headers = self.auth_headers().await?;
+
+        let exporter = match &self.protocol {
+            Protocol::Http => {
+                let mut builder = MetricExporter::builder()
+                    .with_http()
+                    .with_endpoint(endpoint)
+                    .with_timeout(timeout);
+
+                if !headers.is_empty() {
+                    builder = builder.with_headers(headers);
+                }
+
+                builder.build()?
+            }
+            Protocol::Grpc => {
+                let mut builder = MetricExporter::builder()
+                    .with_tonic()
+                    .with_endpoint(endpoint)
+                    .with_timeout(timeout);
+
+                if !headers.is_empty() {
+                    // Convert HashMap to MetadataMap
+                    let mut metadata = MetadataMap::new();
+                    for (key, value) in headers {
+                        metadata.insert(MetadataKey::from_bytes(key.as_bytes())?, value.parse()?);
+                    }
+                    builder = builder.with_metadata(metadata);
+                }
+
+                builder.build()?
+            }
+        };
+
+        Ok(exporter)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct MetricsConfig {
+    pub enabled: bool,
+    #[serde(default)]
+    pub exporters: Vec<ExporterConfig>,
+}
+
+impl MetricsConfig {
+    /// Creates initializes the meter provider builder with sampling & exporters
+    /// according to the config.
+    ///
+    /// # Errors
+    ///
+    /// This will error if there is a failure creating the span exporters
+    pub async fn meter_provider_builder(&self) -> Result<MeterProviderBuilder> {
+        let mut builder = SdkMeterProvider::builder();
+
+        // add exporters
+        for exporter_cfg in &self.exporters {
+            let exporter = exporter_cfg.metrics_exporter().await?;
+            builder = builder.with_periodic_exporter(exporter);
+        }
+
+        Ok(builder)
     }
 }
