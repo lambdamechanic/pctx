@@ -1,13 +1,17 @@
 use pctx_config::logger::{LogLevel, LoggerConfig, LoggerFormat};
 use std::io::Write;
+use std::path::PathBuf;
 use tracing_subscriber::{
     EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt,
 };
 
-#[derive(Debug, Clone, Copy)]
+use super::jsonl_logger::{JsonlLayer, JsonlWriter};
+
+#[derive(Debug, Clone)]
 pub enum LoggerMode {
     EnvLogger { verbose: u8, quiet: bool },
     Tracing,
+    Dev { log_file: PathBuf },
 }
 
 const WHITELISTED_CRATES: &[&str] = &[
@@ -21,19 +25,19 @@ const WHITELISTED_CRATES: &[&str] = &[
 
 pub(crate) fn init_logger(cfg: &LoggerConfig, mode: LoggerMode) {
     // Build filter string: "crate1=level,crate2=level,..."
-    let level_str = match mode {
+    let level_str = match &mode {
         LoggerMode::EnvLogger { verbose, quiet } => {
-            if quiet {
+            if *quiet {
                 "warn"
-            } else if verbose == 0 {
+            } else if *verbose == 0 {
                 "info"
-            } else if verbose == 1 {
+            } else if *verbose == 1 {
                 "debug"
             } else {
                 "trace"
             }
         }
-        LoggerMode::Tracing => match cfg.level {
+        LoggerMode::Tracing | LoggerMode::Dev { .. } => match cfg.level {
             LogLevel::Trace => "trace",
             LogLevel::Debug => "debug",
             LogLevel::Info => "info",
@@ -60,6 +64,40 @@ pub(crate) fn init_logger(cfg: &LoggerConfig, mode: LoggerMode) {
                     .try_init()
                 {
                     eprintln!("pctx: Failed initializing tracing_subscriber: {e:?}");
+                }
+            }
+        }
+        LoggerMode::Dev { log_file } => {
+            // For dev mode, always enable logging to JSONL file
+            // Set filter to debug level to capture all relevant logs
+            let env_filter = WHITELISTED_CRATES
+                .iter()
+                .map(|crate_name| format!("{crate_name}=debug"))
+                .collect::<Vec<_>>()
+                .join(",");
+
+            let env_filter =
+                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
+
+            match JsonlWriter::new(&log_file) {
+                Ok(writer) => {
+                    let jsonl_layer = JsonlLayer::new(writer);
+
+                    if let Err(e) = tracing_subscriber::registry()
+                        .with(jsonl_layer)
+                        .with(env_filter)
+                        .try_init()
+                    {
+                        eprintln!(
+                            "pctx: Failed initializing tracing_subscriber for dev mode: {e:?}"
+                        );
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "pctx: Failed to create JSONL log file at {}: {e:?}",
+                        log_file.display()
+                    );
                 }
             }
         }

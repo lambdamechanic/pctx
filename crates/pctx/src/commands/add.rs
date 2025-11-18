@@ -103,7 +103,7 @@ impl AddCmd {
                 }
                 Err(McpConnectionError::RequiresAuth) => {
                     sp.stop_and_persist(
-                        "🔒",
+                        "!",
                         if server.auth.is_none() {
                             "MCP requires authentication"
                         } else {

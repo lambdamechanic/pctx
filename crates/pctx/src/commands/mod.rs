@@ -1,4 +1,5 @@
 pub(crate) mod add;
+pub(crate) mod dev;
 pub(crate) mod init;
 pub(crate) mod list;
 pub(crate) mod remove;
