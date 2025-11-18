@@ -233,7 +233,13 @@ export default await run();"
         let allowed_hosts = self.allowed_hosts.clone();
         let code_to_execute = to_execute.clone();
 
+        // Capture current tracing context to propagate to spawned thread
+        let current_span = tracing::Span::current();
+
         let result = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
+            // Enter the captured span context in the new thread
+            let _guard = current_span.enter();
+
             // Create a new current-thread runtime for Deno ops that use deno_unsync
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
