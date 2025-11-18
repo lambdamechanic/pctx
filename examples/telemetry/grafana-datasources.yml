@@ -16,19 +16,15 @@ datasources:
         datasourceUid: prometheus
       streamingEnabled:
         search: true
-  # - name: Loki
-  #   type: loki
-  #   access: proxy
-  #   url: http://loki:3100
-  #   editable: true
-  #   isDefault: false
-  #   basicAuth: false
-  #   version: 1
-  # - name: Prometheus
-  #   type: prometheus
-  #   access: proxy
-  #   url: http://prometheus:9090
-  #   editable: true
-  #   isDefault: false
-  #   basicAuth: false
-  #   version: 1
+
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    orgId: 1
+    url: http://prometheus:9090
+    basicAuth: false
+    isDefault: false
+    version: 1
+    editable: false
+    jsonData:
+      httpMethod: POST

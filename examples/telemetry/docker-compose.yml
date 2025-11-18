@@ -3,14 +3,27 @@ networks:
 
 volumes:
   tempo-data:
+  prometheus-data:
 
 services:
+  # OTLP Collector - receives OTLP and exposes metrics for Prometheus
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yml"]
+    ports:
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+      - "8889:8889" # Prometheus metrics exporter
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml
+    networks:
+      - otlp
+
   # Traces
   tempo:
     image: grafana/tempo:latest
     command: -config.file=/etc/tempo.yaml
     ports:
-      - "4318:4318"
       - "3200:3200"
     volumes:
       - tempo-data:/var/tempo
@@ -19,6 +32,7 @@ services:
       - memcached
     networks:
       - otlp
+
   memcached:
     image: memcached:1.6.38
     container_name: memcached
@@ -27,6 +41,20 @@ services:
     environment:
       - MEMCACHED_MAX_MEMORY=64m # Set the maximum memory usage
       - MEMCACHED_THREADS=4 # Number of threads to use
+    networks:
+      - otlp
+
+  # Metrics
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
     networks:
       - otlp
 
