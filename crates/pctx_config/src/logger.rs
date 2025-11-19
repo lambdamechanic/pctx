@@ -34,8 +34,9 @@ impl Default for LoggerConfig {
     }
 }
 
-// Define an enumeration for log levels
-#[derive(Debug, Default, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+/// Define an enumeration for log levels
+/// Ordered from lowest to highest severity: Trace < Debug < Info < Warn < Error
+#[derive(Debug, Default, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LogLevel {
     /// The "trace" level.
     #[serde(rename = "trace", alias = "TRACE")]

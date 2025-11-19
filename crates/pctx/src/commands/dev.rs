@@ -57,6 +57,15 @@ pub struct DevCmd {
     pub log_file: Utf8PathBuf,
 }
 
+type ServerControl = Arc<
+    Mutex<
+        Option<(
+            tokio::task::JoinHandle<()>,
+            tokio::sync::oneshot::Sender<()>,
+        )>,
+    >,
+>;
+
 #[derive(Debug, Clone, Deserialize)]
 struct LogEntry {
     timestamp: DateTime<Utc>,
@@ -80,13 +89,19 @@ impl LogEntry {
         }
     }
 
-    fn tui_line(&'_ self) -> Line<'_> {
+    fn tui_line(&'_ self, level: LogLevel) -> Line<'_> {
         let time_str = self.timestamp.format("%H:%M:%S").to_string();
-        Line::from(vec![
-            Span::styled(
-                format!("[{time_str}] "),
+        let mut parts = vec![Span::styled(
+            format!("[{time_str}] "),
+            Style::default().fg(Color::DarkGray),
+        )];
+        if level <= LogLevel::Debug {
+            parts.push(Span::styled(
+                self.target.clone(),
                 Style::default().fg(Color::DarkGray),
-            ),
+            ));
+        }
+        parts.extend([
             Span::styled(
                 format!("[{}] ", self.prefix()),
                 Style::default()
@@ -94,7 +109,9 @@ impl LogEntry {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(self.fields.message.clone()),
-        ])
+        ]);
+
+        Line::from(parts)
     }
 }
 
@@ -147,7 +164,7 @@ struct App {
 
     // UI State
     focused_panel: FocusPanel,
-    log_filter: Option<LogLevel>,
+    log_filter: LogLevel,
     #[allow(dead_code)]
     tools_list_state: ListState,
     selected_tool_index: Option<usize>,
@@ -177,7 +194,7 @@ impl App {
             log_file_path,
             log_file_pos: 0,
             focused_panel: FocusPanel::Logs,
-            log_filter: None,
+            log_filter: LogLevel::Info,
             tools_list_state: ListState::default(),
             selected_tool_index: None,
             selected_namespace_index: 0,
@@ -254,7 +271,7 @@ impl App {
             .get("code_from_llm")
             .and_then(|v| v.as_str())
         {
-            tracing::info!(
+            tracing::trace!(
                 "Found code_from_llm field (length={}), checking for tool usage. Servers available: {}",
                 code_from_llm.len(),
                 self.upstream_servers.len()
@@ -264,14 +281,14 @@ impl App {
             // Pattern: namespace.methodName(
             for server in &self.upstream_servers {
                 let namespace_pattern = format!("{}.", server.namespace);
-                tracing::info!(
+                tracing::trace!(
                     "Checking for server '{}' with namespace pattern '{}' in code",
                     server.name,
                     namespace_pattern
                 );
 
                 if code_from_llm.contains(&namespace_pattern) {
-                    tracing::info!(
+                    tracing::trace!(
                         "✓ Found {} namespace in code_from_llm, checking {} tools",
                         server.namespace,
                         server.tools.len()
@@ -281,14 +298,14 @@ impl App {
                     for (fn_name, tool) in &server.tools {
                         // Check if this function is called in the code
                         let method_pattern = format!("{}.{}(", server.namespace, fn_name);
-                        tracing::debug!(
+                        tracing::trace!(
                             "Checking for method pattern '{}' for tool '{}'",
                             method_pattern,
                             tool.tool_name
                         );
 
                         if code_from_llm.contains(&method_pattern) {
-                            tracing::info!(
+                            tracing::trace!(
                                 "✓ Found tool usage: {}.{} (tool_name={})",
                                 server.namespace,
                                 fn_name,
@@ -332,12 +349,12 @@ impl App {
                                         },
                                     });
 
-                                tracing::info!("✓ Tracked tool usage for key: {}", key);
+                                tracing::trace!("✓ Tracked tool usage for key: {}", key);
                             }
                         }
                     }
                 } else {
-                    tracing::debug!(
+                    tracing::trace!(
                         "Namespace pattern '{}' not found in code_from_llm",
                         namespace_pattern
                     );
@@ -370,11 +387,10 @@ impl App {
     }
 
     fn filtered_logs(&self) -> Vec<&LogEntry> {
-        if let Some(target) = self.log_filter {
-            self.logs.iter().filter(|l| target == l.level).collect()
-        } else {
-            self.logs.iter().collect()
-        }
+        self.logs
+            .iter()
+            .filter(|l| self.log_filter <= l.level)
+            .collect()
     }
 
     fn handle_message(&mut self, msg: AppMessage) {
@@ -424,11 +440,10 @@ impl App {
 
     fn cycle_log_filter(&mut self) {
         self.log_filter = match self.log_filter {
-            None => Some(LogLevel::Debug),
-            Some(LogLevel::Debug) => Some(LogLevel::Info),
-            Some(LogLevel::Info) => Some(LogLevel::Warn),
-            Some(LogLevel::Warn) => Some(LogLevel::Error),
-            Some(LogLevel::Trace | LogLevel::Error) => None,
+            LogLevel::Debug => LogLevel::Info,
+            LogLevel::Info => LogLevel::Warn,
+            LogLevel::Warn => LogLevel::Error,
+            LogLevel::Error | LogLevel::Trace => LogLevel::Debug,
         };
         self.log_scroll_offset = 0;
     }
@@ -1155,17 +1170,12 @@ fn render_logs_panel(f: &mut Frame, app: &App, area: Rect) {
 
     let log_items: Vec<Line> = filtered_logs[start_idx..end_idx]
         .iter()
-        .map(|l| l.tui_line())
+        .map(|l| l.tui_line(app.log_filter))
         .collect();
-
-    let filter_str = match app.log_filter {
-        None => "ALL".to_string(),
-        Some(level) => level.as_str().to_uppercase(),
-    };
 
     let title = format!(
         "Logs [Filter: {} - {}/{}]",
-        filter_str,
+        app.log_filter.as_str().to_uppercase(),
         filtered_logs.len(),
         app.logs.len()
     );
@@ -1383,7 +1393,10 @@ fn spawn_server_task(
     tx: mpsc::UnboundedSender<AppMessage>,
     host: String,
     port: u16,
-) -> (tokio::task::JoinHandle<()>, tokio::sync::oneshot::Sender<()>) {
+) -> (
+    tokio::task::JoinHandle<()>,
+    tokio::sync::oneshot::Sender<()>,
+) {
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
     let handle = tokio::spawn(async move {
@@ -1462,15 +1475,12 @@ impl DevCmd {
         let (tx, mut rx) = mpsc::unbounded_channel::<AppMessage>();
 
         // Spawn initial server task
-        let (server_handle, shutdown_tx) = spawn_server_task(
-            cfg.clone(),
-            tx.clone(),
-            self.host.clone(),
-            self.port,
-        );
+        let (server_handle, shutdown_tx) =
+            spawn_server_task(cfg.clone(), tx.clone(), self.host.clone(), self.port);
 
         // Store server control in Arc<Mutex<>> so we can replace it on config reload
-        let server_control = Arc::new(Mutex::new(Some((server_handle, shutdown_tx))));
+        let server_control: ServerControl =
+            Arc::new(Mutex::new(Some((server_handle, shutdown_tx))));
 
         // Spawn config file watcher task
         let tx_watcher = tx.clone();
@@ -1524,7 +1534,6 @@ impl DevCmd {
             }
         });
 
-
         // Run the UI
         let result = run_ui(
             &mut terminal,
@@ -1533,7 +1542,7 @@ impl DevCmd {
             &tx,
             &cfg.path(),
             &server_control,
-            self.host.clone(),
+            &self.host,
             self.port,
         );
 
@@ -1571,16 +1580,15 @@ impl DevCmd {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_ui(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &Arc<Mutex<App>>,
     rx: &mut mpsc::UnboundedReceiver<AppMessage>,
     tx: &mpsc::UnboundedSender<AppMessage>,
     config_path: &camino::Utf8PathBuf,
-    server_control: &Arc<
-        Mutex<Option<(tokio::task::JoinHandle<()>, tokio::sync::oneshot::Sender<()>)>>,
-    >,
-    host: String,
+    server_control: &ServerControl,
+    host: &str,
     port: u16,
 ) -> Result<()> {
     let tick_rate = Duration::from_millis(100);
@@ -1747,7 +1755,7 @@ fn run_ui(
                 let tx_reload = tx.clone();
                 let config_path_clone = config_path.clone();
                 let server_control_clone = server_control.clone();
-                let host_clone = host.clone();
+                let host_clone = host.to_string();
                 let port_clone = port;
 
                 let task_handle = tokio::spawn(async move {
