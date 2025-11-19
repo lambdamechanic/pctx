@@ -35,23 +35,23 @@ impl Default for LoggerConfig {
 }
 
 // Define an enumeration for log levels
-#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 pub enum LogLevel {
     /// The "trace" level.
-    #[serde(rename = "trace")]
+    #[serde(rename = "trace", alias = "TRACE")]
     Trace,
     /// The "debug" level.
-    #[serde(rename = "debug")]
+    #[serde(rename = "debug", alias = "DEBUG")]
     Debug,
     /// The "info" level.
-    #[serde(rename = "info")]
+    #[serde(rename = "info", alias = "INFO")]
     #[default]
     Info,
     /// The "warn" level.
-    #[serde(rename = "warn")]
+    #[serde(rename = "warn", alias = "WARN")]
     Warn,
     /// The "error" level.
-    #[serde(rename = "error")]
+    #[serde(rename = "error", alias = "ERROR")]
     Error,
 }
 

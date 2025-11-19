@@ -11,7 +11,7 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use notify::{RecursiveMode, Watcher, recommended_watcher};
-use pctx_config::Config;
+use pctx_config::{Config, logger::LogLevel};
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
@@ -58,15 +58,50 @@ pub struct DevCmd {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct JsonLogEntry {
+struct LogEntry {
     timestamp: DateTime<Utc>,
-    level: String,
-    #[allow(dead_code)]
+    level: LogLevel,
+    #[allow(unused)]
     target: String,
-    message: String,
-    #[allow(dead_code)]
+    fields: LogEntryFields,
+}
+impl LogEntry {
+    fn prefix(&self) -> String {
+        self.level.as_str().to_uppercase()
+    }
+
+    fn color(&self) -> Color {
+        match &self.level {
+            LogLevel::Trace => Color::LightMagenta,
+            LogLevel::Debug => SECONDARY,
+            LogLevel::Info => TERTIARY,
+            LogLevel::Warn => Color::Yellow,
+            LogLevel::Error => Color::Red,
+        }
+    }
+
+    fn tui_line(&'_ self) -> Line<'_> {
+        let time_str = self.timestamp.format("%H:%M:%S").to_string();
+        Line::from(vec![
+            Span::styled(
+                format!("[{time_str}] "),
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::styled(
+                format!("[{}] ", self.prefix()),
+                Style::default()
+                    .fg(self.color())
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(self.fields.message.clone()),
+        ])
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct LogEntryFields {
     #[serde(default)]
-    span: Option<String>,
+    message: String,
     #[serde(flatten)]
     extra: HashMap<String, serde_json::Value>,
 }
@@ -78,44 +113,6 @@ enum AppMessage {
     ServerStarted,
     ServerStopped,
     ConfigChanged,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum LogLevel {
-    Info,
-    Warn,
-    Error,
-    Debug,
-}
-
-impl LogLevel {
-    fn from_str(s: &str) -> Self {
-        match s.to_uppercase().as_str() {
-            "INFO" => LogLevel::Info,
-            "WARN" => LogLevel::Warn,
-            "ERROR" => LogLevel::Error,
-            "DEBUG" => LogLevel::Debug,
-            _ => LogLevel::Info,
-        }
-    }
-
-    fn color(self) -> Color {
-        match self {
-            LogLevel::Info => TERTIARY,
-            LogLevel::Warn => Color::Yellow,
-            LogLevel::Error => Color::Red,
-            LogLevel::Debug => SECONDARY,
-        }
-    }
-
-    fn prefix(&self) -> &str {
-        match self {
-            LogLevel::Info => "INFO",
-            LogLevel::Warn => "WARN",
-            LogLevel::Error => "ERROR",
-            LogLevel::Debug => "DEBUG",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -138,7 +135,7 @@ struct ToolUsage {
 }
 
 struct App {
-    logs: Vec<(String, LogLevel, DateTime<Utc>)>,
+    logs: Vec<LogEntry>,
     upstream_servers: Vec<UpstreamMcp>,
     server_running: bool,
     host: String,
@@ -226,13 +223,11 @@ impl App {
                 continue;
             }
 
-            if let Ok(entry) = serde_json::from_str::<JsonLogEntry>(&line) {
-                let level = LogLevel::from_str(&entry.level);
-
+            if let Ok(entry) = serde_json::from_str::<LogEntry>(&line) {
                 // Track tool usage from logs
                 self.track_tool_usage(&entry);
 
-                self.logs.push((entry.message, level, entry.timestamp));
+                self.logs.push(entry);
 
                 // Keep scroll at bottom (offset 0 = most recent) when new log arrives
                 // Only if user hasn't scrolled up (offset > 0)
@@ -251,9 +246,14 @@ impl App {
         Ok(())
     }
 
-    fn track_tool_usage(&mut self, entry: &JsonLogEntry) {
+    fn track_tool_usage(&mut self, entry: &LogEntry) {
         // Look for code execution logs that contain upstream tool calls
-        if let Some(code_from_llm) = entry.extra.get("code_from_llm").and_then(|v| v.as_str()) {
+        if let Some(code_from_llm) = entry
+            .fields
+            .extra
+            .get("code_from_llm")
+            .and_then(|v| v.as_str())
+        {
             tracing::info!(
                 "Found code_from_llm field (length={}), checking for tool usage. Servers available: {}",
                 code_from_llm.len(),
@@ -363,18 +363,15 @@ impl App {
                 continue;
             }
 
-            if let Ok(entry) = serde_json::from_str::<JsonLogEntry>(&line) {
+            if let Ok(entry) = serde_json::from_str::<LogEntry>(&line) {
                 self.track_tool_usage(&entry);
             }
         }
     }
 
-    fn filtered_logs(&self) -> Vec<&(String, LogLevel, DateTime<Utc>)> {
-        if let Some(filter) = self.log_filter {
-            self.logs
-                .iter()
-                .filter(|(_, level, _)| *level == filter)
-                .collect()
+    fn filtered_logs(&self) -> Vec<&LogEntry> {
+        if let Some(target) = self.log_filter {
+            self.logs.iter().filter(|l| target == l.level).collect()
         } else {
             self.logs.iter().collect()
         }
@@ -431,7 +428,7 @@ impl App {
             Some(LogLevel::Debug) => Some(LogLevel::Info),
             Some(LogLevel::Info) => Some(LogLevel::Warn),
             Some(LogLevel::Warn) => Some(LogLevel::Error),
-            Some(LogLevel::Error) => None,
+            Some(LogLevel::Trace | LogLevel::Error) => None,
         };
         self.log_scroll_offset = 0;
     }
@@ -1158,27 +1155,12 @@ fn render_logs_panel(f: &mut Frame, app: &App, area: Rect) {
 
     let log_items: Vec<Line> = filtered_logs[start_idx..end_idx]
         .iter()
-        .map(|(msg, level, timestamp)| {
-            let time_str = timestamp.format("%H:%M:%S").to_string();
-            Line::from(vec![
-                Span::styled(
-                    format!("[{time_str}] "),
-                    Style::default().fg(Color::DarkGray),
-                ),
-                Span::styled(
-                    format!("[{}] ", level.prefix()),
-                    Style::default()
-                        .fg(level.color())
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(msg),
-            ])
-        })
+        .map(|l| l.tui_line())
         .collect();
 
     let filter_str = match app.log_filter {
         None => "ALL".to_string(),
-        Some(level) => level.prefix().to_string(),
+        Some(level) => level.as_str().to_uppercase(),
     };
 
     let title = format!(
@@ -1396,12 +1378,6 @@ fn render_footer(f: &mut Frame, app: &App, area: Rect) {
 
 impl DevCmd {
     pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
-        if cfg.servers.is_empty() {
-            anyhow::bail!(
-                "No upstream MCP servers configured. Add servers with 'pctx add <name> <url>'"
-            );
-        }
-
         // Set up terminal
         enable_raw_mode()?;
         let mut stdout = io::stdout();
@@ -1430,17 +1406,32 @@ impl DevCmd {
 
         // Spawn server task
         let server_handle = tokio::spawn(async move {
-            let upstream = match StartCmd::load_upstream(&cfg_clone).await {
-                Ok(u) => u,
-                Err(e) => {
-                    tx_server
-                        .send(AppMessage::ServerFailed(
-                            "Failed loading upstream MCPs".into(),
-                            e.to_string(),
-                        ))
-                        .ok();
-                    vec![]
+            let upstream = if cfg_clone.servers.is_empty() {
+                tracing::warn!(
+                    "No MCP servers configured, add servers with 'pctx add <name> <url>' and PCTX Dev Mode will refresh"
+                );
+                vec![]
+            } else {
+                let loaded = match StartCmd::load_upstream(&cfg_clone).await {
+                    Ok(u) => u,
+                    Err(e) => {
+                        tx_server
+                            .send(AppMessage::ServerFailed(
+                                "Failed loading upstream MCPs".into(),
+                                e.to_string(),
+                            ))
+                            .ok();
+                        vec![]
+                    }
+                };
+
+                if loaded.is_empty() {
+                    tracing::warn!(
+                        "Failed loading all configured MCP servers, add servers with 'pctx add <name> <url>' or edit {} and PCTX Dev Mode will refresh",
+                        cfg_clone.path()
+                    );
                 }
+                loaded
             };
 
             // Send connected message with all upstreams
@@ -1496,12 +1487,11 @@ impl DevCmd {
                     Ok(res) => match res {
                         Ok(event) => {
                             // Filter for modify events to avoid duplicate notifications
-                            if event.kind.is_modify() {
-                                tracing::info!("Config file changed: {:?}", event);
-                                if tx_watcher.send(AppMessage::ConfigChanged).is_err() {
-                                    // Channel closed, exit loop
-                                    break;
-                                }
+                            if event.kind.is_modify()
+                                && tx_watcher.send(AppMessage::ConfigChanged).is_err()
+                            {
+                                // Channel closed, exit loop
+                                break;
                             }
                         }
                         Err(e) => {
@@ -1907,19 +1897,18 @@ mod tests {
         app.upstream_servers.push(create_test_server());
 
         // Create a log entry with code_from_llm field containing Banking.getAccountBalance
-        let log_entry = JsonLogEntry {
+        let log_entry = LogEntry {
             timestamp: Utc::now(),
-            level: "INFO".to_string(),
+            level: LogLevel::Info,
             target: "pctx".to_string(),
-            message: "Executing code".to_string(),
-            span: None,
-            extra: {
-                let mut map = HashMap::new();
-                map.insert(
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
                     "code_from_llm".to_string(),
-                    json!("const balance = await Banking.getAccountBalance({ account_id: \"ACC-123\" });"),
-                );
-                map
+                    json!(
+                        "const balance = await Banking.getAccountBalance({ account_id: \"ACC-123\" });"
+                    ),
+                )]),
             },
         };
 
@@ -1953,19 +1942,16 @@ mod tests {
         app.upstream_servers.push(create_test_server());
 
         // Create a log entry with Banking.freezeAccount
-        let log_entry = JsonLogEntry {
+        let log_entry = LogEntry {
             timestamp: Utc::now(),
-            level: "INFO".to_string(),
-            target: "pctx".to_string(),
-            message: "Executing code".to_string(),
-            span: None,
-            extra: {
-                let mut map = HashMap::new();
-                map.insert(
+            level: LogLevel::Info,
+            target: "pctx".into(),
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
                     "code_from_llm".to_string(),
                     json!("await Banking.freezeAccount({ account_id: \"ACC-555\" });"),
-                );
-                map
+                )]),
             },
         };
 
@@ -1998,36 +1984,30 @@ mod tests {
         app.upstream_servers.push(create_test_server());
 
         // First call
-        let log_entry1 = JsonLogEntry {
+        let log_entry1 = LogEntry {
             timestamp: Utc::now(),
-            level: "INFO".to_string(),
-            target: "pctx".to_string(),
-            message: "Executing code".to_string(),
-            span: None,
-            extra: {
-                let mut map = HashMap::new();
-                map.insert(
+            level: LogLevel::Info,
+            target: "pctx".into(),
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
                     "code_from_llm".to_string(),
                     json!("await Banking.getAccountBalance({ account_id: \"ACC-1\" });"),
-                );
-                map
+                )]),
             },
         };
 
         // Second call
-        let log_entry2 = JsonLogEntry {
+        let log_entry2 = LogEntry {
             timestamp: Utc::now(),
-            level: "INFO".to_string(),
-            target: "pctx".to_string(),
-            message: "Executing code".to_string(),
-            span: None,
-            extra: {
-                let mut map = HashMap::new();
-                map.insert(
+            level: LogLevel::Info,
+            target: "pctx".into(),
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
                     "code_from_llm".to_string(),
                     json!("await Banking.getAccountBalance({ account_id: \"ACC-2\" });"),
-                );
-                map
+                )]),
             },
         };
 
