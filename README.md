@@ -41,6 +41,8 @@ pctx add stripe https://mcp.stripe.com
 
 # Start the unified MCP server in dev mode
 pctx dev
+
+# copy the pctx url and connect to agents with --transport http
 ```
 
 For complete CLI documentation, see [CLI.md](docs/CLI.md).

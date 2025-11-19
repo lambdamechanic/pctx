@@ -78,11 +78,11 @@ pub(crate) fn prompt_auth(server_name: &str) -> Result<AuthConfig> {
 /// `SecretString` with one "part", for more complex `SecretString` syntax use `prompt_secret_parse`
 pub(crate) fn prompt_secret(msg: &str, prefix: &str, key: &str) -> Result<SecretString> {
     let options = vec![
+        "Use environment variable".to_string(),
         format!(
-            "Enter securely {}",
+            "Create keychain entry {}",
             fmt_dimmed("(stored in system keychain)")
         ),
-        "Use environment variable".to_string(),
         format!(
             "Enter insecurely {}",
             fmt_dimmed("(stored as plain text in config file)")
