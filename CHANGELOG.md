@@ -5,23 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [UNRELEASED] - YYYY-MM-DD
+## [v0.2.0] - 2025-11-19
 
 ### Added
 
-
-### Fixed
-
+- `pctx dev` command with Terminal UI to explore CodeMode interface and track requests when running PCTX locally
+- `logger` configuration in `pctx.json` (`pctx_config::logger::LoggerConfig`) that supports configuring stdout logging level, format, and colorization
+- `telemetry` configuration in `pctx.json` (`pctx_config::telemetry::TelemetryConfig`) that supports enabling exporters for traces and metrics
+  - `examples/telemetry` example docker compose setup for Tempo/Prometheus/Grafana to try out these new configs
 
 ## [v0.1.4] - 2025-11-14
 
 ### Added
+
 - nasa mcp server example with scripts for running/deploying pctx
 
 ### Fixed
+
 - ts code ignore syncing
 - remove slow intel mac runner
-
 
 ## [v0.1.3] - 2025-11-13
 
@@ -66,7 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial public release
 
-[Unreleased]: https://github.com/portofcontext/pctx/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/portofcontext/pctx/compare/v0.2.0...HEAD
+[v0.2.0]: https://github.com/portofcontext/pctx/compare/v0.2.0
 [v0.1.4]: https://github.com/portofcontext/pctx/compare/v0.1.4
 [v0.1.3]: https://github.com/portofcontext/pctx/compare/v0.1.3
 [v0.1.2]: https://github.com/portofcontext/pctx/compare/v0.1.2
