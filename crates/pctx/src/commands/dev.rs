@@ -1,4 +1,5 @@
 use anyhow::Result;
+use camino::Utf8PathBuf;
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use crossterm::{
@@ -10,7 +11,7 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use notify::{RecursiveMode, Watcher, recommended_watcher};
-use pctx_config::Config;
+use pctx_config::{Config, logger::LogLevel};
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
@@ -31,13 +32,15 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{self, BufRead, BufReader, Seek, SeekFrom},
-    path::PathBuf,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 use tokio::sync::mpsc;
 
-use crate::mcp::{PctxMcp, upstream::UpstreamMcp};
+use crate::{
+    commands::start::StartCmd,
+    mcp::{PctxMcp, upstream::UpstreamMcp},
+};
 
 #[derive(Debug, Clone, Parser)]
 pub struct DevCmd {
@@ -51,19 +54,71 @@ pub struct DevCmd {
 
     /// Path to JSONL log file
     #[arg(long, default_value = "pctx-dev.jsonl")]
-    pub log_file: PathBuf,
+    pub log_file: Utf8PathBuf,
+}
+
+type ServerControl = Arc<
+    Mutex<
+        Option<(
+            tokio::task::JoinHandle<()>,
+            tokio::sync::oneshot::Sender<()>,
+        )>,
+    >,
+>;
+
+#[derive(Debug, Clone, Deserialize)]
+struct LogEntry {
+    timestamp: DateTime<Utc>,
+    level: LogLevel,
+    #[allow(unused)]
+    target: String,
+    fields: LogEntryFields,
+}
+impl LogEntry {
+    fn prefix(&self) -> String {
+        self.level.as_str().to_uppercase()
+    }
+
+    fn color(&self) -> Color {
+        match &self.level {
+            LogLevel::Trace => Color::LightMagenta,
+            LogLevel::Debug => SECONDARY,
+            LogLevel::Info => TERTIARY,
+            LogLevel::Warn => Color::Yellow,
+            LogLevel::Error => Color::Red,
+        }
+    }
+
+    fn tui_line(&'_ self, level: LogLevel) -> Line<'_> {
+        let time_str = self.timestamp.format("%H:%M:%S").to_string();
+        let mut parts = vec![Span::styled(
+            format!("[{time_str}] "),
+            Style::default().fg(Color::DarkGray),
+        )];
+        if level <= LogLevel::Debug {
+            parts.push(Span::styled(
+                self.target.clone(),
+                Style::default().fg(Color::DarkGray),
+            ));
+        }
+        parts.extend([
+            Span::styled(
+                format!("[{}] ", self.prefix()),
+                Style::default()
+                    .fg(self.color())
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(self.fields.message.clone()),
+        ]);
+
+        Line::from(parts)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct JsonLogEntry {
-    timestamp: DateTime<Utc>,
-    level: String,
-    #[allow(dead_code)]
-    target: String,
-    message: String,
-    #[allow(dead_code)]
+struct LogEntryFields {
     #[serde(default)]
-    span: Option<String>,
+    message: String,
     #[serde(flatten)]
     extra: HashMap<String, serde_json::Value>,
 }
@@ -75,44 +130,6 @@ enum AppMessage {
     ServerStarted,
     ServerStopped,
     ConfigChanged,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum LogLevel {
-    Info,
-    Warn,
-    Error,
-    Debug,
-}
-
-impl LogLevel {
-    fn from_str(s: &str) -> Self {
-        match s.to_uppercase().as_str() {
-            "INFO" => LogLevel::Info,
-            "WARN" => LogLevel::Warn,
-            "ERROR" => LogLevel::Error,
-            "DEBUG" => LogLevel::Debug,
-            _ => LogLevel::Info,
-        }
-    }
-
-    fn color(self) -> Color {
-        match self {
-            LogLevel::Info => TERTIARY,
-            LogLevel::Warn => Color::Yellow,
-            LogLevel::Error => Color::Red,
-            LogLevel::Debug => SECONDARY,
-        }
-    }
-
-    fn prefix(&self) -> &str {
-        match self {
-            LogLevel::Info => "INFO",
-            LogLevel::Warn => "WARN",
-            LogLevel::Error => "ERROR",
-            LogLevel::Debug => "DEBUG",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -135,19 +152,19 @@ struct ToolUsage {
 }
 
 struct App {
-    logs: Vec<(String, LogLevel, DateTime<Utc>)>,
+    logs: Vec<LogEntry>,
     upstream_servers: Vec<UpstreamMcp>,
     server_running: bool,
     host: String,
     port: u16,
     start_time: Option<Instant>,
     log_scroll_offset: usize,
-    log_file_path: PathBuf,
+    log_file_path: Utf8PathBuf,
     log_file_pos: u64,
 
     // UI State
     focused_panel: FocusPanel,
-    log_filter: Option<LogLevel>,
+    log_filter: LogLevel,
     #[allow(dead_code)]
     tools_list_state: ListState,
     selected_tool_index: Option<usize>,
@@ -165,7 +182,7 @@ struct App {
 }
 
 impl App {
-    fn new(host: String, port: u16, log_file_path: PathBuf) -> Self {
+    fn new(host: String, port: u16, log_file_path: Utf8PathBuf) -> Self {
         Self {
             logs: Vec::new(),
             upstream_servers: Vec::new(),
@@ -177,7 +194,7 @@ impl App {
             log_file_path,
             log_file_pos: 0,
             focused_panel: FocusPanel::Logs,
-            log_filter: None,
+            log_filter: LogLevel::Info,
             tools_list_state: ListState::default(),
             selected_tool_index: None,
             selected_namespace_index: 0,
@@ -223,13 +240,11 @@ impl App {
                 continue;
             }
 
-            if let Ok(entry) = serde_json::from_str::<JsonLogEntry>(&line) {
-                let level = LogLevel::from_str(&entry.level);
-
+            if let Ok(entry) = serde_json::from_str::<LogEntry>(&line) {
                 // Track tool usage from logs
                 self.track_tool_usage(&entry);
 
-                self.logs.push((entry.message, level, entry.timestamp));
+                self.logs.push(entry);
 
                 // Keep scroll at bottom (offset 0 = most recent) when new log arrives
                 // Only if user hasn't scrolled up (offset > 0)
@@ -248,10 +263,15 @@ impl App {
         Ok(())
     }
 
-    fn track_tool_usage(&mut self, entry: &JsonLogEntry) {
+    fn track_tool_usage(&mut self, entry: &LogEntry) {
         // Look for code execution logs that contain upstream tool calls
-        if let Some(code_from_llm) = entry.extra.get("code_from_llm").and_then(|v| v.as_str()) {
-            tracing::info!(
+        if let Some(code_from_llm) = entry
+            .fields
+            .extra
+            .get("code_from_llm")
+            .and_then(|v| v.as_str())
+        {
+            tracing::trace!(
                 "Found code_from_llm field (length={}), checking for tool usage. Servers available: {}",
                 code_from_llm.len(),
                 self.upstream_servers.len()
@@ -261,14 +281,14 @@ impl App {
             // Pattern: namespace.methodName(
             for server in &self.upstream_servers {
                 let namespace_pattern = format!("{}.", server.namespace);
-                tracing::info!(
+                tracing::trace!(
                     "Checking for server '{}' with namespace pattern '{}' in code",
                     server.name,
                     namespace_pattern
                 );
 
                 if code_from_llm.contains(&namespace_pattern) {
-                    tracing::info!(
+                    tracing::trace!(
                         "✓ Found {} namespace in code_from_llm, checking {} tools",
                         server.namespace,
                         server.tools.len()
@@ -278,14 +298,14 @@ impl App {
                     for (fn_name, tool) in &server.tools {
                         // Check if this function is called in the code
                         let method_pattern = format!("{}.{}(", server.namespace, fn_name);
-                        tracing::debug!(
+                        tracing::trace!(
                             "Checking for method pattern '{}' for tool '{}'",
                             method_pattern,
                             tool.tool_name
                         );
 
                         if code_from_llm.contains(&method_pattern) {
-                            tracing::info!(
+                            tracing::trace!(
                                 "✓ Found tool usage: {}.{} (tool_name={})",
                                 server.namespace,
                                 fn_name,
@@ -329,12 +349,12 @@ impl App {
                                         },
                                     });
 
-                                tracing::info!("✓ Tracked tool usage for key: {}", key);
+                                tracing::trace!("✓ Tracked tool usage for key: {}", key);
                             }
                         }
                     }
                 } else {
-                    tracing::debug!(
+                    tracing::trace!(
                         "Namespace pattern '{}' not found in code_from_llm",
                         namespace_pattern
                     );
@@ -360,21 +380,17 @@ impl App {
                 continue;
             }
 
-            if let Ok(entry) = serde_json::from_str::<JsonLogEntry>(&line) {
+            if let Ok(entry) = serde_json::from_str::<LogEntry>(&line) {
                 self.track_tool_usage(&entry);
             }
         }
     }
 
-    fn filtered_logs(&self) -> Vec<&(String, LogLevel, DateTime<Utc>)> {
-        if let Some(filter) = self.log_filter {
-            self.logs
-                .iter()
-                .filter(|(_, level, _)| *level == filter)
-                .collect()
-        } else {
-            self.logs.iter().collect()
-        }
+    fn filtered_logs(&self) -> Vec<&LogEntry> {
+        self.logs
+            .iter()
+            .filter(|l| self.log_filter <= l.level)
+            .collect()
     }
 
     fn handle_message(&mut self, msg: AppMessage) {
@@ -424,11 +440,10 @@ impl App {
 
     fn cycle_log_filter(&mut self) {
         self.log_filter = match self.log_filter {
-            None => Some(LogLevel::Debug),
-            Some(LogLevel::Debug) => Some(LogLevel::Info),
-            Some(LogLevel::Info) => Some(LogLevel::Warn),
-            Some(LogLevel::Warn) => Some(LogLevel::Error),
-            Some(LogLevel::Error) => None,
+            LogLevel::Debug => LogLevel::Info,
+            LogLevel::Info => LogLevel::Warn,
+            LogLevel::Warn => LogLevel::Error,
+            LogLevel::Error | LogLevel::Trace => LogLevel::Debug,
         };
         self.log_scroll_offset = 0;
     }
@@ -1155,32 +1170,12 @@ fn render_logs_panel(f: &mut Frame, app: &App, area: Rect) {
 
     let log_items: Vec<Line> = filtered_logs[start_idx..end_idx]
         .iter()
-        .map(|(msg, level, timestamp)| {
-            let time_str = timestamp.format("%H:%M:%S").to_string();
-            Line::from(vec![
-                Span::styled(
-                    format!("[{time_str}] "),
-                    Style::default().fg(Color::DarkGray),
-                ),
-                Span::styled(
-                    format!("[{}] ", level.prefix()),
-                    Style::default()
-                        .fg(level.color())
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(msg),
-            ])
-        })
+        .map(|l| l.tui_line(app.log_filter))
         .collect();
-
-    let filter_str = match app.log_filter {
-        None => "ALL".to_string(),
-        Some(level) => level.prefix().to_string(),
-    };
 
     let title = format!(
         "Logs [Filter: {} - {}/{}]",
-        filter_str,
+        app.log_filter.as_str().to_uppercase(),
         filtered_logs.len(),
         app.logs.len()
     );
@@ -1391,14 +1386,77 @@ fn render_footer(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(footer, area);
 }
 
-impl DevCmd {
-    pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
-        if cfg.servers.is_empty() {
-            anyhow::bail!(
-                "No upstream MCP servers configured. Add servers with 'pctx add <name> <url>'"
+// Spawns the PctxMcp server task
+// Returns (server_handle, shutdown_sender)
+fn spawn_server_task(
+    cfg: Config,
+    tx: mpsc::UnboundedSender<AppMessage>,
+    host: String,
+    port: u16,
+) -> (
+    tokio::task::JoinHandle<()>,
+    tokio::sync::oneshot::Sender<()>,
+) {
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
+    let handle = tokio::spawn(async move {
+        let upstream = if cfg.servers.is_empty() {
+            tracing::warn!(
+                "No MCP servers configured, add servers with 'pctx add <name> <url>' and PCTX Dev Mode will refresh"
             );
+            vec![]
+        } else {
+            let loaded = match StartCmd::load_upstream(&cfg).await {
+                Ok(u) => u,
+                Err(e) => {
+                    tx.send(AppMessage::ServerFailed(
+                        "Failed loading upstream MCPs".into(),
+                        e.to_string(),
+                    ))
+                    .ok();
+                    vec![]
+                }
+            };
+
+            if loaded.is_empty() {
+                tracing::warn!(
+                    "Failed loading all configured MCP servers, add servers with 'pctx add <name> <url>' or edit {} and PCTX Dev Mode will refresh",
+                    cfg.path()
+                );
+            }
+            loaded
+        };
+
+        // Send connected message with all upstreams
+        tx.send(AppMessage::ServerConnected(
+            "all".to_string(),
+            upstream.clone(),
+        ))
+        .ok();
+
+        // Start PCTX server
+        tx.send(AppMessage::ServerStarted).ok();
+
+        // Run server with shutdown signal
+        let pctx_mcp = PctxMcp::new(cfg.clone(), upstream, &host, port, false);
+
+        if let Err(_e) = pctx_mcp
+            .serve_with_shutdown(async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        {
+            // Error is already logged via tracing
         }
 
+        tx.send(AppMessage::ServerStopped).ok();
+    });
+
+    (handle, shutdown_tx)
+}
+
+impl DevCmd {
+    pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
         // Set up terminal
         enable_raw_mode()?;
         let mut stdout = io::stdout();
@@ -1416,59 +1474,13 @@ impl DevCmd {
         // Channel for sending messages to the UI
         let (tx, mut rx) = mpsc::unbounded_channel::<AppMessage>();
 
-        // Channel for shutdown signal
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        // Spawn initial server task
+        let (server_handle, shutdown_tx) =
+            spawn_server_task(cfg.clone(), tx.clone(), self.host.clone(), self.port);
 
-        // Clone for the server task
-        let tx_server = tx.clone();
-        let cfg_clone = cfg.clone();
-        let host = self.host.clone();
-        let port = self.port;
-
-        // Spawn server task
-        let server_handle = tokio::spawn(async move {
-            // Connect to upstream servers
-            let mut upstream_servers = Vec::new();
-            for server in &cfg_clone.servers {
-                let tx = tx_server.clone();
-                let name = server.name.clone();
-
-                match UpstreamMcp::from_server(server).await {
-                    Ok(upstream) => {
-                        upstream_servers.push(upstream);
-                    }
-                    Err(e) => {
-                        tx.send(AppMessage::ServerFailed(name.clone(), e.to_string()))
-                            .ok();
-                    }
-                }
-            }
-
-            // Send connected message with all upstreams
-            tx_server
-                .send(AppMessage::ServerConnected(
-                    "all".to_string(),
-                    upstream_servers.clone(),
-                ))
-                .ok();
-
-            // Start PCTX server
-            tx_server.send(AppMessage::ServerStarted).ok();
-
-            // Run server with shutdown signal
-            let pctx_mcp = PctxMcp::new(cfg_clone.clone(), upstream_servers, &host, port, false);
-
-            if let Err(_e) = pctx_mcp
-                .serve_with_shutdown(async move {
-                    let _ = shutdown_rx.await;
-                })
-                .await
-            {
-                // Error is already logged via tracing
-            }
-
-            tx_server.send(AppMessage::ServerStopped).ok();
-        });
+        // Store server control in Arc<Mutex<>> so we can replace it on config reload
+        let server_control: ServerControl =
+            Arc::new(Mutex::new(Some((server_handle, shutdown_tx))));
 
         // Spawn config file watcher task
         let tx_watcher = tx.clone();
@@ -1497,12 +1509,11 @@ impl DevCmd {
                     Ok(res) => match res {
                         Ok(event) => {
                             // Filter for modify events to avoid duplicate notifications
-                            if event.kind.is_modify() {
-                                tracing::info!("Config file changed: {:?}", event);
-                                if tx_watcher.send(AppMessage::ConfigChanged).is_err() {
-                                    // Channel closed, exit loop
-                                    break;
-                                }
+                            if event.kind.is_modify()
+                                && tx_watcher.send(AppMessage::ConfigChanged).is_err()
+                            {
+                                // Channel closed, exit loop
+                                break;
                             }
                         }
                         Err(e) => {
@@ -1523,65 +1534,17 @@ impl DevCmd {
             }
         });
 
-        // Spawn log file watcher task
-        let tx_log_watcher = tx.clone();
-        let log_file_path = self.log_file.clone();
-        let log_watcher_handle = tokio::task::spawn_blocking(move || {
-            let (watch_tx, watch_rx) = std::sync::mpsc::channel();
-
-            let mut watcher = match recommended_watcher(watch_tx) {
-                Ok(w) => w,
-                Err(e) => {
-                    tracing::error!("Failed to create log file watcher: {:?}", e);
-                    return;
-                }
-            };
-
-            // Watch the parent directory since the log file might not exist yet
-            let watch_path = if log_file_path.exists() {
-                log_file_path.as_path()
-            } else if let Some(parent) = log_file_path.parent() {
-                parent
-            } else {
-                tracing::error!("Cannot determine parent directory for log file");
-                return;
-            };
-
-            if let Err(e) = watcher.watch(watch_path, RecursiveMode::NonRecursive) {
-                tracing::error!("Failed to watch log file: {:?}", e);
-                return;
-            }
-
-            tracing::info!("Watching log file for changes: {}", log_file_path.display());
-
-            // Use recv_timeout so we can check periodically and exit cleanly
-            loop {
-                match watch_rx.recv_timeout(std::time::Duration::from_millis(100)) {
-                    Ok(res) => match res {
-                        Ok(_event) => {
-                            // Note: We don't send a message, the UI loop already reads logs periodically
-                            // The watcher primarily serves to trigger immediate updates when logs are written
-                        }
-                        Err(e) => {
-                            tracing::error!("Log file watch error: {:?}", e);
-                        }
-                    },
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                        // Check if tx is still valid
-                        if tx_log_watcher.is_closed() {
-                            break;
-                        }
-                    }
-                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                        // Watcher dropped, exit loop
-                        break;
-                    }
-                }
-            }
-        });
-
         // Run the UI
-        let result = run_ui(&mut terminal, &app, &mut rx, &tx, &cfg.path());
+        let result = run_ui(
+            &mut terminal,
+            &app,
+            &mut rx,
+            &tx,
+            &cfg.path(),
+            &server_control,
+            &self.host,
+            self.port,
+        );
 
         // Cleanup terminal
         disable_raw_mode()?;
@@ -1593,17 +1556,23 @@ impl DevCmd {
         terminal.show_cursor()?;
 
         // Send shutdown signal to server
-        let _ = shutdown_tx.send(());
+        let shutdown_and_handle = {
+            let mut control = server_control.lock().unwrap();
+            control.take()
+        };
+
+        if let Some((handle, shutdown_tx)) = shutdown_and_handle {
+            let _ = shutdown_tx.send(());
+
+            // Wait for server to stop gracefully (with timeout)
+            let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
+        }
 
         // Drop tx to signal watchers to exit (by closing the channel)
         drop(tx);
 
         // Wait for watchers to exit
         let _ = tokio::time::timeout(Duration::from_secs(1), watcher_handle).await;
-        let _ = tokio::time::timeout(Duration::from_secs(1), log_watcher_handle).await;
-
-        // Wait for server to stop gracefully (with timeout)
-        let _ = tokio::time::timeout(Duration::from_secs(5), server_handle).await;
 
         result?;
 
@@ -1611,12 +1580,16 @@ impl DevCmd {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_ui(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &Arc<Mutex<App>>,
     rx: &mut mpsc::UnboundedReceiver<AppMessage>,
     tx: &mpsc::UnboundedSender<AppMessage>,
     config_path: &camino::Utf8PathBuf,
+    server_control: &ServerControl,
+    host: &str,
+    port: u16,
 ) -> Result<()> {
     let tick_rate = Duration::from_millis(100);
     let mut last_tick = Instant::now();
@@ -1770,7 +1743,7 @@ fn run_ui(
 
         // Process messages from server task
         while let Ok(msg) = rx.try_recv() {
-            // Handle ConfigChanged specially - need to reload and reconnect
+            // Handle ConfigChanged specially - need to restart server with new config
             if matches!(msg, AppMessage::ConfigChanged) {
                 // First, update the app state to clear servers
                 {
@@ -1778,46 +1751,53 @@ fn run_ui(
                     app.handle_message(msg);
                 }
 
-                // Then spawn a task to reload config and reconnect
+                // Shutdown the existing server and spawn a new one
                 let tx_reload = tx.clone();
                 let config_path_clone = config_path.clone();
+                let server_control_clone = server_control.clone();
+                let host_clone = host.to_string();
+                let port_clone = port;
 
                 let task_handle = tokio::spawn(async move {
-                    // Reload config
+                    // 1. Stop the existing server
+                    tracing::info!("Stopping existing server for config reload...");
+                    let old_server = {
+                        let mut control = server_control_clone.lock().unwrap();
+                        control.take() // Take ownership of the old server control
+                    };
+
+                    if let Some((old_handle, old_shutdown_tx)) = old_server {
+                        // Send shutdown signal
+                        let _ = old_shutdown_tx.send(());
+
+                        // Wait for server to stop (with timeout)
+                        let _ = tokio::time::timeout(Duration::from_secs(5), old_handle).await;
+                        tracing::info!("Old server stopped");
+                    }
+
+                    // 2. Reload config
                     match Config::load(&config_path_clone) {
                         Ok(new_cfg) => {
                             tracing::info!(
-                                "Config reloaded, reconnecting to {} servers",
+                                "Config reloaded, starting new server with {} upstream servers",
                                 new_cfg.servers.len()
                             );
 
-                            // Connect to new servers
-                            let mut upstream_servers = Vec::new();
-                            for server in &new_cfg.servers {
-                                let tx = tx_reload.clone();
-                                let name = server.name.clone();
+                            // 3. Spawn new server with new config
+                            let (new_handle, new_shutdown_tx) = spawn_server_task(
+                                new_cfg,
+                                tx_reload.clone(),
+                                host_clone,
+                                port_clone,
+                            );
 
-                                match UpstreamMcp::from_server(server).await {
-                                    Ok(upstream) => {
-                                        upstream_servers.push(upstream);
-                                    }
-                                    Err(e) => {
-                                        tx.send(AppMessage::ServerFailed(
-                                            name.clone(),
-                                            e.to_string(),
-                                        ))
-                                        .ok();
-                                    }
-                                }
+                            // 4. Store new server control
+                            {
+                                let mut control = server_control_clone.lock().unwrap();
+                                *control = Some((new_handle, new_shutdown_tx));
                             }
 
-                            // Send connected message with new upstreams
-                            tx_reload
-                                .send(AppMessage::ServerConnected(
-                                    "all".to_string(),
-                                    upstream_servers,
-                                ))
-                                .ok();
+                            tracing::info!("New server started successfully");
                         }
                         Err(e) => {
                             tracing::error!("Failed to reload config: {:?}", e);
@@ -1900,7 +1880,7 @@ mod tests {
     #[test]
     fn test_track_tool_usage_with_banking_namespace() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let log_file = temp_dir.path().join("test.jsonl");
+        let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
 
         let mut app = App::new("localhost".to_string(), 8080, log_file);
 
@@ -1908,19 +1888,18 @@ mod tests {
         app.upstream_servers.push(create_test_server());
 
         // Create a log entry with code_from_llm field containing Banking.getAccountBalance
-        let log_entry = JsonLogEntry {
+        let log_entry = LogEntry {
             timestamp: Utc::now(),
-            level: "INFO".to_string(),
+            level: LogLevel::Info,
             target: "pctx".to_string(),
-            message: "Executing code".to_string(),
-            span: None,
-            extra: {
-                let mut map = HashMap::new();
-                map.insert(
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
                     "code_from_llm".to_string(),
-                    json!("const balance = await Banking.getAccountBalance({ account_id: \"ACC-123\" });"),
-                );
-                map
+                    json!(
+                        "const balance = await Banking.getAccountBalance({ account_id: \"ACC-123\" });"
+                    ),
+                )]),
             },
         };
 
@@ -1946,7 +1925,7 @@ mod tests {
     #[test]
     fn test_track_tool_usage_with_freeze_account() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let log_file = temp_dir.path().join("test.jsonl");
+        let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
 
         let mut app = App::new("localhost".to_string(), 8080, log_file);
 
@@ -1954,19 +1933,16 @@ mod tests {
         app.upstream_servers.push(create_test_server());
 
         // Create a log entry with Banking.freezeAccount
-        let log_entry = JsonLogEntry {
+        let log_entry = LogEntry {
             timestamp: Utc::now(),
-            level: "INFO".to_string(),
-            target: "pctx".to_string(),
-            message: "Executing code".to_string(),
-            span: None,
-            extra: {
-                let mut map = HashMap::new();
-                map.insert(
+            level: LogLevel::Info,
+            target: "pctx".into(),
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
                     "code_from_llm".to_string(),
                     json!("await Banking.freezeAccount({ account_id: \"ACC-555\" });"),
-                );
-                map
+                )]),
             },
         };
 
@@ -1991,7 +1967,7 @@ mod tests {
     #[test]
     fn test_track_multiple_calls() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let log_file = temp_dir.path().join("test.jsonl");
+        let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
 
         let mut app = App::new("localhost".to_string(), 8080, log_file);
 
@@ -1999,36 +1975,30 @@ mod tests {
         app.upstream_servers.push(create_test_server());
 
         // First call
-        let log_entry1 = JsonLogEntry {
+        let log_entry1 = LogEntry {
             timestamp: Utc::now(),
-            level: "INFO".to_string(),
-            target: "pctx".to_string(),
-            message: "Executing code".to_string(),
-            span: None,
-            extra: {
-                let mut map = HashMap::new();
-                map.insert(
+            level: LogLevel::Info,
+            target: "pctx".into(),
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
                     "code_from_llm".to_string(),
                     json!("await Banking.getAccountBalance({ account_id: \"ACC-1\" });"),
-                );
-                map
+                )]),
             },
         };
 
         // Second call
-        let log_entry2 = JsonLogEntry {
+        let log_entry2 = LogEntry {
             timestamp: Utc::now(),
-            level: "INFO".to_string(),
-            target: "pctx".to_string(),
-            message: "Executing code".to_string(),
-            span: None,
-            extra: {
-                let mut map = HashMap::new();
-                map.insert(
+            level: LogLevel::Info,
+            target: "pctx".into(),
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
                     "code_from_llm".to_string(),
                     json!("await Banking.getAccountBalance({ account_id: \"ACC-2\" });"),
-                );
-                map
+                )]),
             },
         };
 

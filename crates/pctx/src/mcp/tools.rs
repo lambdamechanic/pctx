@@ -1,6 +1,7 @@
 use anyhow::Result;
 use codegen::generate_docstring;
 use indexmap::{IndexMap, IndexSet};
+use opentelemetry::KeyValue;
 use pctx_config::Config;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
@@ -17,6 +18,7 @@ use serde_json::json;
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::mcp::upstream::UpstreamMcp;
+use crate::utils::metrics::mcp_tool_metrics;
 
 type McpResult<T> = Result<T, McpError>;
 
@@ -233,7 +235,13 @@ export default await run();"
         let allowed_hosts = self.allowed_hosts.clone();
         let code_to_execute = to_execute.clone();
 
+        // Capture current tracing context to propagate to spawned thread
+        let current_span = tracing::Span::current();
+
         let result = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
+            // Enter the captured span context in the new thread
+            let _guard = current_span.enter();
+
             // Create a new current-thread runtime for Deno ops that use deno_unsync
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -360,10 +368,17 @@ impl ServerHandler for PtcxTools {
             "tools/list"
         );
 
+        // Record metrics
+        if let Some(metrics) = mcp_tool_metrics() {
+            metrics
+                .list_duration
+                .record(latency.as_secs_f64() * 1000.0, &[]);
+        }
+
         Ok(res)
     }
 
-    #[instrument(skip_all, fields(mcp.method = "tools/call", mcp.id = %ctx.id, tool.name = %req.name))]
+    #[instrument(skip_all, fields(mcp.method = "tools/call", mcp.id = %ctx.id, mcp.tool.name = %req.name))]
     async fn call_tool(
         &self,
         req: CallToolRequestParam,
@@ -373,9 +388,39 @@ impl ServerHandler for PtcxTools {
         let tool_name = req.name.clone();
 
         let tcc = ToolCallContext::new(self, req, ctx);
-        let res = self.tool_router.call(tcc).await?;
+        let res = self.tool_router.call(tcc).await;
 
         let latency = start.elapsed();
+        let is_error = res
+            .as_ref()
+            .map(|r| r.is_error.unwrap_or_default())
+            .unwrap_or(true);
+
+        // Record metrics
+        if let Some(metrics) = mcp_tool_metrics() {
+            let attrs = vec![
+                KeyValue::new("tool_name", tool_name.clone()),
+                KeyValue::new("status", if is_error { "error" } else { "success" }),
+            ];
+
+            metrics
+                .call_duration
+                .record(latency.as_secs_f64() * 1000.0, &attrs);
+            metrics.calls_total.add(1, &attrs);
+
+            if is_error {
+                metrics.errors_total.add(
+                    1,
+                    &[
+                        KeyValue::new("tool_name", tool_name.clone()),
+                        KeyValue::new("error_type", "tool_error"),
+                    ],
+                );
+            }
+        }
+
+        let res = res?;
+
         info!(
             tool.result.is_error = res.is_error.unwrap_or_default(),
             tool.result.has_structured_content = res.structured_content.is_some(),

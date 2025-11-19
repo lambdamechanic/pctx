@@ -21,13 +21,7 @@ pub struct StartCmd {
 }
 
 impl StartCmd {
-    pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
-        if cfg.servers.is_empty() {
-            anyhow::bail!(
-                "No upstream MCP servers configured. Add servers with 'pctx add <name> <url>'"
-            );
-        }
-
+    pub(crate) async fn load_upstream(cfg: &Config) -> Result<Vec<UpstreamMcp>> {
         // Connect to each MCP server and fetch their tool definitions
         info!(
             "Creating code mode interface for {} upstream MCP servers",
@@ -51,6 +45,18 @@ impl StartCmd {
                 }
             }
         }
+
+        Ok(upstream_servers)
+    }
+
+    pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
+        if cfg.servers.is_empty() {
+            anyhow::bail!(
+                "No upstream MCP servers configured. Add servers with 'pctx add <name> <url>'"
+            );
+        }
+
+        let upstream_servers = StartCmd::load_upstream(&cfg).await?;
 
         PctxMcp::new(
             cfg.clone(),

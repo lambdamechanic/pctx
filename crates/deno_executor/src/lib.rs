@@ -2,7 +2,8 @@ use deno_runtime::deno_core;
 use deno_runtime::deno_core::JsRuntime;
 use deno_runtime::deno_core::ModuleCodeString;
 use deno_runtime::deno_core::RuntimeOptions;
-use deno_runtime::deno_core::error::AnyError;
+use deno_runtime::deno_core::anyhow;
+use deno_runtime::deno_core::error::CoreError;
 pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, type_check};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
@@ -10,11 +11,6 @@ use thiserror::Error;
 use tracing::{debug, warn};
 
 pub type Result<T> = std::result::Result<T, DenoExecutorError>;
-
-/// Filter diagnostics to only include errors relevant to runtime execution
-fn filter_relevant_diagnostics(diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
-    diagnostics.into_iter().filter(is_relevant_error).collect()
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecuteResult {
@@ -69,25 +65,21 @@ pub enum DenoExecutorError {
 ///
 pub async fn execute(code: &str, allowed_hosts: Option<Vec<String>>) -> Result<ExecuteResult> {
     debug!(
-        runtime = "type_check",
         code_length = code.len(),
-        "Code submitted for execution"
+        "Code submitted for typecheck & execution"
     );
-    debug!(runtime = "type_check", "Starting type check");
+    let check_result = run_type_check(code).await?;
 
-    let check_result = type_check(code).await?;
-
-    let relevant_diagnostics = filter_relevant_diagnostics(check_result.diagnostics);
-
-    if !relevant_diagnostics.is_empty() {
+    if !check_result.diagnostics.is_empty() {
         warn!(
             runtime = "type_check",
-            diagnostic_count = relevant_diagnostics.len(),
+            diagnostic_count = check_result.diagnostics.len(),
             "Type check failed with diagnostics"
         );
 
         // Format diagnostics as stderr output
-        let stderr = relevant_diagnostics
+        let stderr = check_result
+            .diagnostics
             .iter()
             .map(|d| d.message.as_str())
             .collect::<Vec<_>>()
@@ -95,7 +87,7 @@ pub async fn execute(code: &str, allowed_hosts: Option<Vec<String>>) -> Result<E
 
         return Ok(ExecuteResult {
             success: false,
-            diagnostics: relevant_diagnostics,
+            diagnostics: check_result.diagnostics,
             runtime_error: None,
             output: None,
             stdout: String::new(),
@@ -117,7 +109,7 @@ pub async fn execute(code: &str, allowed_hosts: Option<Vec<String>>) -> Result<E
 
     Ok(ExecuteResult {
         success: exec_result.success,
-        diagnostics: relevant_diagnostics, // Filtered diagnostics (may be empty)
+        diagnostics: check_result.diagnostics, // Filtered diagnostics (may be empty)
         runtime_error: exec_result.error,
         output: exec_result.output,
         stdout: exec_result.stdout,
@@ -127,6 +119,22 @@ pub async fn execute(code: &str, allowed_hosts: Option<Vec<String>>) -> Result<E
             exec_result.stderr
         },
     })
+}
+
+#[tracing::instrument(fields(runtime = "type_check"))]
+async fn run_type_check(code: &str) -> Result<CheckResult> {
+    let mut check_result = type_check(code).await?;
+
+    if !check_result.success && !check_result.diagnostics.is_empty() {
+        // filter for only relevant diagnostics
+        check_result.diagnostics = check_result
+            .diagnostics
+            .into_iter()
+            .filter(is_relevant_error)
+            .collect();
+    }
+
+    Ok(check_result)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,11 +167,12 @@ struct InternalExecuteResult {
 ///
 /// # Errors
 /// * Returns error only if internal Deno runtime initialization fails
+#[tracing::instrument(fields(runtime = "execution"))]
 async fn execute_code(
     code: &str,
     allowed_hosts: Option<Vec<String>>,
-) -> std::result::Result<InternalExecuteResult, AnyError> {
-    debug!(runtime = "execution", "Starting code execution");
+) -> anyhow::Result<InternalExecuteResult> {
+    debug!("Starting code execution");
 
     // Transpile TypeScript to JavaScript
     let js_code = match deno_transpiler::transpile(code, None) {
@@ -211,21 +220,17 @@ async fn execute_code(
     let main_module = deno_core::resolve_url("file:///execute.js")?;
 
     // Load and evaluate the transpiled code as a module
-    debug!(runtime = "execution", "Loading module into runtime");
+    debug!(main_module =? main_module, "Loading module into runtime");
     let mod_id = match js_runtime
         .load_side_es_module_from_code(&main_module, ModuleCodeString::from(js_code))
         .await
     {
         Ok(id) => {
-            debug!(
-                runtime = "execution",
-                module_id = id,
-                "Module loaded successfully"
-            );
+            debug!(module_id = id, "Module loaded successfully");
             id
         }
         Err(e) => {
-            warn!(runtime = "execution", error = %e, "Failed to load module");
+            warn!(error = %e, "Failed to load module");
             return Ok(InternalExecuteResult {
                 success: false,
                 output: None,
@@ -240,11 +245,11 @@ async fn execute_code(
     };
 
     // Evaluate the module
-    debug!(runtime = "execution", "Evaluating module");
+    debug!("Evaluating module");
     let eval_future = js_runtime.mod_evaluate(mod_id);
 
     // Run the event loop to completion
-    debug!(runtime = "execution", "Running event loop");
+    debug!("Running event loop");
     let event_loop_future = js_runtime.run_event_loop(deno_core::PollEventLoopOptions {
         wait_for_inspector: false,
         pump_v8_message_loop: true,
@@ -252,15 +257,31 @@ async fn execute_code(
 
     // Drive both futures together - wait for BOTH to complete
     let (eval_result, event_loop_result) = futures::join!(eval_future, event_loop_future);
+    debug!("Eval and event loop futures resolved");
 
+    process_execution_results(
+        &mut js_runtime,
+        mod_id,
+        eval_result.err(),
+        event_loop_result.err(),
+    )
+}
+
+#[tracing::instrument(skip_all)]
+fn process_execution_results(
+    js_runtime: &mut JsRuntime,
+    mod_id: usize,
+    eval_err: Option<CoreError>,
+    event_loop_err: Option<CoreError>,
+) -> anyhow::Result<InternalExecuteResult> {
     // Check for errors from either future
-    let (success, error) = match (eval_result, event_loop_result) {
-        (Ok(()), Ok(())) => {
-            debug!(runtime = "execution", "Code executed successfully");
+    let (success, error) = match (eval_err, event_loop_err) {
+        (None, None) => {
+            debug!("Code executed successfully");
             (true, None)
         }
-        (Err(e), _) | (_, Err(e)) => {
-            warn!(runtime = "execution", error = %e, "Code execution failed");
+        (Some(e), _) | (_, Some(e)) => {
+            warn!( error = %e, "Code execution failed");
             (
                 false,
                 Some(ExecutionError {
@@ -292,72 +313,68 @@ async fn execute_code(
     };
 
     // Extract console output and module exports using scope
-    let (stdout, stderr, output) = {
-        deno_core::scope!(scope, &mut js_runtime);
+    deno_core::scope!(scope, js_runtime);
 
-        let console_output = console_global.and_then(|global| {
-            let local = deno_core::v8::Local::new(scope, global);
-            deno_core::serde_v8::from_v8::<serde_json::Value>(scope, local).ok()
-        });
+    let console_output = console_global.and_then(|global| {
+        let local = deno_core::v8::Local::new(scope, global);
+        deno_core::serde_v8::from_v8::<serde_json::Value>(scope, local).ok()
+    });
 
-        let stdout_str = console_output
-            .as_ref()
-            .and_then(|v| v["stdout"].as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
-            .unwrap_or_default();
+    let stdout_str = console_output
+        .as_ref()
+        .and_then(|v| v["stdout"].as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default();
 
-        let stderr_str = console_output
-            .as_ref()
-            .and_then(|v| v["stderr"].as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
-            .unwrap_or_default();
+    let stderr_str = console_output
+        .as_ref()
+        .and_then(|v| v["stderr"].as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default();
 
-        // Extract default export from module namespace
-        let output = module_namespace.and_then(|module_namespace| {
-            let namespace = deno_core::v8::Local::new(scope, module_namespace);
-            let default_key = deno_core::v8::String::new(scope, "default")?;
+    // Extract default export from module namespace
+    let output: Option<serde_json::Value> = module_namespace.and_then(|module_namespace| {
+        let namespace = deno_core::v8::Local::new(scope, module_namespace);
+        let default_key = deno_core::v8::String::new(scope, "default")?;
 
-            namespace
-                .get(scope, default_key.into())
-                .and_then(|default_value| {
-                    // Skip undefined (no default export)
-                    if default_value.is_undefined() {
-                        return None;
+        namespace
+            .get(scope, default_key.into())
+            .and_then(|default_value| {
+                // Skip undefined (no default export)
+                if default_value.is_undefined() {
+                    return None;
+                }
+
+                // Handle Promise
+                if default_value.is_promise() {
+                    let promise = default_value.cast::<deno_core::v8::Promise>();
+                    if promise.state() == deno_core::v8::PromiseState::Fulfilled {
+                        let result = promise.result(scope);
+                        return deno_core::serde_v8::from_v8(scope, result).ok();
                     }
+                    return None;
+                }
 
-                    // Handle Promise
-                    if default_value.is_promise() {
-                        let promise = default_value.cast::<deno_core::v8::Promise>();
-                        if promise.state() == deno_core::v8::PromiseState::Fulfilled {
-                            let result = promise.result(scope);
-                            return deno_core::serde_v8::from_v8(scope, result).ok();
-                        }
-                        return None;
-                    }
-
-                    deno_core::serde_v8::from_v8(scope, default_value).ok()
-                })
-        });
-
-        (stdout_str, stderr_str, output)
-    };
+                deno_core::serde_v8::from_v8(scope, default_value).ok()
+            })
+    });
 
     Ok(InternalExecuteResult {
         success,
         output,
         error,
-        stdout,
-        stderr,
+        stdout: stdout_str,
+        stderr: stderr_str,
     })
 }
 
