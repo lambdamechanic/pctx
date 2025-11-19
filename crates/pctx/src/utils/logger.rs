@@ -1,41 +1,52 @@
-use log::Level;
 use std::io::Write;
 
-pub fn init_logger(quiet: bool, verbose: u8) {
-    let level = if quiet {
-        log::Level::Error
+const WHITELISTED_CRATES: &[&str] = &["pctx", "pctx_config", "deno_executor", "codegen"];
+
+pub(crate) fn default_env_filter(level: &str) -> String {
+    let mut filters: Vec<String> = WHITELISTED_CRATES
+        .iter()
+        .map(|crate_name| format!("{crate_name}={level}"))
+        .collect();
+
+    // Set default level for all other crates to warn
+    filters.insert(0, "warn".to_string());
+
+    filters.join(",")
+}
+
+pub(crate) fn init_cli_logger(verbose: u8, quiet: bool) {
+    let level_str = if quiet {
+        "warn"
     } else if verbose == 0 {
-        log::Level::Info
+        "info"
     } else if verbose == 1 {
-        log::Level::Debug
+        "debug"
     } else {
-        log::Level::Trace
+        "trace"
     };
 
-    let mut builder = env_logger::builder();
+    let mut builder = env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or(default_env_filter(level_str)),
+    );
 
-    if level == log::Level::Trace {
-        builder.filter_level(level.to_level_filter());
-    } else if level == log::Level::Debug {
-        builder.filter_module("pctx", level.to_level_filter());
-    } else {
-        // info, warn, error
-        builder
-            .filter_module("pctx", level.to_level_filter())
-            .format(|buf, record| {
-                if record.level() == Level::Info {
-                    writeln!(buf, "{}", record.args())
-                } else {
-                    let log_style = buf.default_level_style(record.level());
-                    writeln!(
-                        buf,
-                        "{log_style}[{}]{log_style:#} {}",
-                        record.level(),
-                        record.args()
-                    )
-                }
-            });
+    // For INFO and below, only include/colorize WARN and ERROR levels
+    if ["info", "warn", "error"].contains(&level_str) {
+        builder.format(|buf, record| {
+            if record.level() == tracing::log::Level::Info {
+                writeln!(buf, "{}", record.args())
+            } else {
+                let log_style = buf.default_level_style(record.level());
+                writeln!(
+                    buf,
+                    "{log_style}[{}]{log_style:#} {}",
+                    record.level(),
+                    record.args()
+                )
+            }
+        });
     }
 
-    let _ = builder.try_init();
+    if let Err(e) = builder.try_init() {
+        eprintln!("pctx: Failed initializing env_logger: {e:?}");
+    }
 }

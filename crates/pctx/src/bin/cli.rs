@@ -14,8 +14,7 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use clap::Parser;
-use log::error;
-use pctx::{Cli, utils};
+use pctx::Cli;
 
 #[tokio::main]
 async fn main() {
@@ -23,11 +22,9 @@ async fn main() {
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     let cli = Cli::parse();
-    // Initialize logger
-    utils::logger::init_logger(cli.quiet, cli.verbose);
 
     if let Err(e) = cli.handle().await {
-        error!("{e}");
+        println!("{e}");
         std::process::exit(1);
     }
 }

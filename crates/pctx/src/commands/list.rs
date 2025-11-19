@@ -2,12 +2,12 @@ use std::fmt::Display;
 
 use anyhow::Result;
 use clap::Parser;
-use log::info;
 use pctx_config::{
     Config,
     server::{McpConnectionError, ServerConfig},
 };
 use rmcp::model::InitializeResult;
+use tracing::info;
 use url::Url;
 
 use crate::utils::{

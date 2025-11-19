@@ -1,8 +1,8 @@
 use anyhow::Result;
 use codegen::case::Case;
 use indexmap::IndexMap;
-use log::info;
 use pctx_config::auth::{AuthConfig, AuthSecret, SecretString, write_to_keychain};
+use tracing::info;
 
 use crate::utils::styles::{fmt_dimmed, fmt_success};
 

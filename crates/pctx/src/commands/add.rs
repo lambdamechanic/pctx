@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use clap::Parser;
-use log::info;
+use tracing::info;
 
 use crate::{
     commands::USER_CANCELLED,
@@ -103,7 +103,7 @@ impl AddCmd {
                 }
                 Err(McpConnectionError::RequiresAuth) => {
                     sp.stop_and_persist(
-                        "🔒",
+                        "!",
                         if server.auth.is_none() {
                             "MCP requires authentication"
                         } else {

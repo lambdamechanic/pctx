@@ -1,19 +1,24 @@
 use anyhow::Result;
 use codegen::generate_docstring;
 use indexmap::{IndexMap, IndexSet};
-use log::info;
+use opentelemetry::KeyValue;
 use pctx_config::Config;
 use rmcp::{
-    ErrorData as McpError, ServerHandler,
-    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    ErrorData as McpError, RoleServer, ServerHandler,
+    handler::server::{router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters},
     model::{
-        CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
+        CallToolRequestParam, CallToolResult, Content, Implementation, ListToolsResult,
+        PaginatedRequestParam, ProtocolVersion, ServerCapabilities, ServerInfo,
     },
-    schemars, tool, tool_handler, tool_router,
+    schemars,
+    service::RequestContext,
+    tool, tool_router,
 };
 use serde_json::json;
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::mcp::upstream::UpstreamMcp;
+use crate::utils::metrics::mcp_tool_metrics;
 
 type McpResult<T> = Result<T, McpError>;
 
@@ -183,6 +188,12 @@ namespace {namespace} {{
         &self,
         Parameters(ExecuteInput { code }): Parameters<ExecuteInput>,
     ) -> McpResult<CallToolResult> {
+        tracing::debug!(
+            code_from_llm = %code,
+            code_length = code.len(),
+            "Received code to execute"
+        );
+
         let registrations = self
             .upstream
             .iter()
@@ -219,12 +230,18 @@ namespace {namespace} {{
 export default await run();"
         );
 
-        info!("Executing code in sandbox");
+        debug!("Executing code in sandbox");
 
         let allowed_hosts = self.allowed_hosts.clone();
         let code_to_execute = to_execute.clone();
 
+        // Capture current tracing context to propagate to spawned thread
+        let current_span = tracing::Span::current();
+
         let result = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
+            // Enter the captured span context in the new thread
+            let _guard = current_span.enter();
+
             // Create a new current-thread runtime for Deno ops that use deno_unsync
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -239,18 +256,18 @@ export default await run();"
         })
         .await
         .map_err(|e| {
-            log::error!("Task join failed: {e}");
+            error!("Task join failed: {e}");
             McpError::internal_error(format!("Task join failed: {e}"), None)
         })?
         .map_err(|e| {
-            log::error!("Sandbox execution error: {e}");
+            error!("Sandbox execution error: {e}");
             McpError::internal_error(format!("Execution failed: {e}"), None)
         })?;
 
         if result.success {
-            log::info!("Sandbox execution completed successfully");
+            debug!("Sandbox execution completed successfully");
         } else {
-            log::warn!("Sandbox execution failed: {:?}", result.stderr);
+            warn!("Sandbox execution failed: {:?}", result.stderr);
         }
 
         let text_result = format!(
@@ -306,7 +323,6 @@ pub(crate) struct ExecuteInput {
     pub code: String,
 }
 
-#[tool_handler]
 impl ServerHandler for PtcxTools {
     fn get_info(&self) -> ServerInfo {
         let default_description = format!(
@@ -334,5 +350,84 @@ impl ServerHandler for PtcxTools {
                     .unwrap_or(default_description),
             ),
         }
+    }
+
+    #[instrument(skip_all, fields(mcp.method = "tools/list", mcp.id = %ctx.id))]
+    async fn list_tools(
+        &self,
+        _req: Option<PaginatedRequestParam>,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, McpError> {
+        let start = std::time::Instant::now();
+        let res = ListToolsResult::with_all_items(self.tool_router.list_all());
+        let latency = start.elapsed();
+        info!(
+            tools.length = res.tools.len(),
+            tools.next_cursor = res.next_cursor.is_some(),
+            latency_ms = latency.as_millis(),
+            "tools/list"
+        );
+
+        // Record metrics
+        if let Some(metrics) = mcp_tool_metrics() {
+            metrics
+                .list_duration
+                .record(latency.as_secs_f64() * 1000.0, &[]);
+        }
+
+        Ok(res)
+    }
+
+    #[instrument(skip_all, fields(mcp.method = "tools/call", mcp.id = %ctx.id, mcp.tool.name = %req.name))]
+    async fn call_tool(
+        &self,
+        req: CallToolRequestParam,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let start = std::time::Instant::now();
+        let tool_name = req.name.clone();
+
+        let tcc = ToolCallContext::new(self, req, ctx);
+        let res = self.tool_router.call(tcc).await;
+
+        let latency = start.elapsed();
+        let is_error = res
+            .as_ref()
+            .map(|r| r.is_error.unwrap_or_default())
+            .unwrap_or(true);
+
+        // Record metrics
+        if let Some(metrics) = mcp_tool_metrics() {
+            let attrs = vec![
+                KeyValue::new("tool_name", tool_name.clone()),
+                KeyValue::new("status", if is_error { "error" } else { "success" }),
+            ];
+
+            metrics
+                .call_duration
+                .record(latency.as_secs_f64() * 1000.0, &attrs);
+            metrics.calls_total.add(1, &attrs);
+
+            if is_error {
+                metrics.errors_total.add(
+                    1,
+                    &[
+                        KeyValue::new("tool_name", tool_name.clone()),
+                        KeyValue::new("error_type", "tool_error"),
+                    ],
+                );
+            }
+        }
+
+        let res = res?;
+
+        info!(
+            tool.result.is_error = res.is_error.unwrap_or_default(),
+            tool.result.has_structured_content = res.structured_content.is_some(),
+            latency_ms = latency.as_millis(),
+            "tools/call - {tool_name}"
+        );
+
+        Ok(res)
     }
 }
