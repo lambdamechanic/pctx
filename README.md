@@ -22,10 +22,10 @@ The open source framework to connect AI agents to tools and services with [code 
 # Homebrew
 brew install portofcontext/tap/pctx
 
-# Curl
+# cURL
 curl --proto '=https' --tlsv1.2 -LsSf https://raw.githubusercontent.com/portofcontext/pctx/main/install.sh | sh
 
-# NPM
+# npm
 npm i -g @portofcontext/pctx
 ```
 
@@ -45,6 +45,22 @@ pctx dev
 
 For complete CLI documentation, see [CLI.md](docs/CLI.md).
 For configuration options, see [Configuration Guide](docs/config.md).
+
+## Update
+
+Depending on the installation method (Homebrew/npm/cURL) the update method is different. Run `which pctx` if you are unsure what you used to install it.
+
+```bash
+# Homebrew update
+brew upgrade pctx
+
+# cURL update
+pctx-update
+
+# npm update
+npm upgrade -g @portofcontext/pctx
+
+```
 
 ## What is pctx?
 
