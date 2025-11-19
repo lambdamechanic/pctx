@@ -37,7 +37,10 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-use crate::mcp::{PctxMcp, upstream::UpstreamMcp};
+use crate::{
+    commands::start::StartCmd,
+    mcp::{PctxMcp, upstream::UpstreamMcp},
+};
 
 #[derive(Debug, Clone, Parser)]
 pub struct DevCmd {
@@ -1427,28 +1430,24 @@ impl DevCmd {
 
         // Spawn server task
         let server_handle = tokio::spawn(async move {
-            // Connect to upstream servers
-            let mut upstream_servers = Vec::new();
-            for server in &cfg_clone.servers {
-                let tx = tx_server.clone();
-                let name = server.name.clone();
-
-                match UpstreamMcp::from_server(server).await {
-                    Ok(upstream) => {
-                        upstream_servers.push(upstream);
-                    }
-                    Err(e) => {
-                        tx.send(AppMessage::ServerFailed(name.clone(), e.to_string()))
-                            .ok();
-                    }
+            let upstream = match StartCmd::load_upstream(&cfg_clone).await {
+                Ok(u) => u,
+                Err(e) => {
+                    tx_server
+                        .send(AppMessage::ServerFailed(
+                            "Failed loading upstream MCPs".into(),
+                            e.to_string(),
+                        ))
+                        .ok();
+                    vec![]
                 }
-            }
+            };
 
             // Send connected message with all upstreams
             tx_server
                 .send(AppMessage::ServerConnected(
                     "all".to_string(),
-                    upstream_servers.clone(),
+                    upstream.clone(),
                 ))
                 .ok();
 
@@ -1456,7 +1455,7 @@ impl DevCmd {
             tx_server.send(AppMessage::ServerStarted).ok();
 
             // Run server with shutdown signal
-            let pctx_mcp = PctxMcp::new(cfg_clone.clone(), upstream_servers, &host, port, false);
+            let pctx_mcp = PctxMcp::new(cfg_clone.clone(), upstream, &host, port, false);
 
             if let Err(_e) = pctx_mcp
                 .serve_with_shutdown(async move {

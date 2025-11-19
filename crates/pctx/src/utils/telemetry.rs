@@ -1,3 +1,5 @@
+use std::fs;
+
 use anyhow::{Context, Result};
 use opentelemetry::KeyValue;
 use opentelemetry::trace::TracerProvider;
@@ -8,7 +10,6 @@ use pctx_config::{Config, logger::LoggerFormat};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt};
 use tracing_subscriber::{Layer, Registry, util::SubscriberInitExt};
 
-use crate::utils::jsonl_logger::{JsonlLayer, JsonlWriter};
 use crate::utils::{logger, metrics};
 
 pub(crate) async fn init_telemetry(cfg: &Config, json_l: Option<Utf8PathBuf>) -> Result<()> {
@@ -53,11 +54,20 @@ pub(crate) async fn init_telemetry(cfg: &Config, json_l: Option<Utf8PathBuf>) ->
     }
 
     if let Some(log_file) = json_l {
-        let env_filter = EnvFilter::try_from_default_env()
-            .unwrap_or(EnvFilter::new(logger::default_env_filter("debug")));
-        let writer = JsonlWriter::new(&log_file)
-            .context(format!("Failed to create JSONL log file at {log_file}"))?;
-        layers.push(JsonlLayer::new(writer).with_filter(env_filter).boxed());
+        if let Some(parent) = log_file.parent() {
+            fs::create_dir_all(parent).context(format!(
+                "failed creating parent directory of log file {log_file}"
+            ))?;
+        }
+        let write_to =
+            fs::File::create(&log_file).context(format!("failed creating log file: {log_file}"))?;
+
+        let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
+        layers.push(
+            init_tracing_layer(write_to, &LoggerFormat::Json, false)
+                .with_filter(env_filter)
+                .boxed(),
+        );
     } else if cfg.logger.enabled {
         let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
             logger::default_env_filter(cfg.logger.level.as_str()),
@@ -83,17 +93,17 @@ where
     W: for<'writer> tracing_subscriber::fmt::MakeWriter<'writer> + Sync + Send + 'static,
 {
     match format {
-        LoggerFormat::Compact => tracing_subscriber::fmt::Layer::default()
+        LoggerFormat::Compact => tracing_subscriber::fmt::layer()
             .with_writer(make_writer)
             .with_ansi(colors)
             .compact()
             .boxed(),
-        LoggerFormat::Pretty => tracing_subscriber::fmt::Layer::default()
+        LoggerFormat::Pretty => tracing_subscriber::fmt::layer()
             .with_writer(make_writer)
             .with_ansi(colors)
             .pretty()
             .boxed(),
-        LoggerFormat::Json => tracing_subscriber::fmt::Layer::default()
+        LoggerFormat::Json => tracing_subscriber::fmt::layer()
             .with_writer(make_writer)
             .with_ansi(colors)
             .json()
