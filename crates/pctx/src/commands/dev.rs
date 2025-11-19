@@ -1376,6 +1376,72 @@ fn render_footer(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(footer, area);
 }
 
+// Spawns the PctxMcp server task
+// Returns (server_handle, shutdown_sender)
+fn spawn_server_task(
+    cfg: Config,
+    tx: mpsc::UnboundedSender<AppMessage>,
+    host: String,
+    port: u16,
+) -> (tokio::task::JoinHandle<()>, tokio::sync::oneshot::Sender<()>) {
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
+    let handle = tokio::spawn(async move {
+        let upstream = if cfg.servers.is_empty() {
+            tracing::warn!(
+                "No MCP servers configured, add servers with 'pctx add <name> <url>' and PCTX Dev Mode will refresh"
+            );
+            vec![]
+        } else {
+            let loaded = match StartCmd::load_upstream(&cfg).await {
+                Ok(u) => u,
+                Err(e) => {
+                    tx.send(AppMessage::ServerFailed(
+                        "Failed loading upstream MCPs".into(),
+                        e.to_string(),
+                    ))
+                    .ok();
+                    vec![]
+                }
+            };
+
+            if loaded.is_empty() {
+                tracing::warn!(
+                    "Failed loading all configured MCP servers, add servers with 'pctx add <name> <url>' or edit {} and PCTX Dev Mode will refresh",
+                    cfg.path()
+                );
+            }
+            loaded
+        };
+
+        // Send connected message with all upstreams
+        tx.send(AppMessage::ServerConnected(
+            "all".to_string(),
+            upstream.clone(),
+        ))
+        .ok();
+
+        // Start PCTX server
+        tx.send(AppMessage::ServerStarted).ok();
+
+        // Run server with shutdown signal
+        let pctx_mcp = PctxMcp::new(cfg.clone(), upstream, &host, port, false);
+
+        if let Err(_e) = pctx_mcp
+            .serve_with_shutdown(async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        {
+            // Error is already logged via tracing
+        }
+
+        tx.send(AppMessage::ServerStopped).ok();
+    });
+
+    (handle, shutdown_tx)
+}
+
 impl DevCmd {
     pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
         // Set up terminal
@@ -1395,70 +1461,16 @@ impl DevCmd {
         // Channel for sending messages to the UI
         let (tx, mut rx) = mpsc::unbounded_channel::<AppMessage>();
 
-        // Channel for shutdown signal
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        // Spawn initial server task
+        let (server_handle, shutdown_tx) = spawn_server_task(
+            cfg.clone(),
+            tx.clone(),
+            self.host.clone(),
+            self.port,
+        );
 
-        // Clone for the server task
-        let tx_server = tx.clone();
-        let cfg_clone = cfg.clone();
-        let host = self.host.clone();
-        let port = self.port;
-
-        // Spawn server task
-        let server_handle = tokio::spawn(async move {
-            let upstream = if cfg_clone.servers.is_empty() {
-                tracing::warn!(
-                    "No MCP servers configured, add servers with 'pctx add <name> <url>' and PCTX Dev Mode will refresh"
-                );
-                vec![]
-            } else {
-                let loaded = match StartCmd::load_upstream(&cfg_clone).await {
-                    Ok(u) => u,
-                    Err(e) => {
-                        tx_server
-                            .send(AppMessage::ServerFailed(
-                                "Failed loading upstream MCPs".into(),
-                                e.to_string(),
-                            ))
-                            .ok();
-                        vec![]
-                    }
-                };
-
-                if loaded.is_empty() {
-                    tracing::warn!(
-                        "Failed loading all configured MCP servers, add servers with 'pctx add <name> <url>' or edit {} and PCTX Dev Mode will refresh",
-                        cfg_clone.path()
-                    );
-                }
-                loaded
-            };
-
-            // Send connected message with all upstreams
-            tx_server
-                .send(AppMessage::ServerConnected(
-                    "all".to_string(),
-                    upstream.clone(),
-                ))
-                .ok();
-
-            // Start PCTX server
-            tx_server.send(AppMessage::ServerStarted).ok();
-
-            // Run server with shutdown signal
-            let pctx_mcp = PctxMcp::new(cfg_clone.clone(), upstream, &host, port, false);
-
-            if let Err(_e) = pctx_mcp
-                .serve_with_shutdown(async move {
-                    let _ = shutdown_rx.await;
-                })
-                .await
-            {
-                // Error is already logged via tracing
-            }
-
-            tx_server.send(AppMessage::ServerStopped).ok();
-        });
+        // Store server control in Arc<Mutex<>> so we can replace it on config reload
+        let server_control = Arc::new(Mutex::new(Some((server_handle, shutdown_tx))));
 
         // Spawn config file watcher task
         let tx_watcher = tx.clone();
@@ -1512,65 +1524,18 @@ impl DevCmd {
             }
         });
 
-        // Spawn log file watcher task
-        let tx_log_watcher = tx.clone();
-        let log_file_path = self.log_file.clone();
-        let log_watcher_handle = tokio::task::spawn_blocking(move || {
-            let (watch_tx, watch_rx) = std::sync::mpsc::channel();
-
-            let mut watcher = match recommended_watcher(watch_tx) {
-                Ok(w) => w,
-                Err(e) => {
-                    tracing::error!("Failed to create log file watcher: {:?}", e);
-                    return;
-                }
-            };
-
-            // Watch the parent directory since the log file might not exist yet
-            let watch_path = if log_file_path.exists() {
-                log_file_path.as_std_path()
-            } else if let Some(parent) = log_file_path.parent() {
-                parent.as_std_path()
-            } else {
-                tracing::error!("Cannot determine parent directory for log file");
-                return;
-            };
-
-            if let Err(e) = watcher.watch(watch_path, RecursiveMode::NonRecursive) {
-                tracing::error!("Failed to watch log file: {:?}", e);
-                return;
-            }
-
-            tracing::info!("Watching log file for changes: {log_file_path}");
-
-            // Use recv_timeout so we can check periodically and exit cleanly
-            loop {
-                match watch_rx.recv_timeout(std::time::Duration::from_millis(100)) {
-                    Ok(res) => match res {
-                        Ok(_event) => {
-                            // Note: We don't send a message, the UI loop already reads logs periodically
-                            // The watcher primarily serves to trigger immediate updates when logs are written
-                        }
-                        Err(e) => {
-                            tracing::error!("Log file watch error: {:?}", e);
-                        }
-                    },
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                        // Check if tx is still valid
-                        if tx_log_watcher.is_closed() {
-                            break;
-                        }
-                    }
-                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                        // Watcher dropped, exit loop
-                        break;
-                    }
-                }
-            }
-        });
 
         // Run the UI
-        let result = run_ui(&mut terminal, &app, &mut rx, &tx, &cfg.path());
+        let result = run_ui(
+            &mut terminal,
+            &app,
+            &mut rx,
+            &tx,
+            &cfg.path(),
+            &server_control,
+            self.host.clone(),
+            self.port,
+        );
 
         // Cleanup terminal
         disable_raw_mode()?;
@@ -1582,17 +1547,23 @@ impl DevCmd {
         terminal.show_cursor()?;
 
         // Send shutdown signal to server
-        let _ = shutdown_tx.send(());
+        let shutdown_and_handle = {
+            let mut control = server_control.lock().unwrap();
+            control.take()
+        };
+
+        if let Some((handle, shutdown_tx)) = shutdown_and_handle {
+            let _ = shutdown_tx.send(());
+
+            // Wait for server to stop gracefully (with timeout)
+            let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
+        }
 
         // Drop tx to signal watchers to exit (by closing the channel)
         drop(tx);
 
         // Wait for watchers to exit
         let _ = tokio::time::timeout(Duration::from_secs(1), watcher_handle).await;
-        let _ = tokio::time::timeout(Duration::from_secs(1), log_watcher_handle).await;
-
-        // Wait for server to stop gracefully (with timeout)
-        let _ = tokio::time::timeout(Duration::from_secs(5), server_handle).await;
 
         result?;
 
@@ -1606,6 +1577,11 @@ fn run_ui(
     rx: &mut mpsc::UnboundedReceiver<AppMessage>,
     tx: &mpsc::UnboundedSender<AppMessage>,
     config_path: &camino::Utf8PathBuf,
+    server_control: &Arc<
+        Mutex<Option<(tokio::task::JoinHandle<()>, tokio::sync::oneshot::Sender<()>)>>,
+    >,
+    host: String,
+    port: u16,
 ) -> Result<()> {
     let tick_rate = Duration::from_millis(100);
     let mut last_tick = Instant::now();
@@ -1759,7 +1735,7 @@ fn run_ui(
 
         // Process messages from server task
         while let Ok(msg) = rx.try_recv() {
-            // Handle ConfigChanged specially - need to reload and reconnect
+            // Handle ConfigChanged specially - need to restart server with new config
             if matches!(msg, AppMessage::ConfigChanged) {
                 // First, update the app state to clear servers
                 {
@@ -1767,46 +1743,53 @@ fn run_ui(
                     app.handle_message(msg);
                 }
 
-                // Then spawn a task to reload config and reconnect
+                // Shutdown the existing server and spawn a new one
                 let tx_reload = tx.clone();
                 let config_path_clone = config_path.clone();
+                let server_control_clone = server_control.clone();
+                let host_clone = host.clone();
+                let port_clone = port;
 
                 let task_handle = tokio::spawn(async move {
-                    // Reload config
+                    // 1. Stop the existing server
+                    tracing::info!("Stopping existing server for config reload...");
+                    let old_server = {
+                        let mut control = server_control_clone.lock().unwrap();
+                        control.take() // Take ownership of the old server control
+                    };
+
+                    if let Some((old_handle, old_shutdown_tx)) = old_server {
+                        // Send shutdown signal
+                        let _ = old_shutdown_tx.send(());
+
+                        // Wait for server to stop (with timeout)
+                        let _ = tokio::time::timeout(Duration::from_secs(5), old_handle).await;
+                        tracing::info!("Old server stopped");
+                    }
+
+                    // 2. Reload config
                     match Config::load(&config_path_clone) {
                         Ok(new_cfg) => {
                             tracing::info!(
-                                "Config reloaded, reconnecting to {} servers",
+                                "Config reloaded, starting new server with {} upstream servers",
                                 new_cfg.servers.len()
                             );
 
-                            // Connect to new servers
-                            let mut upstream_servers = Vec::new();
-                            for server in &new_cfg.servers {
-                                let tx = tx_reload.clone();
-                                let name = server.name.clone();
+                            // 3. Spawn new server with new config
+                            let (new_handle, new_shutdown_tx) = spawn_server_task(
+                                new_cfg,
+                                tx_reload.clone(),
+                                host_clone,
+                                port_clone,
+                            );
 
-                                match UpstreamMcp::from_server(server).await {
-                                    Ok(upstream) => {
-                                        upstream_servers.push(upstream);
-                                    }
-                                    Err(e) => {
-                                        tx.send(AppMessage::ServerFailed(
-                                            name.clone(),
-                                            e.to_string(),
-                                        ))
-                                        .ok();
-                                    }
-                                }
+                            // 4. Store new server control
+                            {
+                                let mut control = server_control_clone.lock().unwrap();
+                                *control = Some((new_handle, new_shutdown_tx));
                             }
 
-                            // Send connected message with new upstreams
-                            tx_reload
-                                .send(AppMessage::ServerConnected(
-                                    "all".to_string(),
-                                    upstream_servers,
-                                ))
-                                .ok();
+                            tracing::info!("New server started successfully");
                         }
                         Err(e) => {
                             tracing::error!("Failed to reload config: {:?}", e);

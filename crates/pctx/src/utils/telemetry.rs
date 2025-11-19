@@ -62,7 +62,8 @@ pub(crate) async fn init_telemetry(cfg: &Config, json_l: Option<Utf8PathBuf>) ->
         let write_to =
             fs::File::create(&log_file).context(format!("failed creating log file: {log_file}"))?;
 
-        let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
+        let env_filter = EnvFilter::try_from_default_env()
+            .unwrap_or(EnvFilter::new(logger::default_env_filter("debug")));
         layers.push(
             init_tracing_layer(write_to, &LoggerFormat::Json, false)
                 .with_filter(env_filter)
