@@ -75,7 +75,7 @@ console.log(`Found ${orders.length} orders`);
 
 - **Code Mode interface**: Tools exposed as TypeScript functions for efficient agent interaction. See [Code Mode Guide](docs/code-mode.md).
 - **Upstream MCP server aggregation**: Connect to multiple MCP servers through a single interface. See [Upstream MCP Servers Guide](docs/upstream-mcp-servers.md).
-- **Secure authentication**: OAuth, environment variables, system keychain, and external commands. See [Authentication Guide](docs/mcp-auth.md).
+- **Secure authentication**: Source secrets from environment variables, system keychain, and external commands. See [Authentication Section](docs/config.md#authentication) in the CLI configuration docs for more details.
 
 ## Architecture
 

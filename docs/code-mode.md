@@ -12,8 +12,8 @@ Instead of sequential tool calls passing data through the model's context window
 ```typescript
 // Data stays in execution environment, process with native JS
 const items = await myserver.getItems();
-const filtered = items.filter(x => x.status === 'pending');
-await myserver.updateItems(filtered.map(x => ({ ...x, processed: true })));
+const filtered = items.filter((x) => x.status === "pending");
+await myserver.updateItems(filtered.map((x) => ({ ...x, processed: true })));
 ```
 
 ## How It Works
@@ -33,7 +33,7 @@ await myserver.updateItems(filtered.map(x => ({ ...x, processed: true })));
 
 ```typescript
 // ✓ Valid
-await gdrive.getSheet({ sheetId: 'abc123' });
+await gdrive.getSheet({ sheetId: "abc123" });
 
 // ✗ Type errors caught instantly
 await gdrive.getSheet({ sheetId: 123 });
@@ -45,6 +45,7 @@ await gdrive.getSheet({ sheetId: 123 });
 ### Sandboxed Execution
 
 Code runs in Deno with strict limits:
+
 - **10-second timeout**
 - **No filesystem/env access**
 - **Network restricted** to configured MCP hosts only
@@ -53,15 +54,18 @@ Code runs in Deno with strict limits:
 ## Benefits
 
 ### 98% Token Reduction
+
 - **Traditional:** 150K tokens (data → model → data → model)
 - **Code mode:** 2K tokens (single code block, process in sandbox)
 
 ### Faster Execution
+
 - Write code once, execute locally
 - Use native JS: `filter`, `map`, `reduce`, loops, conditionals
 - Handle errors with try/catch
 
 ### Type Safety
+
 - Instant feedback (< 100ms)
 - Prevent invalid code from running
 - Clear error messages with line/column
@@ -71,15 +75,19 @@ Code runs in Deno with strict limits:
 `pctx` exposes three tools that your LLM calls:
 
 ### 1. `list_functions`
+
 Returns TypeScript namespaces for all connected MCP servers.
 
 ### 2. `get_function_details`
+
 Returns full TypeScript signatures with JSDoc for specific functions.
 
 ### 3. `execute`
+
 Runs TypeScript code with type checking, returns `{ success, stdout, output, diagnostics }`.
 
 **Typical flow:**
+
 ```
 list_functions() → get_function_details([...]) → execute({ code })
 ```
@@ -90,8 +98,8 @@ Each MCP server becomes a TypeScript namespace:
 
 ```typescript
 // Server names from config
-await gdrive.getSheet({ sheetId: 'abc' });
-await slack.sendMessage({ channel: '#general', text: 'hi' });
+await gdrive.getSheet({ sheetId: "abc" });
+await slack.sendMessage({ channel: "#general", text: "hi" });
 ```
 
 ## Example
@@ -100,13 +108,7 @@ await slack.sendMessage({ channel: '#general', text: 'hi' });
 // Traditional: 50K+ tokens for multiple tool calls
 // Code mode: Single execution, data stays in sandbox
 const orders = await store.getOrders();
-const pending = orders.filter(o => o.status === 'pending');
+const pending = orders.filter((o) => o.status === "pending");
 const total = pending.reduce((sum, o) => sum + o.amount, 0);
 console.log(`${pending.length} pending orders: $${total}`);
 ```
-
-## Learn More
-
-- [Upstream MCP Servers](upstream-mcp-servers.md) - Connect multiple MCP servers
-- [MCP Authentication](mcp-auth.md) - Secure credential management
-- [Model Context Protocol](https://modelcontextprotocol.io/) - MCP specification
