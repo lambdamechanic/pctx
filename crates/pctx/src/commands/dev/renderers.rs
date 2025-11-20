@@ -500,7 +500,8 @@ fn render_tool_detail(f: &mut Frame, app: &App, area: Rect) {
 
         // Apply scroll
         let visible_height = area.height.saturating_sub(2) as usize;
-        let start_idx = app.detail_scroll_offset;
+
+        let start_idx = app.detail_scroll_offset.min(lines.len().saturating_sub(1));
         let end_idx = (start_idx + visible_height).min(lines.len());
         let visible_lines: Vec<Line> = lines[start_idx..end_idx].to_vec();
 
