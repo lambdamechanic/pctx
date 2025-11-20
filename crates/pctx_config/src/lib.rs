@@ -70,10 +70,10 @@ impl Config {
         }
 
         let contents =
-            fs::read_to_string(path).context(format!("Failed reading config: {path}"))?;
+            fs::read_to_string(path).context(format!("Failed reading config: {path} "))?;
 
         let mut cfg: Self =
-            serde_json::from_str(&contents).context(format!("Failed loading config: {path}"))?;
+            serde_json::from_str(&contents).context(format!("Failed loading config: {path} "))?;
         cfg.path = Some(path.clone());
 
         Ok(cfg)

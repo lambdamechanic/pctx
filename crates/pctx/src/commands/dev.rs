@@ -16,7 +16,7 @@ use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
@@ -93,20 +93,18 @@ impl LogEntry {
         let time_str = self.timestamp.format("%H:%M:%S").to_string();
         let mut parts = vec![Span::styled(
             format!("[{time_str}] "),
-            Style::default().fg(Color::DarkGray),
+            Style::default().dark_gray(),
         )];
         if level <= LogLevel::Debug {
             parts.push(Span::styled(
-                self.target.clone(),
-                Style::default().fg(Color::DarkGray),
+                format!("{} ", &self.target),
+                Style::default().dark_gray(),
             ));
         }
         parts.extend([
             Span::styled(
                 format!("[{}] ", self.prefix()),
-                Style::default()
-                    .fg(self.color())
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(self.color()).bold(),
             ),
             Span::raw(self.fields.message.clone()),
         ]);
@@ -125,9 +123,9 @@ struct LogEntryFields {
 
 #[derive(Clone)]
 enum AppMessage {
-    ServerConnected(String, Vec<UpstreamMcp>),
-    ServerFailed(String, String),
-    ServerStarted,
+    ServerStarting,
+    ServerReady(Vec<UpstreamMcp>),
+    ServerFailed(String),
     ServerStopped,
     ConfigChanged,
 }
@@ -154,7 +152,7 @@ struct ToolUsage {
 struct App {
     logs: Vec<LogEntry>,
     upstream_servers: Vec<UpstreamMcp>,
-    server_running: bool,
+    server_ready: bool,
     host: String,
     port: u16,
     start_time: Option<Instant>,
@@ -163,6 +161,7 @@ struct App {
     log_file_pos: u64,
 
     // UI State
+    error: Option<String>,
     focused_panel: FocusPanel,
     log_filter: LogLevel,
     #[allow(dead_code)]
@@ -186,10 +185,11 @@ impl App {
         Self {
             logs: Vec::new(),
             upstream_servers: Vec::new(),
-            server_running: false,
+            server_ready: false,
             host,
             port,
             start_time: None,
+            error: None,
             log_scroll_offset: 0,
             log_file_path,
             log_file_pos: 0,
@@ -395,7 +395,9 @@ impl App {
 
     fn handle_message(&mut self, msg: AppMessage) {
         match msg {
-            AppMessage::ServerConnected(_name, upstreams) => {
+            AppMessage::ServerReady(upstreams) => {
+                self.server_ready = true;
+                self.error = None;
                 self.upstream_servers = upstreams;
 
                 // Re-process all existing logs now that we have server metadata
@@ -405,15 +407,17 @@ impl App {
                 );
                 self.reprocess_logs_for_tool_usage();
             }
-            AppMessage::ServerFailed(_name, _error) => {
-                // Error is logged, nothing else to do
+            AppMessage::ServerFailed(err) => {
+                tracing::error!("{err}");
+                self.server_ready = false;
+                self.error = Some(err);
             }
-            AppMessage::ServerStarted => {
-                self.server_running = true;
+            AppMessage::ServerStarting => {
+                self.server_ready = false;
                 self.start_time = Some(Instant::now());
             }
             AppMessage::ServerStopped => {
-                self.server_running = false;
+                self.server_ready = false;
             }
             AppMessage::ConfigChanged => {
                 tracing::info!("Configuration file changed, reloading servers...");
@@ -873,28 +877,20 @@ fn render_header(f: &mut Frame, app: &mut App, area: Rect) {
         .alignment(Alignment::Center);
     f.render_widget(title_widget, chunks[0]);
 
-    // Server URL
-    let server_url = if app.server_running {
-        app.get_server_url()
-    } else {
-        String::new()
-    };
+    // Url
 
-    let server_content = if app.server_running {
-        vec![Span::styled(
-            format!("{server_url} [c]"),
-            Style::default().fg(TERTIARY).add_modifier(Modifier::BOLD),
-        )]
+    let url_span = if app.server_ready {
+        Span::styled(
+            format!("{} [c]", app.get_server_url()),
+            Style::default().fg(TERTIARY).bold(),
+        )
     } else {
-        vec![Span::styled(
-            "Starting...",
-            Style::default().fg(Color::Yellow),
-        )]
+        Span::raw("")
     };
-    let server_widget = Paragraph::new(Line::from(server_content))
+    let url_widget = Paragraph::new(Line::from(url_span))
         .block(Block::default().borders(Borders::ALL))
         .alignment(Alignment::Center);
-    f.render_widget(server_widget, chunks[1]);
+    f.render_widget(url_widget, chunks[1]);
 
     // Docs/Back button with keyboard shortcut hint
     // In ToolDetail view: show "Back" (goes to Tools)
@@ -926,42 +922,38 @@ fn render_tools_panel(f: &mut Frame, app: &mut App, area: Rect) {
         Style::default()
     };
 
+    if let Some(err) = &app.error {
+        let placeholder = Paragraph::new(err.clone())
+            .block(
+                Block::default()
+                    .borders(Borders::all())
+                    .border_style(border_style)
+                    .title("Error"),
+            )
+            .style(Style::default().red())
+            .alignment(Alignment::Center);
+        f.render_widget(placeholder, area);
+        return;
+    } else if !app.server_ready {
+        // Show starting state when server is starting or reloading
+        let placeholder = Paragraph::new("Starting server...")
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(border_style),
+            )
+            .style(Style::default().yellow())
+            .alignment(Alignment::Center);
+        f.render_widget(placeholder, area);
+        return;
+    }
+
     let total_tools: usize = app.upstream_servers.iter().map(|s| s.tools.len()).sum();
     let title = format!("MCP Tools [{total_tools} total]");
 
     // Sort servers alphabetically by name
     let mut sorted_servers: Vec<_> = app.upstream_servers.iter().collect();
     sorted_servers.sort_by(|a, b| a.name.cmp(&b.name));
-
-    // Show loading state when server is starting or reloading
-    if sorted_servers.is_empty() && !app.server_running {
-        let placeholder = Paragraph::new("Loading MCP servers...")
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(border_style)
-                    .title(title),
-            )
-            .style(Style::default().fg(Color::Yellow))
-            .alignment(Alignment::Center);
-        f.render_widget(placeholder, area);
-        return;
-    }
-
-    // Show "Reloading..." when server is running but no servers (config reload in progress)
-    if sorted_servers.is_empty() && app.server_running {
-        let placeholder = Paragraph::new("Reloading servers...")
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(border_style)
-                    .title(title),
-            )
-            .style(Style::default().fg(Color::Yellow))
-            .alignment(Alignment::Center);
-        f.render_widget(placeholder, area);
-        return;
-    }
 
     if sorted_servers.is_empty() {
         let help_lines = vec![
@@ -994,7 +986,7 @@ fn render_tools_panel(f: &mut Frame, app: &mut App, area: Rect) {
             ]),
             Line::from(vec![
                 Span::styled("3. ", Style::default().fg(SECONDARY)),
-                Span::raw("Config will reload automatically"),
+                Span::raw("Server will restart automatically"),
             ]),
             Line::from(""),
             Line::from(vec![Span::styled(
@@ -1348,34 +1340,33 @@ fn render_footer(f: &mut Frame, app: &App, area: Rect) {
     let mut help_text = vec![Span::raw("[q] Quit  ")];
 
     // Always show copy URL if server is running
-    if app.server_running {
+    if app.server_ready {
         help_text.push(Span::raw("[c] Copy URL  "));
     }
 
+    let back = Span::raw("[⌫/Esc] Back  ");
+    let scroll = Span::raw("[↑/↓] Scroll  ");
+    let fast_scroll = Span::raw("[PgUp/PgDn] Fast Scroll  ");
+    let select_text = Span::raw("[Mouse] Select Text  ");
+    let docs = Span::raw("[d] Docs  ");
+    let filter_level = Span::raw("[f] Filter Level  ");
+    let switch_panel = Span::raw("[Tab] Switch Panel  ");
+    let navigate = Span::raw("[↑/↓] Navigate  ");
+    let switch_namespace = Span::raw("[←/→] Switch Namespace  ");
+    let view_details = Span::raw("[↵ Enter] View Details  ");
+
     match app.focused_panel {
         FocusPanel::ToolDetail => {
-            help_text.push(Span::raw("[d/Esc] Back  "));
-            help_text.push(Span::raw("[↑/↓] Scroll  "));
-            help_text.push(Span::raw("[PgUp/PgDn] Fast Scroll  "));
+            help_text.extend([back, scroll, fast_scroll]);
         }
         FocusPanel::Documentation => {
-            help_text.push(Span::raw("[d/Esc] Back  "));
-            help_text.push(Span::raw("[↑/↓] Scroll  "));
-            help_text.push(Span::raw("[PgUp/PgDn] Fast Scroll  "));
-            help_text.push(Span::raw("[Mouse] Select Text  "));
+            help_text.extend([back, scroll, fast_scroll, select_text]);
         }
         FocusPanel::Logs => {
-            help_text.push(Span::raw("[d] Docs  "));
-            help_text.push(Span::raw("[Tab] Switch Panel  "));
-            help_text.push(Span::raw("[↑/↓] Navigate  "));
-            help_text.push(Span::raw("[f] Filter Level  "));
+            help_text.extend([docs, switch_panel, navigate, filter_level]);
         }
         FocusPanel::Tools => {
-            help_text.push(Span::raw("[d] Docs  "));
-            help_text.push(Span::raw("[Tab] Switch Panel  "));
-            help_text.push(Span::raw("[↑/↓] Navigate  "));
-            help_text.push(Span::raw("[←/→] Switch Namespace  "));
-            help_text.push(Span::raw("[Enter] View Details  "));
+            help_text.extend([docs, switch_panel, navigate, switch_namespace, view_details]);
         }
     }
 
@@ -1400,6 +1391,8 @@ fn spawn_server_task(
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
     let handle = tokio::spawn(async move {
+        tx.send(AppMessage::ServerStarting).ok();
+
         let upstream = if cfg.servers.is_empty() {
             tracing::warn!(
                 "No MCP servers configured, add servers with 'pctx add <name> <url>' and PCTX Dev Mode will refresh"
@@ -1409,10 +1402,9 @@ fn spawn_server_task(
             let loaded = match StartCmd::load_upstream(&cfg).await {
                 Ok(u) => u,
                 Err(e) => {
-                    tx.send(AppMessage::ServerFailed(
-                        "Failed loading upstream MCPs".into(),
-                        e.to_string(),
-                    ))
+                    tx.send(AppMessage::ServerFailed(format!(
+                        "Failed loading upstream MCPs: {e:?}"
+                    )))
                     .ok();
                     vec![]
                 }
@@ -1427,26 +1419,25 @@ fn spawn_server_task(
             loaded
         };
 
-        // Send connected message with all upstreams
-        tx.send(AppMessage::ServerConnected(
-            "all".to_string(),
-            upstream.clone(),
-        ))
-        .ok();
-
-        // Start PCTX server
-        tx.send(AppMessage::ServerStarted).ok();
-
         // Run server with shutdown signal
-        let pctx_mcp = PctxMcp::new(cfg.clone(), upstream, &host, port, false);
+        let pctx_mcp = PctxMcp::new(cfg.clone(), upstream.clone(), &host, port, false);
 
-        if let Err(_e) = pctx_mcp
+        tx.send(AppMessage::ServerReady(upstream)).ok();
+
+        if let Err(e) = pctx_mcp
             .serve_with_shutdown(async move {
                 let _ = shutdown_rx.await;
             })
             .await
         {
-            // Error is already logged via tracing
+            let mut msg = e.to_string();
+            if msg.starts_with("Address already in use") {
+                // nicer log
+                msg = format!(
+                    "Address http://{host}:{port} is already in use, restart this command with the `--port` flag to select a different port"
+                );
+            }
+            tx.send(AppMessage::ServerFailed(msg)).ok();
         }
 
         tx.send(AppMessage::ServerStopped).ok();
@@ -1639,7 +1630,7 @@ fn run_ui(
                             KeyCode::Char('q') => {
                                 break;
                             }
-                            KeyCode::Esc => {
+                            KeyCode::Esc | KeyCode::Backspace => {
                                 if app.focused_panel == FocusPanel::ToolDetail {
                                     app.close_tool_detail();
                                 } else if app.focused_panel == FocusPanel::Documentation {
@@ -1703,19 +1694,16 @@ fn run_ui(
                                 app.cycle_log_filter();
                             }
                             KeyCode::Char('c') => {
-                                if app.server_running {
+                                if app.server_ready {
                                     let _ = app.copy_server_url_to_clipboard();
                                 }
                             }
                             KeyCode::Char('d') => {
-                                // 'd' behavior depends on context:
-                                // - In Documentation: go back to tools
-                                // - In ToolDetail: go back to tools (same as Esc)
-                                // - In Tools/Logs: open documentation
-                                match app.focused_panel {
-                                    FocusPanel::Documentation => app.close_documentation(),
-                                    FocusPanel::ToolDetail => app.close_tool_detail(),
-                                    _ => app.show_documentation(),
+                                // open / close docs
+                                if app.focused_panel == FocusPanel::Documentation {
+                                    app.close_documentation();
+                                } else {
+                                    app.show_documentation();
                                 }
                             }
                             _ => {}
@@ -1800,7 +1788,9 @@ fn run_ui(
                             tracing::info!("New server started successfully");
                         }
                         Err(e) => {
-                            tracing::error!("Failed to reload config: {:?}", e);
+                            tx_reload
+                                .send(AppMessage::ServerFailed(format!("{e:?}")))
+                                .ok();
                         }
                     }
                 });
