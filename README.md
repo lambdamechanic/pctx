@@ -6,7 +6,6 @@
 
 [![NPM Version](https://img.shields.io/npm/v/%40portofcontext%2Fpctx)](https://www.npmjs.com/package/@portofcontext/pctx)
 [![Rust](https://img.shields.io/badge/rust-1.89%2B-blue.svg)](https://www.rust-lang.org)
-[![CI](https://github.com/portofcontext/pctx/workflows/CI/badge.svg)](https://github.com/portofcontext/pctx/actions)
 
 </div>
 
@@ -41,6 +40,8 @@ pctx add stripe https://mcp.stripe.com
 
 # Start the unified MCP server in dev mode
 pctx dev
+
+# copy the pctx url and connect to agents with --transport http
 ```
 
 For complete CLI documentation, see [CLI.md](docs/CLI.md).
