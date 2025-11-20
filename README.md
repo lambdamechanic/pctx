@@ -6,7 +6,6 @@
 
 [![NPM Version](https://img.shields.io/npm/v/%40portofcontext%2Fpctx)](https://www.npmjs.com/package/@portofcontext/pctx)
 [![Rust](https://img.shields.io/badge/rust-1.89%2B-blue.svg)](https://www.rust-lang.org)
-[![CI](https://github.com/portofcontext/pctx/workflows/CI/badge.svg)](https://github.com/portofcontext/pctx/actions)
 
 </div>
 
