@@ -47,21 +47,8 @@ pctx dev
 For complete CLI documentation, see [CLI.md](docs/CLI.md).
 For configuration options, see [Configuration Guide](docs/config.md).
 
-## Update
+<img width="1020" height="757" alt="Screenshot 2025-11-21 at 11 03 20 AM" src="https://github.com/user-attachments/assets/d61be46d-5a4b-40fd-953a-7dc725266e63" />
 
-Depending on the installation method (Homebrew/npm/cURL) the update method is different. Run `which pctx` if you are unsure what you used to install it.
-
-```bash
-# Homebrew update
-brew upgrade pctx
-
-# cURL update
-pctx-update
-
-# npm update
-npm upgrade -g @portofcontext/pctx
-
-```
 
 ## What is pctx?
 
@@ -140,6 +127,22 @@ console.log(`Found ${orders.length} orders`);
 - LLM generated code runs in an isolated [Deno](https://deno.com) sandbox that can only access the network hosts specified in the configuration file.
 - No filesystem, environment, network (beyond allowed hosts), or system access.
 - MCP clients are authenticated in pctx. LLMs can never see your auth.
+
+## Update
+
+Depending on the installation method (Homebrew/npm/cURL) the update method is different. Run `which pctx` if you are unsure what you used to install it.
+
+```bash
+# Homebrew update
+brew upgrade pctx
+
+# cURL update
+pctx-update
+
+# npm update
+npm upgrade -g @portofcontext/pctx
+
+```
 
 ## Learn More
 
