@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED] - YYYY-MM-DD
 
+### Added
+
+- All tools return define `outputSchema` and return `structuredOutput` alongside the text content.
+
 ### Fixed
 
 - `pctx dev`
