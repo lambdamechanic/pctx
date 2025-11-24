@@ -146,6 +146,52 @@ pub(crate) struct ExecuteInput {
     pub code: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ExecuteOutput {
+    /// Success of executed code
+    success: bool,
+    /// Standard output of executed code
+    stdout: String,
+    /// Standard error of executed code
+    stderr: String,
+    /// Value returned by executed function
+    output: Option<serde_json::Value>,
+}
+
+impl IntoCallToolResult for ExecuteOutput {
+    fn into_call_tool_result(self) -> std::result::Result<CallToolResult, rmcp::ErrorData> {
+        let text_content = format!(
+            "Code Executed Successfully: {success}
+
+# Return Value
+```json
+{return_val}
+```
+
+# STDOUT
+{stdout}
+
+# STDERR
+{stderr}
+",
+            success = self.success,
+            return_val = serde_json::to_string_pretty(&self.output)
+                .unwrap_or(json!(&self.output).to_string()),
+            stdout = &self.stdout,
+            stderr = &self.stderr,
+        );
+
+        let mut res = if self.success {
+            CallToolResult::success(vec![Content::text(text_content)])
+        } else {
+            CallToolResult::error(vec![Content::text(text_content)])
+        };
+        res.structured_content = Some(json!(self));
+
+        Ok(res)
+    }
+}
+
 // ----------- TOOL HANDLERS -----------
 
 #[derive(Clone)]
@@ -203,7 +249,6 @@ impl PtcxTools {
         - The actual value is a parsed object (not a string) - access properties directly
         - Don't use JSON.parse() on the results - they're already JavaScript objects",
         output_schema = rmcp::handler::server::tool::cached_schema_for_type::<GetFunctionDetailsOutput>()
-
     )]
     async fn get_function_details(
         &self,
@@ -304,12 +349,13 @@ namespace {namespace} {{
         - Do NOT call JSON.parse() on results - they're already objects
         - Access properties directly (e.g., result.data) or inspect with console.log() first
         - If you see 'Promise<any>', the structure is unknown - log it to see what's returned
-        "
+        ",
+        output_schema = rmcp::handler::server::tool::cached_schema_for_type::<ExecuteOutput>()
     )]
     async fn execute(
         &self,
         Parameters(ExecuteInput { code }): Parameters<ExecuteInput>,
-    ) -> McpResult<CallToolResult> {
+    ) -> McpResult<ExecuteOutput> {
         tracing::debug!(
             code_from_llm = %code,
             code_length = code.len(),
@@ -391,33 +437,12 @@ export default await run();"
         } else {
             warn!("Sandbox execution failed: {:?}", result.stderr);
         }
-
-        let text_result = format!(
-            "Code Executed Successfully: {success}
-
-# Return Value
-```json
-{return_val}
-```
-
-# STDOUT
-{stdout}
-
-# STDERR
-{stderr}
-",
-            success = result.success,
-            return_val = serde_json::to_string_pretty(&result.output)
-                .unwrap_or(json!(result.output).to_string()),
-            stdout = result.stdout,
-            stderr = result.stderr,
-        );
-
-        if result.success {
-            Ok(CallToolResult::success(vec![Content::text(text_result)]))
-        } else {
-            Ok(CallToolResult::error(vec![Content::text(text_result)]))
-        }
+        Ok(ExecuteOutput {
+            success: result.success,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            output: result.output,
+        })
     }
 }
 
