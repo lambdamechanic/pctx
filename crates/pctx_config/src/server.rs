@@ -57,7 +57,7 @@ impl ServerConfig {
                             .map_err(|e| McpConnectionError::Failed(e.to_string()))?,
                     );
                 }
-                AuthConfig::Custom { headers } => {
+                AuthConfig::Headers { headers } => {
                     for (name, val) in headers {
                         let resolved = val
                             .resolve()

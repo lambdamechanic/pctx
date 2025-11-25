@@ -85,18 +85,18 @@ The `auth` field supports two types of authentication `BearerToken | Custom`:
 
 This adds an `Authorization: Bearer <token>` header to all requests.
 
-### Custom Header Authentication
+### Header Authentication
 
 | Field     | Type                      | Required | Description                                                      |
 | --------- | ------------------------- | -------- | ---------------------------------------------------------------- |
-| `type`    | `"custom"`                | Yes      | Constant designating this object as a custom headers config      |
+| `type`    | `"headers"`               | Yes      | Constant designating this object as a headers config             |
 | `headers` | `map[string]SecretString` | Yes      | Map of header name to Secret string value (see below for syntax) |
 
 **Example:**
 
 ```json
 {
-  "type": "custom",
+  "type": "headers",
   "headers": {
     "x-api-key": "${env:API_KEY}",
     "x-custom-header": "static-value"
@@ -564,7 +564,7 @@ You can use plain text values, but this is not recommended for production:
       "name": "gdrive",
       "url": "https://mcp.gdrive.example.com",
       "auth": {
-        "type": "custom",
+        "type": "headers",
         "headers": {
           "x-api-key": "${keychain:gdrive-api-key}"
         }

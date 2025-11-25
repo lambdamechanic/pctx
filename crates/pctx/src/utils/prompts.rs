@@ -9,7 +9,7 @@ use crate::utils::styles::{fmt_dimmed, fmt_success};
 pub(crate) fn prompt_auth(server_name: &str) -> Result<AuthConfig> {
     let options = vec![
         "Bearer Token".to_string(),
-        "Custom Headers".to_string(),
+        "Headers".to_string(),
         // format!("OAuth2 {}", fmt_dimmed("(client credentials flow)")),
     ];
     let selection = inquire::Select::new(
@@ -45,7 +45,7 @@ pub(crate) fn prompt_auth(server_name: &str) -> Result<AuthConfig> {
                     .prompt()?;
             }
 
-            Ok(AuthConfig::Custom { headers })
+            Ok(AuthConfig::Headers { headers })
         }
         // Some(2) => {
         //     // OAuth2
