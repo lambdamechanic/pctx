@@ -9,12 +9,22 @@ use url::Url;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct UpstreamMcp {
-    pub(crate) name: String,
     pub(crate) namespace: String,
     pub(crate) description: String,
-    pub(crate) url: Url,
     pub(crate) tools: IndexMap<String, UpstreamTool>,
-    pub(crate) registration: serde_json::Value,
+    pub(crate) registration: ServerConfig,
+}
+
+impl UpstreamMcp {
+    /// Get the server name from the registration config
+    pub(crate) fn name(&self) -> &str {
+        &self.registration.name
+    }
+
+    /// Get the server URL from the registration config
+    pub(crate) fn url(&self) -> &Url {
+        &self.registration.url
+    }
 }
 impl UpstreamMcp {
     pub(crate) async fn from_server(server: &ServerConfig) -> Result<Self> {
@@ -44,12 +54,10 @@ impl UpstreamMcp {
         mcp_client.cancel().await?;
 
         Ok(Self {
-            name: server.name.clone(),
             namespace: Case::Pascal.sanitize(&server.name),
             description,
-            url: server.url.clone(),
             tools,
-            registration: json!(server),
+            registration: server.clone(),
         })
     }
 }

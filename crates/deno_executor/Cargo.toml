@@ -16,6 +16,7 @@ sys_traits = "0.1"
 deno_transpiler = { path = "../deno_transpiler" }
 pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
 pctx_type_check_runtime = { path = "../pctx_type_check_runtime" }
+pctx_config = { path = "../pctx_config" }
 tempfile = "3.14"
 regex = "1.11"
 thiserror = { workspace = true }
@@ -33,6 +34,7 @@ rustls = { version = "0.23", default-features = false, features = [
 ] }
 tokio = { version = "1.41", features = ["rt", "macros"] }
 serial_test = "3.0"
+url = "2.5"
 
 [lints]
 workspace = true

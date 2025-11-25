@@ -194,17 +194,11 @@ namespace {namespace} {{
             "Received code to execute"
         );
 
-        let registrations = self
-            .upstream
-            .iter()
-            .map(|m| format!("registerMCP({});", &m.registration))
-            .collect::<Vec<String>>()
-            .join("\n\n");
         let namespaces = self
             .upstream
             .iter()
             .map(|m| {
-                let fns: Vec<String> = m.tools.iter().map(|(_, t)| t.fn_impl(&m.name)).collect();
+                let fns: Vec<String> = m.tools.iter().map(|(_, t)| t.fn_impl(m.name())).collect();
 
                 format!(
                     "{docstring}
@@ -221,8 +215,6 @@ namespace {namespace} {{
 
         let to_execute = format!(
             "
-{registrations}
-
 {namespaces}
 
 {code}
@@ -234,6 +226,13 @@ export default await run();"
 
         let allowed_hosts = self.allowed_hosts.clone();
         let code_to_execute = to_execute.clone();
+
+        // Convert UpstreamMcp to ServerConfig for MCP registry
+        let mcp_configs: Vec<pctx_config::server::ServerConfig> = self
+            .upstream
+            .iter()
+            .map(|m| m.registration.clone())
+            .collect();
 
         // Capture current tracing context to propagate to spawned thread
         let current_span = tracing::Span::current();
@@ -249,7 +248,7 @@ export default await run();"
                 .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
 
             rt.block_on(async {
-                deno_executor::execute(&code_to_execute, Some(allowed_hosts))
+                deno_executor::execute(&code_to_execute, Some(allowed_hosts), Some(mcp_configs))
                     .await
                     .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
             })
@@ -329,7 +328,7 @@ impl ServerHandler for PtcxTools {
             "This server provides tools to explore SDK functions and execute SDK scripts for the following services: {}",
             self.upstream
                 .iter()
-                .map(|m| m.name.as_str())
+                .map(super::upstream::UpstreamMcp::name)
                 .collect::<Vec<&str>>()
                 .join(", ")
         );

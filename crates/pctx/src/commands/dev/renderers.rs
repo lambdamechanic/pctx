@@ -176,7 +176,7 @@ fn render_tools_panel(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Sort servers alphabetically by name
     let mut sorted_servers: Vec<_> = app.upstream_servers.iter().collect();
-    sorted_servers.sort_by(|a, b| a.name.cmp(&b.name));
+    sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
 
     if sorted_servers.is_empty() {
         let help_lines = vec![
@@ -281,7 +281,7 @@ fn render_tools_panel(f: &mut Frame, app: &mut App, area: Rect) {
         items.push(ListItem::new(Line::from(vec![
             Span::styled(format!("{server_status} "), Style::default().fg(TERTIARY)),
             Span::styled(
-                &server.name,
+                server.name(),
                 Style::default().fg(SECONDARY).add_modifier(Modifier::BOLD),
             ),
         ])));
@@ -291,7 +291,7 @@ fn render_tools_panel(f: &mut Frame, app: &mut App, area: Rect) {
             .tools
             .iter()
             .map(|(fn_name, tool)| {
-                let usage_key = format!("{}::{}", server.name, tool.tool_name);
+                let usage_key = format!("{}::{}", server.name(), tool.tool_name);
                 let usage_count = app.tool_usage.get(&usage_key).map_or(0, |u| u.count);
                 (fn_name, tool, usage_count)
             })
@@ -330,7 +330,7 @@ fn render_tools_panel(f: &mut Frame, app: &mut App, area: Rect) {
             global_tool_index += 1;
         }
 
-        let namespace_title = format!("{} ({} tools)", server.name, server.tools.len());
+        let namespace_title = format!("{} ({} tools)", server.name(), server.tools.len());
 
         // Check if a tool in this namespace is selected
         let selected_in_this_namespace = app
@@ -409,7 +409,7 @@ fn render_logs_panel(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_tool_detail(f: &mut Frame, app: &App, area: Rect) {
     if let Some((server, tool_name, tool)) = app.get_selected_tool() {
-        let usage_key = format!("{}::{}", server.name, tool.tool_name);
+        let usage_key = format!("{}::{}", server.name(), tool.tool_name);
         let usage = app.tool_usage.get(&usage_key);
 
         let mut lines: Vec<Line> = vec![
@@ -419,7 +419,7 @@ fn render_tool_detail(f: &mut Frame, app: &App, area: Rect) {
                     "Server: ",
                     Style::default().fg(SECONDARY).add_modifier(Modifier::BOLD),
                 ),
-                Span::raw(&server.name),
+                Span::raw(server.name()),
             ]),
             Line::from(vec![
                 Span::styled(
