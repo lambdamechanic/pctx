@@ -57,13 +57,30 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest] 
+        os: [ubuntu-latest]
         # TODO macos-latest windows-latest
-    runs-on: ${{ matrix.os }} 
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
+      # Free up disk space on Ubuntu runners
+      - name: Free Disk Space (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Clean up old cache entries to save space
+          cache-on-failure: false
       # - name: Set Windows build jobs
       #   if: matrix.os == 'windows-latest'
       #   run: echo "CARGO_BUILD_JOBS=1" >> $GITHUB_ENV
