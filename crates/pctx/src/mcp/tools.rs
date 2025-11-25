@@ -5,7 +5,11 @@ use opentelemetry::KeyValue;
 use pctx_config::Config;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
-    handler::server::{router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters},
+    handler::server::{
+        router::tool::ToolRouter,
+        tool::{IntoCallToolResult, ToolCallContext},
+        wrapper::Parameters,
+    },
     model::{
         CallToolRequestParam, CallToolResult, Content, Implementation, ListToolsResult,
         PaginatedRequestParam, ProtocolVersion, ServerCapabilities, ServerInfo,
@@ -14,6 +18,8 @@ use rmcp::{
     service::RequestContext,
     tool, tool_router,
 };
+
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{debug, error, info, instrument, warn};
 
@@ -21,6 +27,172 @@ use crate::mcp::upstream::UpstreamMcp;
 use crate::utils::metrics::mcp_tool_metrics;
 
 type McpResult<T> = Result<T, McpError>;
+
+// ----------- TOOL INPUTS/OUTPUTS -------------
+
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListFunctionsOutput {
+    /// Available functions
+    functions: Vec<ListedFunction>,
+
+    #[serde(skip)]
+    code: String,
+}
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ListedFunction {
+    /// Namespace the function belongs in
+    namespace: String,
+    /// Function name
+    name: String,
+    /// Function description
+    description: Option<String>,
+}
+
+impl ListFunctionsOutput {
+    fn from_upstream(upstream: &[UpstreamMcp]) -> Self {
+        // structured content
+        let functions: Vec<ListedFunction> = upstream
+            .iter()
+            .flat_map(|m| {
+                m.tools
+                    .iter()
+                    .map(|(_, t)| ListedFunction {
+                        namespace: m.namespace.clone(),
+                        name: t.fn_name.clone(),
+                        description: t.description.clone(),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        // Text content = code
+        let namespaces: Vec<String> = upstream
+            .iter()
+            .map(|m| {
+                let fns: Vec<String> = m.tools.iter().map(|(_, t)| t.fn_signature(false)).collect();
+
+                format!(
+                    "{docstring}
+namespace {namespace} {{
+  {fns}
+}}",
+                    docstring = generate_docstring(&m.description),
+                    namespace = &m.namespace,
+                    fns = fns.join("\n\n")
+                )
+            })
+            .collect();
+        let code = codegen::format::format_d_ts(&namespaces.join("\n\n"));
+
+        Self { functions, code }
+    }
+}
+impl IntoCallToolResult for ListFunctionsOutput {
+    fn into_call_tool_result(self) -> std::result::Result<CallToolResult, rmcp::ErrorData> {
+        let mut res = CallToolResult::success(vec![Content::text(&self.code)]);
+        res.structured_content = Some(json!(self));
+        Ok(res)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetFunctionDetailsInput {
+    /// List of functions to get details of. Functions should be in the form "<namespace>.<function name>".
+    /// e.g. If there is a function `getData` within the `DataApi` namespace the value provided in this field is "DataApi.getData"
+    pub functions: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub(crate) struct GetFunctionDetailsOutput {
+    functions: Vec<FunctionDetails>,
+
+    #[serde(skip)]
+    code: String,
+}
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub(crate) struct FunctionDetails {
+    #[serde(flatten)]
+    listed: ListedFunction,
+
+    /// typescript input type for the function
+    input_type: String,
+    /// typescript output type for the function
+    output_type: String,
+    /// full typescript type definitions for input/output types
+    types: String,
+}
+impl IntoCallToolResult for GetFunctionDetailsOutput {
+    fn into_call_tool_result(self) -> std::result::Result<CallToolResult, rmcp::ErrorData> {
+        let mut res = CallToolResult::success(vec![Content::text(&self.code)]);
+        res.structured_content = Some(json!(self));
+        Ok(res)
+    }
+}
+
+#[allow(clippy::doc_markdown)]
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ExecuteInput {
+    /// Typescript code to execute.
+    ///
+    /// REQUIRED FORMAT:
+    /// async function ``run()`` {
+    ///   // YOUR CODE GOES HERE e.g. const result = await ``Namespace.method();``
+    ///   // ALWAYS RETURN THE RESULT e.g. return result;
+    /// }
+    ///
+    /// IMPORTANT: Your code should ONLY contain the function definition.
+    /// The sandbox automatically calls run() and exports the result.
+    ///
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub(crate) struct ExecuteOutput {
+    /// Success of executed code
+    success: bool,
+    /// Standard output of executed code
+    stdout: String,
+    /// Standard error of executed code
+    stderr: String,
+    /// Value returned by executed function
+    output: Option<serde_json::Value>,
+}
+
+impl IntoCallToolResult for ExecuteOutput {
+    fn into_call_tool_result(self) -> std::result::Result<CallToolResult, rmcp::ErrorData> {
+        let text_content = format!(
+            "Code Executed Successfully: {success}
+
+# Return Value
+```json
+{return_val}
+```
+
+# STDOUT
+{stdout}
+
+# STDERR
+{stderr}
+",
+            success = self.success,
+            return_val = serde_json::to_string_pretty(&self.output)
+                .unwrap_or(json!(&self.output).to_string()),
+            stdout = &self.stdout,
+            stderr = &self.stderr,
+        );
+
+        let mut res = if self.success {
+            CallToolResult::success(vec![Content::text(text_content)])
+        } else {
+            CallToolResult::error(vec![Content::text(text_content)])
+        };
+        res.structured_content = Some(json!(self));
+
+        Ok(res)
+    }
+}
+
+// ----------- TOOL HANDLERS -----------
 
 #[derive(Clone)]
 pub(crate) struct PtcxTools {
@@ -54,32 +226,11 @@ impl PtcxTools {
         2. Then call get_function_details() for specific functions you need to understand
         3. Finally call execute() to run your TypeScript code
 
-        This returns function signatures without full details."
+        This returns function signatures without full details.",
+        output_schema = rmcp::handler::server::tool::cached_schema_for_type::<ListFunctionsOutput>()
     )]
-    async fn list_functions(&self) -> McpResult<CallToolResult> {
-        let namespaces: Vec<String> = self
-            .upstream
-            .iter()
-            .map(|m| {
-                let fns: Vec<String> = m.tools.iter().map(|(_, t)| t.fn_signature(false)).collect();
-
-                format!(
-                    "{docstring}
-namespace {namespace} {{
-  {fns}
-}}",
-                    docstring = generate_docstring(&m.description),
-                    namespace = &m.namespace,
-                    fns = fns.join("\n\n")
-                )
-            })
-            .collect();
-
-        let namespaced_functions = codegen::format::format_d_ts(&namespaces.join("\n\n"));
-
-        Ok(CallToolResult::success(vec![Content::text(
-            namespaced_functions,
-        )]))
+    async fn list_functions(&self) -> McpResult<ListFunctionsOutput> {
+        Ok(ListFunctionsOutput::from_upstream(&self.upstream))
     }
 
     #[tool(
@@ -96,12 +247,13 @@ namespace {namespace} {{
         NOTE ON RETURN TYPES:
         - If a function returns Promise<any>, the MCP server didn't provide an output schema
         - The actual value is a parsed object (not a string) - access properties directly
-        - Don't use JSON.parse() on the results - they're already JavaScript objects"
+        - Don't use JSON.parse() on the results - they're already JavaScript objects",
+        output_schema = rmcp::handler::server::tool::cached_schema_for_type::<GetFunctionDetailsOutput>()
     )]
     async fn get_function_details(
         &self,
         Parameters(GetFunctionDetailsInput { functions }): Parameters<GetFunctionDetailsInput>,
-    ) -> McpResult<CallToolResult> {
+    ) -> McpResult<GetFunctionDetailsOutput> {
         // organize tool input by namespace and handle any deduping
         let mut by_namespace: IndexMap<String, IndexSet<String>> = IndexMap::new();
         for func in functions {
@@ -116,7 +268,8 @@ namespace {namespace} {{
                 .insert(parts[1].to_string());
         }
 
-        let mut namespace_details = vec![];
+        let mut namespace_code = vec![];
+        let mut function_details = vec![];
 
         for (namespace, functions) in by_namespace {
             if let Some(mcp) = self.upstream.iter().find(|m| m.namespace == namespace) {
@@ -124,11 +277,22 @@ namespace {namespace} {{
                 for fn_name in functions {
                     if let Some(tool) = mcp.tools.get(&fn_name) {
                         fn_details.push(tool.fn_signature(true));
+
+                        function_details.push(FunctionDetails {
+                            listed: ListedFunction {
+                                namespace: namespace.clone(),
+                                name: tool.fn_name.clone(),
+                                description: tool.description.clone(),
+                            },
+                            input_type: tool.input_type.clone(),
+                            output_type: tool.output_type.clone(),
+                            types: tool.types.clone(),
+                        });
                     }
                 }
 
                 if !fn_details.is_empty() {
-                    namespace_details.push(format!(
+                    namespace_code.push(format!(
                         "{docstring}
 namespace {namespace} {{
   {fns}
@@ -141,13 +305,16 @@ namespace {namespace} {{
             }
         }
 
-        let content = if namespace_details.is_empty() {
-            "No namespaces/functions match the request".to_string()
+        let code = if namespace_code.is_empty() {
+            "// No namespaces/functions match the request".to_string()
         } else {
-            codegen::format::format_d_ts(&namespace_details.join("\n\n"))
+            codegen::format::format_d_ts(&namespace_code.join("\n\n"))
         };
 
-        Ok(CallToolResult::success(vec![Content::text(content)]))
+        Ok(GetFunctionDetailsOutput {
+            functions: function_details,
+            code,
+        })
     }
 
     #[tool(
@@ -182,12 +349,13 @@ namespace {namespace} {{
         - Do NOT call JSON.parse() on results - they're already objects
         - Access properties directly (e.g., result.data) or inspect with console.log() first
         - If you see 'Promise<any>', the structure is unknown - log it to see what's returned
-        "
+        ",
+        output_schema = rmcp::handler::server::tool::cached_schema_for_type::<ExecuteOutput>()
     )]
     async fn execute(
         &self,
         Parameters(ExecuteInput { code }): Parameters<ExecuteInput>,
-    ) -> McpResult<CallToolResult> {
+    ) -> McpResult<ExecuteOutput> {
         tracing::debug!(
             code_from_llm = %code,
             code_length = code.len(),
@@ -269,58 +437,13 @@ export default await run();"
         } else {
             warn!("Sandbox execution failed: {:?}", result.stderr);
         }
-
-        let text_result = format!(
-            "Code Executed Successfully: {success}
-
-# Return Value
-```json
-{return_val}
-```
-
-# STDOUT
-{stdout}
-
-# STDERR
-{stderr}
-",
-            success = result.success,
-            return_val = serde_json::to_string_pretty(&result.output)
-                .unwrap_or(json!(result.output).to_string()),
-            stdout = result.stdout,
-            stderr = result.stderr,
-        );
-
-        if result.success {
-            Ok(CallToolResult::success(vec![Content::text(text_result)]))
-        } else {
-            Ok(CallToolResult::error(vec![Content::text(text_result)]))
-        }
+        Ok(ExecuteOutput {
+            success: result.success,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            output: result.output,
+        })
     }
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub(crate) struct GetFunctionDetailsInput {
-    /// List of functions to get details of. Functions should be in the form "<namespace>.<function name>".
-    /// e.g. If there is a function `getData` within the `DataApi` namespace the value provided in this field is "DataApi.getData"
-    pub functions: Vec<String>,
-}
-
-#[allow(clippy::doc_markdown)]
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub(crate) struct ExecuteInput {
-    /// Typescript code to execute.
-    ///
-    /// REQUIRED FORMAT:
-    /// async function ``run()`` {
-    ///   // YOUR CODE GOES HERE e.g. const result = await ``Namespace.method();``
-    ///   // ALWAYS RETURN THE RESULT e.g. return result;
-    /// }
-    ///
-    /// IMPORTANT: Your code should ONLY contain the function definition.
-    /// The sandbox automatically calls run() and exports the result.
-    ///
-    pub code: String,
 }
 
 impl ServerHandler for PtcxTools {
