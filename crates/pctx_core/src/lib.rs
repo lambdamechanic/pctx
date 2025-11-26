@@ -1,7 +1,7 @@
 pub mod model;
 mod tools;
 use codegen::CodegenError;
-pub use tools::{FunctionId, PctxTools};
+pub use tools::PctxTools;
 
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]

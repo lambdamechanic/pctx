@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use pctx_config::server::ServerConfig;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::json;
 use tracing::{debug, warn};
 
@@ -15,49 +14,11 @@ use crate::{
 
 #[derive(Debug, Clone, Default)]
 pub struct PctxTools {
-    tool_sets: Vec<codegen::ToolSet>,
+    pub tool_sets: Vec<codegen::ToolSet>,
 
     // configurations
-    servers: Vec<ServerConfig>,
+    pub servers: Vec<ServerConfig>,
     // TODO: callables
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct FunctionId {
-    pub mod_name: String,
-    pub fn_name: String,
-}
-
-impl Serialize for FunctionId {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = format!("{}.{}", self.mod_name, self.fn_name);
-        serializer.serialize_str(&s)
-    }
-}
-
-impl<'de> Deserialize<'de> for FunctionId {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let parts: Vec<&str> = s.splitn(2, '.').collect();
-
-        if parts.len() != 2 {
-            return Err(serde::de::Error::custom(format!(
-                "Expected format '<mod_name>.<fn_name>', got '{}'",
-                s
-            )));
-        }
-
-        Ok(FunctionId {
-            mod_name: parts[0].to_string(),
-            fn_name: parts[1].to_string(),
-        })
-    }
 }
 
 impl PctxTools {

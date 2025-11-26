@@ -1,5 +1,6 @@
 use schemars::{JsonSchema, json_schema};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::json;
 
 // -------------- List Functions --------------
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -128,4 +129,28 @@ pub struct ExecuteOutput {
     pub stderr: String,
     /// Value returned by executed function
     pub output: Option<serde_json::Value>,
+}
+impl ExecuteOutput {
+    pub fn markdown(&self) -> String {
+        format!(
+            "Code Executed Successfully: {success}
+
+# Return Value
+```json
+{return_val}
+```
+
+# STDOUT
+{stdout}
+
+# STDERR
+{stderr}
+",
+            success = self.success,
+            return_val = serde_json::to_string_pretty(&self.output)
+                .unwrap_or(json!(&self.output).to_string()),
+            stdout = &self.stdout,
+            stderr = &self.stderr,
+        )
+    }
 }
