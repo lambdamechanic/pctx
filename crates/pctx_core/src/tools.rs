@@ -54,7 +54,7 @@ impl PctxTools {
         let mut by_mod: HashMap<String, HashSet<String>> = HashMap::default();
         for fn_id in &input.functions {
             by_mod
-                .entry(fn_id.fn_name.clone())
+                .entry(fn_id.mod_name.clone())
                 .or_default()
                 .insert(fn_id.fn_name.clone());
         }
