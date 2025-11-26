@@ -1,10 +1,17 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use pctx_config::server::ServerConfig;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::json;
-use tracing::debug;
+use tracing::{debug, warn};
 
-use crate::{Error, Result};
+use crate::{
+    Error, Result,
+    model::{
+        ExecuteInput, ExecuteOutput, FunctionDetails, GetFunctionDetailsInput,
+        GetFunctionDetailsOutput, ListFunctionsOutput, ListedFunction,
+    },
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct PctxTools {
@@ -15,8 +22,180 @@ pub struct PctxTools {
     // TODO: callables
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct FunctionId {
+    pub mod_name: String,
+    pub fn_name: String,
+}
+
+impl Serialize for FunctionId {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = format!("{}.{}", self.mod_name, self.fn_name);
+        serializer.serialize_str(&s)
+    }
+}
+
+impl<'de> Deserialize<'de> for FunctionId {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let parts: Vec<&str> = s.splitn(2, '.').collect();
+
+        if parts.len() != 2 {
+            return Err(serde::de::Error::custom(format!(
+                "Expected format '<mod_name>.<fn_name>', got '{}'",
+                s
+            )));
+        }
+
+        Ok(FunctionId {
+            mod_name: parts[0].to_string(),
+            fn_name: parts[1].to_string(),
+        })
+    }
+}
+
 impl PctxTools {
+    /// Returns internal tool sets as minimal code interfaces
+    pub fn list_functions(&self) -> ListFunctionsOutput {
+        let mut namespaces = vec![];
+        let mut functions = vec![];
+
+        for tool_set in &self.tool_sets {
+            if tool_set.tools.is_empty() {
+                // skip sets with no tools
+                continue;
+            }
+
+            namespaces.push(tool_set.namespace_interface(false));
+
+            functions.extend(tool_set.tools.iter().map(|t| ListedFunction {
+                namespace: tool_set.mod_name.clone(),
+                name: t.fn_name.clone(),
+                description: t.description.clone(),
+            }));
+        }
+
+        ListFunctionsOutput {
+            code: codegen::format::format_d_ts(&namespaces.join("\n\n")),
+            functions,
+        }
+    }
+
+    /// Gets the full typed interface for the requested functions
+    pub fn get_function_details(&self, input: GetFunctionDetailsInput) -> GetFunctionDetailsOutput {
+        // sort by mod
+        let mut by_mod: HashMap<String, HashSet<String>> = HashMap::default();
+        for fn_id in &input.functions {
+            by_mod
+                .entry(fn_id.fn_name.clone())
+                .or_default()
+                .insert(fn_id.fn_name.clone());
+        }
+
+        let mut namespaces = vec![];
+        let mut functions = vec![];
+
+        for tool_set in &self.tool_sets {
+            if let Some(fn_names) = by_mod.get(&tool_set.mod_name) {
+                // filter tools based on requested fn names
+                let tools: Vec<&codegen::Tool> = tool_set
+                    .tools
+                    .iter()
+                    .filter(|t| fn_names.contains(&t.fn_name))
+                    .collect();
+
+                if !tools.is_empty() {
+                    // code definition
+                    let fn_details: Vec<String> =
+                        tools.iter().map(|t| t.fn_signature(true)).collect();
+                    namespaces.push(tool_set.wrap_with_namespace(&fn_details.join("\n\n")));
+
+                    // struct output
+                    functions.extend(tools.iter().map(|t| FunctionDetails {
+                        listed: ListedFunction {
+                            namespace: tool_set.mod_name.clone(),
+                            name: t.fn_name.clone(),
+                            description: t.description.clone(),
+                        },
+                        input_type: t.input_signature.clone(),
+                        output_type: t.output_signature.clone(),
+                        types: t.types.clone(),
+                    }));
+                }
+            }
+        }
+
+        let code = if namespaces.is_empty() {
+            "// No namespaces/functions match the request".to_string()
+        } else {
+            codegen::format::format_d_ts(&namespaces.join("\n\n"))
+        };
+
+        GetFunctionDetailsOutput { code, functions }
+    }
+
+    pub async fn execute(&self, input: ExecuteInput) -> Result<ExecuteOutput> {
+        debug!(
+            code_from_llm = %input.code,
+            code_length = input.code.len(),
+            "Received code to execute"
+        );
+
+        // generate the full script to be executed
+        let namespaces: Vec<String> = self
+            .tool_sets
+            .iter()
+            .filter_map(|s| {
+                if s.tools.is_empty() {
+                    None
+                } else {
+                    Some(s.namespace())
+                }
+            })
+            .collect();
+        let to_execute = codegen::format::format_ts(&format!(
+            "{namespaces}\n\n{code}\n\nexport default await run();\n",
+            namespaces = namespaces.join("\n\n"),
+            code = &input.code
+        ));
+
+        debug!("Executing code in sandbox");
+
+        let execution_res = deno_executor::execute(
+            &to_execute,
+            Some(self.allowed_hosts().into_iter().collect()),
+            Some(self.servers.clone()),
+        )
+        .await?;
+
+        if execution_res.success {
+            debug!("Sandbox execution completed successfully");
+        } else {
+            warn!("Sandbox execution failed: {:?}", execution_res.stderr);
+        }
+
+        Ok(ExecuteOutput {
+            success: execution_res.success,
+            stdout: execution_res.stdout,
+            stderr: execution_res.stderr,
+            output: execution_res.output,
+        })
+    }
+
     pub async fn add_server(&mut self, server: &ServerConfig) -> Result<()> {
+        if self.tool_sets.iter().any(|t| t.name == server.name) {
+            return Err(Error::Message(format!(
+                "ToolSet with name `{}` already exists, MCP servers must have unique names",
+                &server.name
+            )));
+        }
+
         // initialize and list tools
         debug!(
             "Fetching tools from MCP '{}'({})...",

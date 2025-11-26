@@ -41,7 +41,7 @@ impl ToolSet {
         self.wrap_with_namespace(&fns.join("\n\n"))
     }
 
-    fn wrap_with_namespace(&self, content: &str) -> String {
+    pub fn wrap_with_namespace(&self, content: &str) -> String {
         format!(
             "{docstring}
 namespace {namespace} {{

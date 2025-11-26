@@ -1,6 +1,7 @@
+pub mod model;
 mod tools;
 use codegen::CodegenError;
-pub use tools::PctxTools;
+pub use tools::{FunctionId, PctxTools};
 
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
@@ -11,6 +12,8 @@ pub enum Error {
     McpService(#[from] pctx_config::server::ServiceError),
     #[error("Codegen error: {0}")]
     Codegen(#[from] CodegenError),
+    #[error("Execution error: {0:?}")]
+    Execution(#[from] deno_executor::DenoExecutorError),
     #[error("Error: {0}")]
     Message(String),
 }
