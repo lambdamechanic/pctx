@@ -17,11 +17,13 @@ pub struct TypegenResult {
     pub type_signature: String,
     pub types: String,
 }
+
+// TODO: rm in favour of new one
 pub fn generate_types(
     json_schema: serde_json::Value,
     type_name: &str,
 ) -> CodegenResult<TypegenResult> {
-    let root_schema: RootSchema = serde_json::from_value(json_schema)?;
+    let root_schema: RootSchema = serde_json::from_value(json_schema).unwrap();
 
     // ensure all objects have type names
     let mut defs: SchemaDefinitions = IndexMap::new();

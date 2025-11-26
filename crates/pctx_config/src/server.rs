@@ -13,6 +13,8 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
+pub use rmcp::ServiceError;
+
 use super::auth::AuthConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

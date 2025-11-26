@@ -12,6 +12,8 @@ use thiserror::Error;
 // re-export RootSchema
 pub use schemars::schema::RootSchema;
 
+pub use tools::{Tool, ToolSet};
+
 pub type SchemaDefinitions = IndexMap<String, Schema>;
 pub type CodegenResult<T> = Result<T, CodegenError>;
 
@@ -19,9 +21,6 @@ pub type CodegenResult<T> = Result<T, CodegenError>;
 pub enum CodegenError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-
-    #[error("Json error: {0}")]
-    Json(#[from] serde_json::Error),
 
     #[error("Type generation error: {0}")]
     TypeGen(String),

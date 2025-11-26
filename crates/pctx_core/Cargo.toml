@@ -1,0 +1,16 @@
+[package]
+name = "pctx_core"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[dependencies]
+# local
+pctx_config = { path = "../pctx_config" }
+codegen = { path = "../codegen" }
+
+# general
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde_json = "1.0.145"

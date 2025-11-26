@@ -6823,6 +6823,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pctx_core"
+version = "0.1.0"
+dependencies = [
+ "codegen",
+ "pctx_config",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tracing",
+]
+
+[[package]]
 name = "pctx_type_check_runtime"
 version = "0.1.0"
 dependencies = [
