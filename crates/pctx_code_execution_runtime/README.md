@@ -1,34 +1,92 @@
 # PCTX Code Execution Runtime
 
-A Deno extension providing MCP (Model Context Protocol) client functionality and console output capturing.
+A Deno extension providing:
+- **MCP Client**: Model Context Protocol client functionality
+- **JS Local Tools**: JavaScript callback-based tools with dependency support
+- **Console Capturing**: Automatic stdout/stderr capture
+- **Network Permissions**: Host-based fetch controls
+
+## Primary Use Case: TypeScript SDK with Dependencies
+
+The main use case is running PCTX as a TypeScript SDK where users define tools with their own dependencies:
+
+```javascript
+// User has Zod in their environment
+import { z } from 'npm:zod';
+
+// Define a tool that uses Zod
+registerJsLocalTool({
+    name: "createUser",
+    description: "Creates a user with validation"
+}, (args) => {
+    const UserSchema = z.object({
+        name: z.string().min(2),
+        email: z.string().email(),
+        age: z.number().min(0).max(120)
+    });
+    return UserSchema.parse(args); // Uses Zod for validation!
+});
+
+// Sandboxed code calls the tool (doesn't need Zod directly)
+const user = await callJsLocalTool("createUser", {
+    name: "Alice",
+    email: "alice@example.com",
+    age: 30
+});
+```
+
+**Key benefit**: Dependencies (Zod, database clients, APIs, etc.) are available where tools are **defined** (trusted zone), but sandboxed code just calls the tools without needing dependency access.
+
+See the complete example: [typescript_sdk_with_dependencies.rs](examples/typescript_sdk_with_dependencies.rs)
 
 ## Quick Start
 
 ```rust
 use deno_core::{JsRuntime, RuntimeOptions};
-use pctx_runtime::{pctx_runtime_snapshot, MCPRegistry, AllowedHosts, RUNTIME_SNAPSHOT};
+use pctx_code_execution_runtime::{
+    pctx_runtime_snapshot, MCPRegistry, JsLocalToolRegistry,
+    AllowedHosts, RUNTIME_SNAPSHOT
+};
 
-// Create a new runtime with the PCTX extension
-let registry = MCPRegistry::new();
+// Create registries
+let mcp_registry = MCPRegistry::new();
+let js_local_tool_registry = JsLocalToolRegistry::new();
 let allowed_hosts = AllowedHosts::new(Some(vec!["example.com".to_string()]));
 
 let mut runtime = JsRuntime::new(RuntimeOptions {
     startup_snapshot: Some(RUNTIME_SNAPSHOT),
-    extensions: vec![pctx_runtime_snapshot::init(registry, allowed_hosts)],
+    extensions: vec![pctx_runtime_snapshot::init(
+        mcp_registry,
+        js_local_tool_registry,
+        allowed_hosts
+    )],
     ..Default::default()
 });
 
-// MCP API is now available in JavaScript
+// MCP API and JS Local Tools are now available in JavaScript
 let code = r#"
+    // Register an MCP server
     registerMCP({ name: "my-server", url: "http://localhost:3000" });
 
-    const result = await callMCPTool({
+    // Register a local tool with a callback
+    registerJsLocalTool({
+        name: "calculator",
+        description: "Performs arithmetic",
+    }, (args) => {
+        return args.a + args.b;
+    });
+
+    // Call MCP tool
+    const mcpResult = await callMCPTool({
         name: "my-server",
         tool: "get_data",
         arguments: { id: 42 }
     });
 
-    console.log("Result:", result);
+    // Call local tool
+    const localResult = await callJsLocalTool("calculator", { a: 10, b: 5 });
+
+    console.log("MCP:", mcpResult, "Local:", localResult);
 "#;
 
 runtime.execute_script("<main>", code)?;
@@ -44,7 +102,22 @@ Thread-safe registry for MCP server configurations.
 
 ```rust
 let registry = MCPRegistry::new();
-// Pass to extension initializer
+```
+
+#### `JsLocalToolRegistry`
+
+Thread-safe registry for local tool metadata (callbacks stored in JS).
+
+```rust
+let local_registry = JsLocalToolRegistry::new();
+
+// Query tools
+if local_registry.has("my-tool") {
+    println!("Tool exists!");
+}
+
+let metadata = local_registry.get_metadata("my-tool");
+let all_tools = local_registry.list();
 ```
 
 #### `AllowedHosts`
@@ -52,10 +125,10 @@ let registry = MCPRegistry::new();
 Whitelist of hosts allowed for network access.
 
 ```rust
-let allowed_hosts = AllowedHosts::new(vec![
+let allowed_hosts = AllowedHosts::new(Some(vec![
     "example.com".to_string(),
     "api.service.com".to_string(),
-]);
+]));
 ```
 
 ### Snapshot
@@ -167,8 +240,65 @@ Contributions welcome! Please ensure:
 - Code is formatted: `cargo fmt`
 - Documentation is updated
 
+## Features
+
+### JS Local Tools
+
+Local tools allow you to define JavaScript callbacks that can be invoked from sandboxed code. See [JS_LOCAL_TOOLS.md](JS_LOCAL_TOOLS.md) for comprehensive documentation.
+
+**Quick example:**
+
+```javascript
+// Register a tool with a callback
+registerJsLocalTool({
+    name: "file-reader",
+    description: "Reads a file from the host system",
+    inputSchema: {
+        type: "object",
+        properties: {
+            path: { type: "string" }
+        }
+    }
+}, async (args) => {
+    const fs = require('fs').promises;
+    return await fs.readFile(args.path, 'utf8');
+});
+
+// Call the tool from sandboxed code
+const content = await callJsLocalTool("file-reader", { path: "./data.txt" });
+```
+
+**Benefits:**
+- Fast: No IPC overhead
+- Simple: Just JavaScript callbacks
+- Flexible: Sync or async
+- Type-safe: Full TypeScript support
+
+### MCP Client
+
+Connect to external MCP servers for tool integration.
+
+```javascript
+registerMCP({
+    name: "github",
+    url: "http://localhost:3000"
+});
+
+const result = await callMCPTool({
+    name: "github",
+    tool: "create_issue",
+    arguments: { title: "Bug report" }
+});
+```
+
+## Examples
+
+See the [examples/](examples/) directory:
+- **[typescript_sdk_with_dependencies.rs](examples/typescript_sdk_with_dependencies.rs)** - **Primary use case**: Shows how TypeScript SDK users can define tools with custom dependencies (Zod, DB clients, etc.) and use them from sandboxed code
+
 ## See Also
 
 - [`pctx_type_check`](../pctx_type_check) - TypeScript type checking runtime
 - [`deno_executor`](../deno_executor) - Complete TypeScript execution environment
 - [Model Context Protocol](https://modelcontextprotocol.io) - MCP specification
+- [JS_LOCAL_TOOLS.md](JS_LOCAL_TOOLS.md) - Detailed JS local tools documentation

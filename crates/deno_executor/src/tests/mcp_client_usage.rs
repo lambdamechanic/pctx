@@ -20,7 +20,7 @@ export default registered;
         auth: None,
     }]);
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, None, mcp_configs, None)
         .await
         .expect("execution should succeed");
 
@@ -64,7 +64,7 @@ export default true;
         },
     ]);
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, None, mcp_configs, None)
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Duplicate MCP registration should fail");
@@ -93,7 +93,7 @@ export default config;
         auth: None,
     }]);
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, None, mcp_configs, None)
         .await
         .expect("execution should succeed");
     assert!(result.success, "Getting MCP config should succeed");
@@ -138,7 +138,7 @@ export default { hasServer1, hasServer2, hasServer3 };
         },
     ]);
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, None, mcp_configs, None)
         .await
         .expect("execution should succeed");
     assert!(
@@ -179,7 +179,7 @@ export default { existsBefore, existsAfter };
         auth: None,
     }]);
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, None, mcp_configs, None)
         .await
         .expect("execution should succeed");
     assert!(result.success, "Registry operations should succeed");
@@ -223,7 +223,7 @@ export default { hasBefore, hasAfter };
         },
     ]);
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, None, mcp_configs, None)
         .await
         .expect("execution should succeed");
     assert!(result.success, "Registry clear should succeed");
@@ -253,7 +253,7 @@ const deleteResult = REGISTRY.delete("nonexistent-server");
 export default deleteResult;
 "#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, None, None, None)
         .await
         .expect("execution should succeed");
     assert!(result.success, "Deleting nonexistent server should succeed");
@@ -290,7 +290,7 @@ async function test() {
 export default await test();
 "#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, None, None, None)
         .await
         .expect("execution should succeed");
     assert!(result.success, "Execution should succeed even with error");

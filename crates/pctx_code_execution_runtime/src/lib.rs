@@ -24,17 +24,18 @@
 //!
 //! ```rust,no_run
 //! use deno_core::{JsRuntime, RuntimeOptions};
-//! use pctx_code_execution_runtime::{pctx_runtime_snapshot, MCPRegistry, AllowedHosts, RUNTIME_SNAPSHOT};
+//! use pctx_code_execution_runtime::{pctx_runtime_snapshot, MCPRegistry, JsLocalToolRegistry, AllowedHosts, RUNTIME_SNAPSHOT};
 //! use std::rc::Rc;
 //!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! // Create a new runtime with the PCTX extension
-//! let registry = MCPRegistry::new();
+//! // Create registries
+//! let mcp_registry = MCPRegistry::new();
+//! let local_tool_registry = JsLocalToolRegistry::new();
 //! let allowed_hosts = AllowedHosts::new(Some(vec!["example.com".to_string()]));
 //!
 //! let mut runtime = JsRuntime::new(RuntimeOptions {
 //!     startup_snapshot: Some(RUNTIME_SNAPSHOT),
-//!     extensions: vec![pctx_runtime_snapshot::init(registry, allowed_hosts)],
+//!     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, allowed_hosts)],
 //!     ..Default::default()
 //! });
 //!
@@ -90,6 +91,8 @@
 mod error;
 mod fetch;
 mod js_error_impl;
+mod js_local_tool_ops;
+mod js_local_tool_registry;
 pub mod ops;
 mod registry;
 
@@ -97,6 +100,9 @@ mod registry;
 mod tests;
 
 pub use fetch::AllowedHosts;
+pub use js_local_tool_registry::{
+    CallJsLocalToolArgs, JsLocalToolDefinition, JsLocalToolMetadata, JsLocalToolRegistry,
+};
 pub use registry::MCPRegistry;
 
 /// Pre-compiled V8 snapshot containing the PCTX runtime
@@ -113,15 +119,16 @@ pub use registry::MCPRegistry;
 ///
 /// ```rust,no_run
 /// use deno_core::{JsRuntime, RuntimeOptions};
-/// use pctx_code_execution_runtime::{RUNTIME_SNAPSHOT, pctx_runtime_snapshot, MCPRegistry, AllowedHosts};
+/// use pctx_code_execution_runtime::{RUNTIME_SNAPSHOT, pctx_runtime_snapshot, MCPRegistry, JsLocalToolRegistry, AllowedHosts};
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let registry = MCPRegistry::new();
+/// let mcp_registry = MCPRegistry::new();
+/// let local_tool_registry = JsLocalToolRegistry::new();
 /// let allowed_hosts = AllowedHosts::new(None);
 ///
 /// let mut runtime = JsRuntime::new(RuntimeOptions {
 ///     startup_snapshot: Some(RUNTIME_SNAPSHOT),
-///     extensions: vec![pctx_runtime_snapshot::init(registry, allowed_hosts)],
+///     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, allowed_hosts)],
 ///     ..Default::default()
 /// });
 /// # Ok(())
@@ -130,8 +137,8 @@ pub use registry::MCPRegistry;
 pub static RUNTIME_SNAPSHOT: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/PCTX_RUNTIME_SNAPSHOT.bin"));
 
-// Deno extension providing MCP client and console capturing.
-// Initialize with MCPRegistry and AllowedHosts configuration.
+// Deno extension providing MCP client, JS local tools, and console capturing.
+// Initialize with MCPRegistry, JsLocalToolRegistry, and AllowedHosts configuration.
 // See README.md for complete documentation.
 deno_core::extension!(
     pctx_runtime_snapshot,
@@ -143,15 +150,24 @@ deno_core::extension!(
         ops::op_mcp_delete,
         ops::op_mcp_clear,
         ops::op_fetch,
+        js_local_tool_ops::op_register_js_local_tool_metadata,
+        js_local_tool_ops::op_js_local_tool_has,
+        js_local_tool_ops::op_js_local_tool_get,
+        js_local_tool_ops::op_js_local_tool_list,
+        js_local_tool_ops::op_js_local_tool_delete,
+        js_local_tool_ops::op_js_local_tool_clear,
+        js_local_tool_ops::op_get_pre_registered_tools,
     ],
     esm_entry_point = "ext:pctx_runtime_snapshot/runtime.js",
     esm = [ dir "src", "runtime.js" ],
     options = {
         registry: MCPRegistry,
+        js_local_tool_registry: JsLocalToolRegistry,
         allowed_hosts: AllowedHosts,
     },
     state = |state, options| {
         state.put(options.registry);
+        state.put(options.js_local_tool_registry);
         state.put(options.allowed_hosts);
     },
 );

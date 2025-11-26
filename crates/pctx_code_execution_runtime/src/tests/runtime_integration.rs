@@ -16,6 +16,7 @@ fn op_test_set_result(#[serde] value: serde_json::Value) -> serde_json::Value {
 /// Helper function to create a JavaScript runtime with `pctx_runtime` extension and test ops
 fn create_test_runtime() -> JsRuntime {
     let registry = MCPRegistry::new();
+    let local_tool_registry = crate::JsLocalToolRegistry::new();
     let allowed_hosts = crate::AllowedHosts::default();
 
     // Create a simple extension for test helpers
@@ -24,7 +25,7 @@ fn create_test_runtime() -> JsRuntime {
     JsRuntime::new(RuntimeOptions {
         startup_snapshot: Some(crate::RUNTIME_SNAPSHOT),
         extensions: vec![
-            crate::pctx_runtime_snapshot::init(registry, allowed_hosts),
+            crate::pctx_runtime_snapshot::init(registry, local_tool_registry, allowed_hosts),
             test_helpers::init(),
         ],
         ..Default::default()
@@ -324,6 +325,185 @@ async fn test_runtime_console_output_capturing() {
             .any(|v| v.as_str().unwrap().contains("test warning")),
         "stderr should contain warning"
     );
+}
+
+// ============================================================================
+// JS LOCAL TOOL TESTS - Pre-registered from Rust
+// ============================================================================
+
+#[tokio::test]
+async fn test_pre_register_local_tool_from_rust() {
+    // Create registry and pre-register a tool BEFORE runtime creation
+    let local_tool_registry = crate::JsLocalToolRegistry::new();
+
+    local_tool_registry
+        .register(crate::JsLocalToolDefinition {
+            metadata: crate::JsLocalToolMetadata {
+                name: "add".to_string(),
+                description: Some("Adds two numbers".to_string()),
+                input_schema: None,
+            },
+            callback_code: "(args) => args.a + args.b".to_string(),
+        })
+        .expect("Failed to register tool");
+
+    // Verify tool is in registry
+    assert!(local_tool_registry.has("add"));
+    assert_eq!(local_tool_registry.get_pre_registered().len(), 1);
+
+    // Create runtime - the tool should be automatically registered
+    let mut runtime = JsRuntime::new(RuntimeOptions {
+        startup_snapshot: Some(crate::RUNTIME_SNAPSHOT),
+        extensions: vec![crate::pctx_runtime_snapshot::init(
+            crate::MCPRegistry::new(),
+            local_tool_registry.clone(),
+            crate::AllowedHosts::default(),
+        )],
+        ..Default::default()
+    });
+
+    // Debug: check what's in stdout/stderr
+    let debug_code = r#"
+        (async () => {
+            console.log("Checking for tool...");
+            const hasTool = JS_LOCAL_TOOLS.has("add");
+            console.log("Has tool 'add':", hasTool);
+            const metadata = JS_LOCAL_TOOLS.get("add");
+            console.log("Metadata:", metadata);
+            return { hasTool, stdout: globalThis.__stdout, stderr: globalThis.__stderr };
+        })();
+    "#;
+
+    let promise = runtime
+        .execute_script("<debug>", debug_code.to_string())
+        .expect("Failed to execute debug script");
+
+    let resolve_future = runtime.resolve(promise);
+    let debug_result = runtime
+        .with_event_loop_promise(resolve_future, PollEventLoopOptions::default())
+        .await
+        .expect("Failed to resolve debug promise");
+
+    let debug_json = {
+        deno_core::scope!(scope, &mut runtime);
+        let local = deno_core::v8::Local::new(scope, debug_result);
+        deno_core::serde_v8::from_v8::<serde_json::Value>(scope, local)
+            .expect("Failed to convert debug result to JSON")
+    };
+
+    eprintln!(
+        "Debug result: {}",
+        serde_json::to_string_pretty(&debug_json).unwrap()
+    );
+
+    // Test that we can call the pre-registered tool
+    let code = r#"
+        (async () => {
+            const result = await callJsLocalTool("add", { a: 5, b: 3 });
+            return result;
+        })();
+    "#;
+
+    let promise = runtime
+        .execute_script("<test>", code.to_string())
+        .expect("Failed to execute script");
+
+    let resolve_future = runtime.resolve(promise);
+    let resolved = runtime
+        .with_event_loop_promise(resolve_future, PollEventLoopOptions::default())
+        .await
+        .expect("Failed to resolve promise");
+
+    let result = {
+        deno_core::scope!(scope, &mut runtime);
+        let local = deno_core::v8::Local::new(scope, resolved);
+        deno_core::serde_v8::from_v8::<serde_json::Value>(scope, local)
+            .expect("Failed to convert result to JSON")
+    };
+
+    assert_eq!(result, json!(8), "Tool should return sum");
+}
+
+#[tokio::test]
+async fn test_multiple_pre_registered_tools() {
+    let local_tool_registry = crate::JsLocalToolRegistry::new();
+
+    // Register multiple tools
+    local_tool_registry
+        .register(crate::JsLocalToolDefinition {
+            metadata: crate::JsLocalToolMetadata {
+                name: "add".to_string(),
+                description: Some("Adds two numbers".to_string()),
+                input_schema: None,
+            },
+            callback_code: "(args) => args.a + args.b".to_string(),
+        })
+        .unwrap();
+
+    local_tool_registry
+        .register(crate::JsLocalToolDefinition {
+            metadata: crate::JsLocalToolMetadata {
+                name: "multiply".to_string(),
+                description: Some("Multiplies two numbers".to_string()),
+                input_schema: None,
+            },
+            callback_code: "(args) => args.a * args.b".to_string(),
+        })
+        .unwrap();
+
+    local_tool_registry
+        .register(crate::JsLocalToolDefinition {
+            metadata: crate::JsLocalToolMetadata {
+                name: "greet".to_string(),
+                description: Some("Greets a person".to_string()),
+                input_schema: None,
+            },
+            callback_code: "(args) => `Hello, ${args.name}!`".to_string(),
+        })
+        .unwrap();
+
+    // Create runtime
+    let mut runtime = JsRuntime::new(RuntimeOptions {
+        startup_snapshot: Some(crate::RUNTIME_SNAPSHOT),
+        extensions: vec![crate::pctx_runtime_snapshot::init(
+            crate::MCPRegistry::new(),
+            local_tool_registry,
+            crate::AllowedHosts::default(),
+        )],
+        ..Default::default()
+    });
+
+    // Test all tools
+    let code = r#"
+        (async () => {
+            const sum = await callJsLocalTool("add", { a: 5, b: 3 });
+            const product = await callJsLocalTool("multiply", { a: 4, b: 7 });
+            const greeting = await callJsLocalTool("greet", { name: "Alice" });
+
+            return { sum, product, greeting };
+        })();
+    "#;
+
+    let promise = runtime
+        .execute_script("<test>", code.to_string())
+        .expect("Failed to execute script");
+
+    let resolve_future = runtime.resolve(promise);
+    let resolved = runtime
+        .with_event_loop_promise(resolve_future, PollEventLoopOptions::default())
+        .await
+        .expect("Failed to resolve promise");
+
+    let result = {
+        deno_core::scope!(scope, &mut runtime);
+        let local = deno_core::v8::Local::new(scope, resolved);
+        deno_core::serde_v8::from_v8::<serde_json::Value>(scope, local)
+            .expect("Failed to convert result to JSON")
+    };
+
+    assert_eq!(result["sum"], 8);
+    assert_eq!(result["product"], 28);
+    assert_eq!(result["greeting"], "Hello, Alice!");
 }
 
 #[tokio::test]

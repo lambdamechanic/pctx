@@ -6,7 +6,7 @@ use crate::execute;
 async fn test_execute_with_type_error() {
     let code = r#"const x: number = "string";"#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, None, None, None)
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Type error should cause failure");
@@ -27,7 +27,7 @@ async fn test_check_valid_typescript() {
 console.log(greeting);
 export default greeting;"#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, None, None, None)
         .await
         .expect("execution should succeed");
     assert!(
@@ -46,7 +46,7 @@ export default greeting;"#;
 async fn test_check_type_mismatch() {
     let code = r#"const x: number = "string""#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, None, None, None)
         .await
         .expect("execution should succeed");
 
@@ -73,7 +73,7 @@ async fn test_check_type_mismatch() {
 async fn test_check_syntax_error() {
     let code = r"const x: string =";
 
-    let result = execute(code, None, None).await;
+    let result = execute(code, None, None, None).await;
     // Should catch syntax error
     if let Ok(result) = result {
         assert!(!result.success, "Invalid syntax should fail");
@@ -101,7 +101,7 @@ const user: User = {
 };
 "#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, None, None, None)
         .await
         .expect("execution should succeed");
 
@@ -127,7 +127,7 @@ function greet(name: string): string {
 const result: number = greet("Alice");  // Type error
 "#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, None, None, None)
         .await
         .expect("execution should succeed");
 
@@ -149,7 +149,7 @@ async fn test_undeclared_variable() {
     // We need to use a different context that doesn't involve console
     let code = r"const x = undeclaredVariable;";
 
-    let result = execute(code, None, None)
+    let result = execute(code, None, None, None)
         .await
         .expect("execution should succeed");
 
@@ -253,7 +253,7 @@ regex.test("test");
 export default "all types work";
 "#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, None, None, None)
         .await
         .expect("execution should succeed");
 

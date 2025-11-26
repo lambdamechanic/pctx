@@ -4,6 +4,7 @@ use deno_runtime::deno_core::ModuleCodeString;
 use deno_runtime::deno_core::RuntimeOptions;
 use deno_runtime::deno_core::anyhow;
 use deno_runtime::deno_core::error::CoreError;
+pub use pctx_code_execution_runtime::{JsLocalToolDefinition, JsLocalToolMetadata};
 pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, type_check};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
@@ -58,6 +59,8 @@ pub enum DenoExecutorError {
 ///   If None or empty, all network access is denied.
 /// * `mcp_configs` - Optional list of MCP server configurations to register.
 ///   These will be pre-registered in the runtime before code execution.
+/// * `local_tools` - Optional list of local tool definitions to register.
+///   These will be pre-registered in the runtime before code execution.
 ///
 /// # Returns
 /// * `Ok(ExecuteResult)` - Contains type diagnostics, runtime errors, and output
@@ -69,6 +72,7 @@ pub async fn execute(
     code: &str,
     allowed_hosts: Option<Vec<String>>,
     mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
+    local_tools: Option<Vec<pctx_code_execution_runtime::JsLocalToolDefinition>>,
 ) -> Result<ExecuteResult> {
     debug!(
         code_length = code.len(),
@@ -103,7 +107,7 @@ pub async fn execute(
 
     debug!(runtime = "type_check", "Type check passed");
 
-    let exec_result = execute_code(code, allowed_hosts, mcp_configs)
+    let exec_result = execute_code(code, allowed_hosts, mcp_configs, local_tools)
         .await
         .map_err(|e| DenoExecutorError::InternalError(e.to_string()))?;
 
@@ -168,6 +172,7 @@ struct InternalExecuteResult {
 /// * `code` - The TypeScript/JavaScript code to execute
 /// * `allowed_hosts` - Optional list of hosts that network requests are allowed to access
 /// * `mcp_configs` - Optional list of MCP server configurations to pre-register
+/// * `local_tools` - Optional list of local tool definitions to pre-register
 ///
 /// # Returns
 /// * `Ok(ExecuteResult)` - Contains execution result or error information
@@ -179,6 +184,7 @@ async fn execute_code(
     code: &str,
     allowed_hosts: Option<Vec<String>>,
     mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
+    local_tools: Option<Vec<pctx_code_execution_runtime::JsLocalToolDefinition>>,
 ) -> anyhow::Result<InternalExecuteResult> {
     debug!("Starting code execution");
 
@@ -226,6 +232,26 @@ async fn execute_code(
             }
         }
     }
+    // Create local tool registry and populate it with provided tools
+    let js_local_tool_registry = pctx_code_execution_runtime::JsLocalToolRegistry::new();
+    if let Some(tools) = local_tools {
+        for tool in tools {
+            if let Err(e) = js_local_tool_registry.register(tool) {
+                warn!(runtime = "execution", error = %e, "Failed to register local tool");
+                return Ok(InternalExecuteResult {
+                    success: false,
+                    output: None,
+                    error: Some(ExecutionError {
+                        message: format!("Local tool registration failed: {e}"),
+                        stack: None,
+                    }),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                });
+            }
+        }
+    }
+
     let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(allowed_hosts);
 
     // Create JsRuntime from `pctx_runtime` snapshot and extension
@@ -236,6 +262,7 @@ async fn execute_code(
         startup_snapshot: Some(pctx_code_execution_runtime::RUNTIME_SNAPSHOT),
         extensions: vec![pctx_code_execution_runtime::pctx_runtime_snapshot::init(
             mcp_registry,
+            js_local_tool_registry,
             allowed_hosts,
         )],
         ..Default::default()
