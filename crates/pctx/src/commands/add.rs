@@ -72,7 +72,7 @@ impl AddCmd {
                 token: bearer.clone(),
             })
         } else if let Some(headers) = &self.header {
-            Some(AuthConfig::Custom {
+            Some(AuthConfig::Headers {
                 headers: headers
                     .iter()
                     .map(|h| (h.name.clone(), h.value.clone()))

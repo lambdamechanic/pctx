@@ -12,7 +12,8 @@ pub enum AuthConfig {
     /// Bearer token
     Bearer { token: SecretString },
     /// Custom headers
-    Custom {
+    #[serde(alias = "custom")] // "custom" alias for backwards compat.
+    Headers {
         headers: IndexMap<String, SecretString>,
     },
     // TODO: support OAuth client credentials flow?

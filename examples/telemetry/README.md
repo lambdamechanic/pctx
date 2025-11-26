@@ -41,7 +41,7 @@ Create a PCTX configuration file with telemetry enabled. Here's an example confi
       "name": "stripe",
       "url": "https://mcp.stripe.com/",
       "auth": {
-        "type": "custom",
+        "type": "headers",
         "headers": {
           "Authorization": "Bearer ${env:STRIPE_MCP_KEY}"
         }
