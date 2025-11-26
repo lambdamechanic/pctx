@@ -1,6 +1,7 @@
 pub mod case;
 pub mod format;
 pub mod schema_type;
+pub mod tools;
 pub mod typegen;
 pub mod utils;
 
@@ -8,8 +9,10 @@ use indexmap::IndexMap;
 use schemars::schema::Schema;
 use thiserror::Error;
 
-pub type SchemaDefinitions = IndexMap<String, Schema>;
+// re-export RootSchema
+pub use schemars::schema::RootSchema;
 
+pub type SchemaDefinitions = IndexMap<String, Schema>;
 pub type CodegenResult<T> = Result<T, CodegenError>;
 
 #[derive(Debug, Error)]
