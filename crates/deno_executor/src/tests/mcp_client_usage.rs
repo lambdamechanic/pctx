@@ -1,24 +1,28 @@
 use super::serial;
 use crate::execute;
+use pctx_config::server::ServerConfig;
 use serde_json::json;
+use url::Url;
 
 #[serial]
 #[tokio::test]
 async fn test_execute_with_mcp_client_register() {
     let code = r#"
-
-registerMCP({
-    name: "test-server",
-    url: "http://localhost:3000"
-});
-
 const registered = REGISTRY.has("test-server");
 console.log("registered value:", registered);
 
 export default registered;
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let mcp_configs = Some(vec![ServerConfig {
+        name: "test-server".to_string(),
+        url: Url::parse("http://localhost:3000").unwrap(),
+        auth: None,
+    }]);
+
+    let result = execute(code, None, mcp_configs)
+        .await
+        .expect("execution should succeed");
 
     assert!(
         result.success,
@@ -42,23 +46,27 @@ export default registered;
 #[serial]
 #[tokio::test]
 async fn test_execute_with_mcp_client_duplicate_registration() {
-    let code = r#"
-
-registerMCP({
-    name: "duplicate-server",
-    url: "http://localhost:3000"
-});
-
-// This should throw an error
-registerMCP({
-    name: "duplicate-server",
-    url: "http://localhost:3001"
-});
-
+    let code = r"
 export default true;
-"#;
+";
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    // Attempt to register the same server twice
+    let mcp_configs = Some(vec![
+        ServerConfig {
+            name: "duplicate-server".to_string(),
+            url: Url::parse("http://localhost:3000").unwrap(),
+            auth: None,
+        },
+        ServerConfig {
+            name: "duplicate-server".to_string(),
+            url: Url::parse("http://localhost:3001").unwrap(),
+            auth: None,
+        },
+    ]);
+
+    let result = execute(code, None, mcp_configs)
+        .await
+        .expect("execution should succeed");
     assert!(!result.success, "Duplicate MCP registration should fail");
     assert!(result.runtime_error.is_some(), "Should have runtime error");
 
@@ -74,18 +82,20 @@ export default true;
 #[tokio::test]
 async fn test_execute_with_mcp_client_get_config() {
     let code = r#"
-
-registerMCP({
-    name: "my-server",
-    url: "http://localhost:4000"
-});
-
 const config = REGISTRY.get("my-server");
 
 export default config;
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let mcp_configs = Some(vec![ServerConfig {
+        name: "my-server".to_string(),
+        url: Url::parse("http://localhost:4000").unwrap(),
+        auth: None,
+    }]);
+
+    let result = execute(code, None, mcp_configs)
+        .await
+        .expect("execution should succeed");
     assert!(result.success, "Getting MCP config should succeed");
     assert!(
         result.runtime_error.is_none(),
@@ -103,22 +113,6 @@ export default config;
 #[tokio::test]
 async fn test_execute_with_mcp_client_multiple_servers() {
     let code = r#"
-
-registerMCP({
-    name: "server1",
-    url: "http://localhost:3000"
-});
-
-registerMCP({
-    name: "server2",
-    url: "http://localhost:3001"
-});
-
-registerMCP({
-    name: "server3",
-    url: "http://localhost:3002"
-});
-
 const hasServer1 = REGISTRY.has("server1");
 const hasServer2 = REGISTRY.has("server2");
 const hasServer3 = REGISTRY.has("server3");
@@ -126,7 +120,27 @@ const hasServer3 = REGISTRY.has("server3");
 export default { hasServer1, hasServer2, hasServer3 };
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let mcp_configs = Some(vec![
+        ServerConfig {
+            name: "server1".to_string(),
+            url: Url::parse("http://localhost:3000").unwrap(),
+            auth: None,
+        },
+        ServerConfig {
+            name: "server2".to_string(),
+            url: Url::parse("http://localhost:3001").unwrap(),
+            auth: None,
+        },
+        ServerConfig {
+            name: "server3".to_string(),
+            url: Url::parse("http://localhost:3002").unwrap(),
+            auth: None,
+        },
+    ]);
+
+    let result = execute(code, None, mcp_configs)
+        .await
+        .expect("execution should succeed");
     assert!(
         result.success,
         "Multiple server registration should succeed"
@@ -152,12 +166,6 @@ export default { hasServer1, hasServer2, hasServer3 };
 #[tokio::test]
 async fn test_execute_with_mcp_client_registry_operations() {
     let code = r#"
-
-registerMCP({
-    name: "temp-server",
-    url: "http://localhost:5000"
-});
-
 const existsBefore = REGISTRY.has("temp-server");
 REGISTRY.delete("temp-server");
 const existsAfter = REGISTRY.has("temp-server");
@@ -165,7 +173,15 @@ const existsAfter = REGISTRY.has("temp-server");
 export default { existsBefore, existsAfter };
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let mcp_configs = Some(vec![ServerConfig {
+        name: "temp-server".to_string(),
+        url: Url::parse("http://localhost:5000").unwrap(),
+        auth: None,
+    }]);
+
+    let result = execute(code, None, mcp_configs)
+        .await
+        .expect("execution should succeed");
     assert!(result.success, "Registry operations should succeed");
     assert!(
         result.runtime_error.is_none(),
@@ -187,17 +203,6 @@ export default { existsBefore, existsAfter };
 #[tokio::test]
 async fn test_execute_with_mcp_client_registry_clear() {
     let code = r#"
-
-registerMCP({
-    name: "server1",
-    url: "http://localhost:3000"
-});
-
-registerMCP({
-    name: "server2",
-    url: "http://localhost:3001"
-});
-
 const hasBefore = REGISTRY.has("server1") && REGISTRY.has("server2");
 REGISTRY.clear();
 const hasAfter = REGISTRY.has("server1") || REGISTRY.has("server2");
@@ -205,7 +210,22 @@ const hasAfter = REGISTRY.has("server1") || REGISTRY.has("server2");
 export default { hasBefore, hasAfter };
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let mcp_configs = Some(vec![
+        ServerConfig {
+            name: "server1".to_string(),
+            url: Url::parse("http://localhost:3000").unwrap(),
+            auth: None,
+        },
+        ServerConfig {
+            name: "server2".to_string(),
+            url: Url::parse("http://localhost:3001").unwrap(),
+            auth: None,
+        },
+    ]);
+
+    let result = execute(code, None, mcp_configs)
+        .await
+        .expect("execution should succeed");
     assert!(result.success, "Registry clear should succeed");
     assert!(
         result.runtime_error.is_none(),
@@ -233,7 +253,9 @@ const deleteResult = REGISTRY.delete("nonexistent-server");
 export default deleteResult;
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
     assert!(result.success, "Deleting nonexistent server should succeed");
     assert!(
         result.runtime_error.is_none(),
@@ -268,7 +290,9 @@ async function test() {
 export default await test();
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
     assert!(result.success, "Execution should succeed even with error");
     assert!(
         result.runtime_error.is_none(),

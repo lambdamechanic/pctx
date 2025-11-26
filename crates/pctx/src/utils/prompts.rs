@@ -93,7 +93,14 @@ pub(crate) fn prompt_secret(msg: &str, prefix: &str, key: &str) -> Result<Secret
 
     match options.iter().position(|o| o == &selection) {
         Some(0) => {
-            // key chain
+            // environment variable
+            let env_var = inquire::Text::new(&format!("{prefix}Enter environment variable name:"))
+                .with_validator(inquire::min_length!(1, "must be at least 1 character"))
+                .prompt()?;
+            Ok(SecretString::new_secret(AuthSecret::Env(env_var)))
+        }
+        Some(1) => {
+            // keychain
             let secret = inquire::Text::new(&format!("{prefix}Enter value:"))
                 .with_validator(inquire::min_length!(1, "must be at least 1 character"))
                 .prompt()?;
@@ -103,13 +110,6 @@ pub(crate) fn prompt_secret(msg: &str, prefix: &str, key: &str) -> Result<Secret
                 fmt_success(&format!("{prefix}Value stored in keychain"))
             );
             Ok(SecretString::new_secret(AuthSecret::Keychain(key.into())))
-        }
-        Some(1) => {
-            // environment variable
-            let env_var = inquire::Text::new(&format!("{prefix}Enter environment variable name:"))
-                .with_validator(inquire::min_length!(1, "must be at least 1 character"))
-                .prompt()?;
-            Ok(SecretString::new_secret(AuthSecret::Env(env_var)))
         }
         Some(2) => {
             // plain text

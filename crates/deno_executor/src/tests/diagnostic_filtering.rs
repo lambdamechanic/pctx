@@ -13,7 +13,9 @@ async fn test_console_log_is_ignored() {
     // TS2580: Cannot find name 'console' should be ignored
     let code = r#"console.log("Hello, World!");"#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
 
     assert!(
         result.success,
@@ -39,7 +41,9 @@ const myPromise = new Promise((resolve) => {
 });
 ";
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
 
     // The test should pass - Promise-related errors should be filtered
     assert!(
@@ -64,7 +68,9 @@ function greet(name) {
 }
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
 
     assert!(
         result.success,
@@ -82,7 +88,9 @@ const key = "key";
 const value = obj[key];
 export default value;"#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
 
     assert!(
         result.success,
@@ -99,7 +107,9 @@ async fn test_relevant_errors_not_filtered() {
 const x: number = "string";
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
 
     assert!(
         !result.success,
@@ -125,7 +135,9 @@ console.log("This uses console");
 const x: number = "string";
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
 
     assert!(!result.success, "Should fail due to type error");
 
@@ -162,7 +174,9 @@ for (let i = 0; i < 10; i++) {
 export default allAsteroids;
 ";
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
 
     assert!(
         result.success,
@@ -185,7 +199,9 @@ const items: Array<number> = [1, 2, 3];
 export default items;
 ";
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
 
     assert!(
         result.success,

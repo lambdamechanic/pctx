@@ -13,9 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `pctx add`
+  - Prefer env var over keychain auth in interactive upstream mcp adding
 - `pctx dev`
   - Better error state reporting (e.g. invalid config, port already in use)
   - Scroll out of bounds for tool details panel
+
 
 ### Changed
 

@@ -178,7 +178,7 @@ impl App {
                 let namespace_pattern = format!("{}.", server.namespace);
                 tracing::trace!(
                     "Checking for server '{}' with namespace pattern '{}' in code",
-                    server.name,
+                    server.name(),
                     namespace_pattern
                 );
 
@@ -219,7 +219,7 @@ impl App {
                                     .trim()
                                     .to_string();
 
-                                let key = format!("{}::{}", server.name, tool.tool_name);
+                                let key = format!("{}::{}", server.name(), tool.tool_name);
 
                                 self.tool_usage
                                     .entry(key.clone())
@@ -234,7 +234,7 @@ impl App {
                                     })
                                     .or_insert_with(|| ToolUsage {
                                         tool_name: tool.tool_name.clone(),
-                                        server_name: server.name.clone(),
+                                        server_name: server.name().to_string(),
                                         count: 1,
                                         last_used: entry.timestamp,
                                         code_snippets: if code_snippet.is_empty() {
@@ -398,7 +398,7 @@ impl App {
     pub(super) fn scroll_tools_down(&mut self) {
         // Sort servers alphabetically (same as rendering)
         let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name.cmp(&b.name));
+        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
 
         if sorted_servers.is_empty() {
             return;
@@ -434,7 +434,7 @@ impl App {
     pub(super) fn scroll_tools_up(&mut self) {
         // Sort servers alphabetically (same as rendering)
         let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name.cmp(&b.name));
+        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
 
         if sorted_servers.is_empty() {
             return;
@@ -468,7 +468,7 @@ impl App {
 
         // Sort servers alphabetically (same as rendering)
         let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name.cmp(&b.name));
+        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
 
         let num_namespaces = sorted_servers.len();
         if num_namespaces == 0 {
@@ -489,7 +489,7 @@ impl App {
 
         // Sort servers alphabetically (same as rendering)
         let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name.cmp(&b.name));
+        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
 
         let num_namespaces = sorted_servers.len();
         if num_namespaces == 0 {
@@ -510,7 +510,7 @@ impl App {
     pub(super) fn select_first_tool_in_current_namespace(&mut self) {
         // Sort servers alphabetically (same as rendering)
         let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name.cmp(&b.name));
+        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
 
         if self.selected_namespace_index >= sorted_servers.len() {
             self.selected_tool_index = None;
@@ -541,7 +541,7 @@ impl App {
 
         // Sort servers alphabetically (same as rendering)
         let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name.cmp(&b.name));
+        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
 
         for server in sorted_servers {
             // Sort tools by usage count (same as rendering)
@@ -549,7 +549,7 @@ impl App {
                 .tools
                 .iter()
                 .map(|(fn_name, tool)| {
-                    let usage_key = format!("{}::{}", server.name, tool.tool_name);
+                    let usage_key = format!("{}::{}", server.name(), tool.tool_name);
                     let usage_count = self.tool_usage.get(&usage_key).map_or(0, |u| u.count);
                     (fn_name, tool, usage_count)
                 })

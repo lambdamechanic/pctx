@@ -21,7 +21,9 @@ async function test() {
 export default await test();
 "#;
 
-    let result = execute(code, None).await.expect("execution should succeed");
+    let result = execute(code, None, None)
+        .await
+        .expect("execution should succeed");
     assert!(result.success, "Execution should succeed");
 
     let output = result.output.expect("Should have output");
@@ -67,7 +69,7 @@ export default await test();
 "#;
 
     let allowed_hosts = Some(vec!["localhost:8888".to_string()]);
-    let result = execute(code, allowed_hosts)
+    let result = execute(code, allowed_hosts, None)
         .await
         .expect("execution should succeed");
     assert!(result.success, "Execution should succeed");
@@ -105,7 +107,7 @@ export default await test();
 
     // Allow localhost:3000 but try to access example.com
     let allowed_hosts = Some(vec!["localhost:3000".to_string()]);
-    let result = execute(code, allowed_hosts)
+    let result = execute(code, allowed_hosts, None)
         .await
         .expect("execution should succeed");
     assert!(result.success, "Execution should succeed");
@@ -154,7 +156,7 @@ export default await main();
         "localhost:3000".to_string(),
         "localhost:4000".to_string(),
     ]);
-    let result = execute(code, allowed_hosts)
+    let result = execute(code, allowed_hosts, None)
         .await
         .expect("execution should succeed");
 

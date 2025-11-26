@@ -73,11 +73,12 @@ impl PctxMcp {
             .upstream
             .iter()
             .filter_map(|m| {
-                let host = m.url.host_str()?;
-                if let Some(port) = m.url.port() {
+                let url = m.url();
+                let host = url.host_str()?;
+                if let Some(port) = url.port() {
                     Some(format!("{host}:{port}"))
                 } else {
-                    let default_port = if m.url.scheme() == "https" { 443 } else { 80 };
+                    let default_port = if url.scheme() == "https" { 443 } else { 80 };
                     Some(format!("{host}:{default_port}"))
                 }
             })
@@ -160,7 +161,7 @@ impl PctxMcp {
                 let tool_record = |u: &UpstreamMcp| {
                     format!(
                         "{} - {} tool{}",
-                        fmt_cyan(&u.name),
+                        fmt_cyan(u.name()),
                         u.tools.len(),
                         if u.tools.len() > 1 { "s" } else { "" }
                     )

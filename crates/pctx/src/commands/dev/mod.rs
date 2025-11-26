@@ -510,9 +510,8 @@ mod tests {
     };
     use chrono::Utc;
     use indexmap::IndexMap;
-    use pctx_config::logger::LogLevel;
+    use pctx_config::{logger::LogLevel, server::ServerConfig};
     use serde_json::json;
-    use url::Url;
 
     fn create_test_server() -> UpstreamMcp {
         let mut tools = IndexMap::new();
@@ -544,12 +543,13 @@ mod tests {
         );
 
         UpstreamMcp {
-            name: "banking".to_string(),
             namespace: "Banking".to_string(), // PascalCase namespace
             description: "Banking MCP Server".to_string(),
-            url: Url::parse("http://localhost:3000").unwrap(),
             tools,
-            registration: json!({}),
+            registration: ServerConfig::new(
+                "banking".to_string(),
+                "http://localhost:3000".parse().unwrap(),
+            ),
         }
     }
 

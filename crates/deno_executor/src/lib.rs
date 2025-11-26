@@ -56,6 +56,8 @@ pub enum DenoExecutorError {
 /// * `allowed_hosts` - Optional list of hosts that network requests are allowed to access.
 ///   Format: "hostname:port" or just "hostname" (e.g., "localhost:3000", "api.example.com").
 ///   If None or empty, all network access is denied.
+/// * `mcp_configs` - Optional list of MCP server configurations to register.
+///   These will be pre-registered in the runtime before code execution.
 ///
 /// # Returns
 /// * `Ok(ExecuteResult)` - Contains type diagnostics, runtime errors, and output
@@ -63,7 +65,11 @@ pub enum DenoExecutorError {
 /// # Errors
 /// * Returns error only if internal tooling fails (not for type errors or runtime errors)
 ///
-pub async fn execute(code: &str, allowed_hosts: Option<Vec<String>>) -> Result<ExecuteResult> {
+pub async fn execute(
+    code: &str,
+    allowed_hosts: Option<Vec<String>>,
+    mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
+) -> Result<ExecuteResult> {
     debug!(
         code_length = code.len(),
         "Code submitted for typecheck & execution"
@@ -97,7 +103,7 @@ pub async fn execute(code: &str, allowed_hosts: Option<Vec<String>>) -> Result<E
 
     debug!(runtime = "type_check", "Type check passed");
 
-    let exec_result = execute_code(code, allowed_hosts)
+    let exec_result = execute_code(code, allowed_hosts, mcp_configs)
         .await
         .map_err(|e| DenoExecutorError::InternalError(e.to_string()))?;
 
@@ -161,6 +167,7 @@ struct InternalExecuteResult {
 /// # Arguments
 /// * `code` - The TypeScript/JavaScript code to execute
 /// * `allowed_hosts` - Optional list of hosts that network requests are allowed to access
+/// * `mcp_configs` - Optional list of MCP server configurations to pre-register
 ///
 /// # Returns
 /// * `Ok(ExecuteResult)` - Contains execution result or error information
@@ -171,6 +178,7 @@ struct InternalExecuteResult {
 async fn execute_code(
     code: &str,
     allowed_hosts: Option<Vec<String>>,
+    mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
 ) -> anyhow::Result<InternalExecuteResult> {
     debug!("Starting code execution");
 
@@ -199,8 +207,25 @@ async fn execute_code(
         }
     };
 
-    // Create MCP registry and allowed hosts for this execution
+    // Create MCP registry and populate it with provided configs
     let mcp_registry = pctx_code_execution_runtime::MCPRegistry::new();
+    if let Some(configs) = mcp_configs {
+        for config in configs {
+            if let Err(e) = mcp_registry.add(config) {
+                warn!(runtime = "execution", error = %e, "Failed to register MCP server");
+                return Ok(InternalExecuteResult {
+                    success: false,
+                    output: None,
+                    error: Some(ExecutionError {
+                        message: format!("MCP registration failed: {e}"),
+                        stack: None,
+                    }),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                });
+            }
+        }
+    }
     let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(allowed_hosts);
 
     // Create JsRuntime from `pctx_runtime` snapshot and extension
