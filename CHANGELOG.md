@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+
+### Fixed
+
+
+## [v0.2.1] - 2025-11-25
+
+### Added
+
 - All tools return define `outputSchema` and return `structuredOutput` alongside the text content.
 
 ### Fixed
