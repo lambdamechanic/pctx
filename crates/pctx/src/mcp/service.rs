@@ -1,7 +1,10 @@
 use opentelemetry::KeyValue;
 use pctx_core::{
     PctxTools,
-    model::{GetFunctionDetailsInput, GetFunctionDetailsOutput, ListFunctionsOutput},
+    model::{
+        ExecuteInput, ExecuteOutput, GetFunctionDetailsInput, GetFunctionDetailsOutput,
+        ListFunctionsOutput,
+    },
 };
 use rmcp::{
     RoleServer, ServerHandler,
@@ -14,7 +17,7 @@ use rmcp::{
     tool, tool_router,
 };
 use serde_json::json;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 use crate::utils::metrics::mcp_tool_metrics;
 
@@ -85,6 +88,83 @@ impl PctxMcpService {
         let details = self.tools.get_function_details(input);
         let mut res = CallToolResult::success(vec![Content::text(&details.code)]);
         res.structured_content = Some(json!(details));
+
+        Ok(res)
+    }
+
+    #[tool(
+        title = "Execute Code",
+        description = "Execute TypeScript code that calls namespaced functions. USE THIS LAST after list_functions() and get_function_details().
+
+        TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
+        To minimize tokens:
+        - Filter/map/reduce data IN YOUR CODE before returning
+        - Only return specific fields you need (e.g., return {id: result.id, count: items.length})
+        - Use console.log() for intermediate results instead of returning everything
+        - Avoid returning full API responses - extract just what you need
+
+        REQUIRED CODE STRUCTURE:
+        async function run() {
+            // Your code here
+            // Call namespace.functionName() - MUST include namespace prefix
+            // Process data here to minimize return size
+            return onlyWhatYouNeed; // Keep this small!
+        }
+
+        IMPORTANT RULES:
+        - Functions MUST be called as 'Namespace.functionName' (e.g., 'Notion.apiPostSearch')
+        - Only functions from list_functions() are available - no fetch(), fs, or other Node/Deno APIs
+        - Variables don't persist between execute() calls - return or log anything you need later
+        - Add console.log() statements between API calls to track progress if errors occur
+        - Code runs in an isolated Deno sandbox with restricted network access
+
+        RETURN TYPE NOTE:
+        - Functions without output schemas show Promise<any> as return type
+        - The actual runtime value is already a parsed JavaScript object, NOT a JSON string
+        - Do NOT call JSON.parse() on results - they're already objects
+        - Access properties directly (e.g., result.data) or inspect with console.log() first
+        - If you see 'Promise<any>', the structure is unknown - log it to see what's returned
+        ",
+        output_schema = rmcp::handler::server::tool::cached_schema_for_type::<ExecuteOutput>()
+    )]
+    async fn execute(
+        &self,
+        Parameters(input): Parameters<ExecuteInput>,
+    ) -> McpResult<CallToolResult> {
+        // Capture current tracing context to propagate to spawned thread
+        let current_span = tracing::Span::current();
+
+        let tools = self.tools.clone();
+
+        let execution_output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
+            // Enter the captured span context in the new thread
+            let _guard = current_span.enter();
+
+            // Create a new current-thread runtime for Deno ops that use deno_unsync
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
+
+            rt.block_on(async {
+                tools
+                    .execute(input)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
+            })
+        })
+        .await
+        .map_err(|e| {
+            error!("Task join failed: {e}");
+            rmcp::ErrorData::internal_error(format!("Task join failed: {e}"), None)
+        })?
+        .map_err(|e| {
+            error!("Sandbox execution error: {e}");
+            rmcp::ErrorData::internal_error(format!("Execution failed: {e}"), None)
+        })?;
+
+        let mut res = CallToolResult::success(vec![Content::text(execution_output.markdown())]);
+        res.structured_content = Some(json!(execution_output));
 
         Ok(res)
     }
