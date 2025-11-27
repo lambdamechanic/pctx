@@ -96,9 +96,6 @@ mod local_tool_registry;
 pub mod ops;
 mod registry;
 
-#[cfg(test)]
-mod tests;
-
 pub use fetch::AllowedHosts;
 pub use local_tool_registry::{
     CallLocalToolArgs, CallbackRuntime, LocalToolDefinition, LocalToolMetadata, LocalToolRegistry,

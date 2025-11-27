@@ -134,6 +134,7 @@ export interface JsLocalToolMetadata {
         required?: string[];
         [key: string]: unknown;
     };
+    namespace: string;
 }
 
 /**

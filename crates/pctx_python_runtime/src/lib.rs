@@ -28,6 +28,7 @@
 //!         name: "add".to_string(),
 //!         description: Some("Adds two numbers".to_string()),
 //!         input_schema: None,
+//!         namespace: "MyTools".to_string(),
 //!     },
 //!     callback_data: "lambda args: args['a'] + args['b']".to_string(),
 //! })?;

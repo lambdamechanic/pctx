@@ -26,6 +26,8 @@ pub struct LocalToolMetadata {
     pub description: Option<String>,
     /// JSON Schema for tool input parameters
     pub input_schema: Option<serde_json::Value>,
+    /// Namespace for this tool (e.g., "math", "db_connections")
+    pub namespace: String,
 }
 
 /// A complete local tool definition with callback specification
@@ -110,6 +112,7 @@ impl LocalToolRegistry {
     ///         name: "add".to_string(),
     ///         description: Some("Adds two numbers".to_string()),
     ///         input_schema: None,
+    ///         namespace: "MyTools".to_string(),
     ///     },
     ///     runtime: CallbackRuntime::JavaScript,
     ///     callback_data: "(args) => args.a + args.b".to_string(),

@@ -13,6 +13,7 @@ async fn test_javascript_local_tool() {
             name: "add".to_string(),
             description: Some("Adds two numbers".to_string()),
             input_schema: None,
+            namespace: "LocalTools".to_string(),
         },
         runtime: CallbackRuntime::JavaScript,
         callback_data: "(args) => args.a + args.b".to_string(),
@@ -25,9 +26,12 @@ async fn test_javascript_local_tool() {
         }
     "#;
 
-    let result = tools.execute(ExecuteInput {
-        code: code.to_string(),
-    }).await.expect("Execution should succeed");
+    let result = tools
+        .execute(ExecuteInput {
+            code: code.to_string(),
+        })
+        .await
+        .expect("Execution should succeed");
 
     assert!(result.success);
     assert_eq!(result.output, Some(serde_json::json!(8)));
@@ -40,15 +44,18 @@ async fn test_python_local_tool() {
 
     // Register a Python tool
     let python_registry = pctx_python_runtime::PythonCallbackRegistry::new();
-    python_registry.register(LocalToolDefinition {
-        metadata: LocalToolMetadata {
-            name: "multiply".to_string(),
-            description: Some("Multiplies two numbers".to_string()),
-            input_schema: None,
-        },
-        runtime: CallbackRuntime::Python,
-        callback_data: "lambda args: args['a'] * args['b']".to_string(),
-    }).expect("Failed to register Python tool");
+    python_registry
+        .register(LocalToolDefinition {
+            metadata: LocalToolMetadata {
+                name: "multiply".to_string(),
+                description: Some("Multiplies two numbers".to_string()),
+                input_schema: None,
+                namespace: "PythonTools".to_string(),
+            },
+            runtime: CallbackRuntime::Python,
+            callback_data: "lambda args: args['a'] * args['b']".to_string(),
+        })
+        .expect("Failed to register Python tool");
 
     tools.python_registry = Some(python_registry);
 
@@ -59,9 +66,12 @@ async fn test_python_local_tool() {
         }
     "#;
 
-    let result = tools.execute(ExecuteInput {
-        code: code.to_string(),
-    }).await.expect("Execution should succeed");
+    let result = tools
+        .execute(ExecuteInput {
+            code: code.to_string(),
+        })
+        .await
+        .expect("Execution should succeed");
 
     if !result.success {
         eprintln!("Execution failed:");
@@ -84,6 +94,7 @@ async fn test_mixed_js_and_python_tools() {
             name: "add".to_string(),
             description: Some("Adds two numbers".to_string()),
             input_schema: None,
+            namespace: "LocalTools".to_string(),
         },
         runtime: CallbackRuntime::JavaScript,
         callback_data: "(args) => args.a + args.b".to_string(),
@@ -91,15 +102,18 @@ async fn test_mixed_js_and_python_tools() {
 
     // Register Python tool
     let python_registry = pctx_python_runtime::PythonCallbackRegistry::new();
-    python_registry.register(LocalToolDefinition {
-        metadata: LocalToolMetadata {
-            name: "multiply".to_string(),
-            description: Some("Multiplies two numbers".to_string()),
-            input_schema: None,
-        },
-        runtime: CallbackRuntime::Python,
-        callback_data: "lambda args: args['a'] * args['b']".to_string(),
-    }).expect("Failed to register Python tool");
+    python_registry
+        .register(LocalToolDefinition {
+            metadata: LocalToolMetadata {
+                name: "multiply".to_string(),
+                description: Some("Multiplies two numbers".to_string()),
+                input_schema: None,
+                namespace: "PythonTools".to_string(),
+            },
+            runtime: CallbackRuntime::Python,
+            callback_data: "lambda args: args['a'] * args['b']".to_string(),
+        })
+        .expect("Failed to register Python tool");
 
     tools.python_registry = Some(python_registry);
 
@@ -112,9 +126,12 @@ async fn test_mixed_js_and_python_tools() {
         }
     "#;
 
-    let result = tools.execute(ExecuteInput {
-        code: code.to_string(),
-    }).await.expect("Execution should succeed");
+    let result = tools
+        .execute(ExecuteInput {
+            code: code.to_string(),
+        })
+        .await
+        .expect("Execution should succeed");
 
     assert!(result.success);
     let output = result.output.unwrap();

@@ -27,46 +27,60 @@ impl PctxTools {
     fn local_tools_as_toolsets(&self) -> Vec<codegen::ToolSet> {
         let mut toolsets = Vec::new();
 
-        // Convert JS local tools
+        // Convert JS local tools - group by namespace
         if !self.local_tools.is_empty() {
-            let mut js_tools = Vec::new();
+            let mut tools_by_namespace: HashMap<String, Vec<codegen::Tool>> = HashMap::new();
+
             for local_tool in &self.local_tools {
                 match Self::local_tool_to_codegen_tool(local_tool) {
-                    Ok(tool) => js_tools.push(tool),
+                    Ok(tool) => {
+                        tools_by_namespace
+                            .entry(local_tool.metadata.namespace.clone())
+                            .or_default()
+                            .push(tool);
+                    }
                     Err(e) => warn!(
                         "Failed to convert JS local tool '{}': {}",
                         local_tool.metadata.name, e
                     ),
                 }
             }
-            if !js_tools.is_empty() {
+
+            for (namespace, tools) in tools_by_namespace {
                 toolsets.push(codegen::ToolSet::new(
-                    "LocalTools",
-                    "JavaScript local tools registered by the user",
-                    js_tools,
+                    &namespace,
+                    &format!("JavaScript local tools in namespace '{}'", namespace),
+                    tools,
                 ));
             }
         }
 
-        // Convert Python callbacks
+        // Convert Python callbacks - group by namespace
         if let Some(ref python_registry) = self.python_registry {
             let python_metadata = python_registry.list();
             if !python_metadata.is_empty() {
-                let mut python_tools = Vec::new();
+                let mut tools_by_namespace: HashMap<String, Vec<codegen::Tool>> = HashMap::new();
+
                 for metadata in python_metadata {
                     match Self::python_metadata_to_codegen_tool(&metadata) {
-                        Ok(tool) => python_tools.push(tool),
+                        Ok(tool) => {
+                            tools_by_namespace
+                                .entry(metadata.namespace.clone())
+                                .or_default()
+                                .push(tool);
+                        }
                         Err(e) => warn!(
                             "Failed to convert Python callback '{}': {}",
                             metadata.name, e
                         ),
                     }
                 }
-                if !python_tools.is_empty() {
+
+                for (namespace, tools) in tools_by_namespace {
                     toolsets.push(codegen::ToolSet::new(
-                        "PythonTools",
-                        "Python callback tools registered by the user",
-                        python_tools,
+                        &namespace,
+                        &format!("Python callback tools in namespace '{}'", namespace),
+                        tools,
                     ));
                 }
             }
