@@ -16,7 +16,6 @@ pub(crate) fn init_rustls_crypto() {
 
 mod default_export_capture;
 mod diagnostic_filtering;
-mod local_tools;
 mod mcp_client_usage;
 mod output_capture;
 mod permissions;
