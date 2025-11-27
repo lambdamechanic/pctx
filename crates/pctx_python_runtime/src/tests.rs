@@ -79,3 +79,46 @@ fn test_execute_nonexistent_tool() {
         _ => panic!("Expected ToolNotFound error"),
     }
 }
+
+#[test]
+#[serial]
+fn test_callback_can_use_dependencies() {
+    let registry = PythonCallbackRegistry::new();
+
+    // Test that a callback can use the json module (built-in lightweight dependency)
+    // This verifies that callbacks have access to standard library imports
+    registry
+        .register(LocalToolDefinition {
+            metadata: LocalToolMetadata {
+                name: "json_parser".to_string(),
+                description: Some("Parse JSON using the json module".to_string()),
+                input_schema: None,
+                namespace: "TestTools".to_string(),
+            },
+            runtime: CallbackRuntime::Python,
+            callback_data: r#"
+import json
+
+def tool(args):
+    # Use json module to parse and re-serialize
+    data = {"name": args["name"], "count": args["count"] * 2}
+    # Verify json module works by dumping and loading
+    json_str = json.dumps(data)
+    return json.loads(json_str)
+"#
+            .to_string(),
+        })
+        .expect("Failed to register callback with json import");
+
+    let result = execute_python_tool(
+        &registry,
+        "json_parser",
+        Some(serde_json::json!({"name": "test", "count": 5})),
+    )
+    .expect("Failed to execute callback");
+
+    assert_eq!(
+        result,
+        serde_json::json!({"name": "test", "count": 10})
+    );
+}
