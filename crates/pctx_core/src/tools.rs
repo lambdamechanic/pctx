@@ -102,7 +102,7 @@ impl PctxTools {
                 ))
             })?;
 
-        codegen::Tool::new_callable(
+        codegen::Tool::new_javascript(
             name,
             description,
             input_schema,
@@ -126,11 +126,32 @@ impl PctxTools {
     fn python_metadata_to_codegen_tool(
         metadata: &pctx_python_runtime::LocalToolMetadata,
     ) -> Result<codegen::Tool> {
-        Self::metadata_to_codegen_tool(
+        let schema_value = if let Some(schema) = &metadata.input_schema {
+            schema.clone()
+        } else {
+            // Default to accepting any object
+            json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": true
+            })
+        };
+
+        let input_schema: codegen::RootSchema =
+            serde_json::from_value(schema_value).map_err(|e| {
+                Error::Message(format!(
+                    "Failed to parse input schema for '{}': {}",
+                    metadata.name, e
+                ))
+            })?;
+
+        codegen::Tool::new_python(
             &metadata.name,
             metadata.description.as_ref(),
-            metadata.input_schema.as_ref(),
+            input_schema,
+            None, // Python tools don't have output schemas yet
         )
+        .map_err(Error::from)
     }
 
     /// Get all tool sets including MCP servers and local tools
@@ -246,16 +267,20 @@ impl PctxTools {
 
         debug!("Executing code in sandbox");
 
+        // Collect all local tools (both JS and Python)
+        let mut all_local_tools = self.local_tools.clone();
+
+        // Convert Python registry tools to LocalToolDefinitions and add them
+        if let Some(ref python_registry) = self.python_registry {
+            all_local_tools.extend(python_registry.list_tools());
+        }
+
         let mut options = deno_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
             .with_mcp_configs(self.servers.clone());
 
-        if !self.local_tools.is_empty() {
-            options = options.with_local_tools(self.local_tools.clone());
-        }
-
-        if let Some(ref python_registry) = self.python_registry {
-            options = options.with_python_callback_registry(python_registry.clone());
+        if !all_local_tools.is_empty() {
+            options = options.with_local_tools(all_local_tools);
         }
 
         let execution_res = deno_executor::execute(&to_execute, options).await?;

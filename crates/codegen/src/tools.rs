@@ -74,13 +74,22 @@ impl Tool {
         Self::_new(name, description, input, output, ToolVariant::Mcp)
     }
 
-    pub fn new_callable(
+    pub fn new_javascript(
         name: &str,
         description: Option<&String>,
         input: RootSchema,
         output: Option<RootSchema>,
     ) -> CodegenResult<Self> {
-        Self::_new(name, description, input, output, ToolVariant::Callable)
+        Self::_new(name, description, input, output, ToolVariant::JavaScript)
+    }
+
+    pub fn new_python(
+        name: &str,
+        description: Option<&String>,
+        input: RootSchema,
+        output: Option<RootSchema>,
+    ) -> CodegenResult<Self> {
+        Self::_new(name, description, input, output, ToolVariant::Python)
     }
 
     fn _new(
@@ -155,12 +164,22 @@ impl Tool {
                     output = &self.output_signature,
                 )
             }
-            ToolVariant::Callable => {
-                // For callable tools (JS/Python callbacks), we call the local tool directly
-                // The toolset_name encodes both the tool name and callback type
+            ToolVariant::JavaScript => {
+                // For JavaScript local tools, call the JS runtime function
                 format!(
                     "{fn_sig} {{
   return await callJsLocalTool<{output}>({tool}, input);
+}}",
+                    fn_sig = self.fn_signature(true),
+                    tool = json!(&self.name),
+                    output = &self.output_signature,
+                )
+            }
+            ToolVariant::Python => {
+                // For Python local tools, call the Python runtime function
+                format!(
+                    "{fn_sig} {{
+  return await callPythonCallback<{output}>({tool}, input);
 }}",
                     fn_sig = self.fn_signature(true),
                     tool = json!(&self.name),
@@ -174,5 +193,6 @@ impl Tool {
 #[derive(Clone, Copy, Debug)]
 pub enum ToolVariant {
     Mcp,
-    Callable,
+    JavaScript,
+    Python,
 }

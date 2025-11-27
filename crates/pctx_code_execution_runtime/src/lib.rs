@@ -24,13 +24,13 @@
 //!
 //! ```rust,no_run
 //! use deno_core::{JsRuntime, RuntimeOptions};
-//! use pctx_code_execution_runtime::{pctx_runtime_snapshot, MCPRegistry, JsLocalToolRegistry, AllowedHosts, RUNTIME_SNAPSHOT};
+//! use pctx_code_execution_runtime::{pctx_runtime_snapshot, MCPRegistry, LocalToolRegistry, AllowedHosts, RUNTIME_SNAPSHOT};
 //! use std::rc::Rc;
 //!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create registries
 //! let mcp_registry = MCPRegistry::new();
-//! let local_tool_registry = JsLocalToolRegistry::new();
+//! let local_tool_registry = LocalToolRegistry::new();
 //! let allowed_hosts = AllowedHosts::new(Some(vec!["example.com".to_string()]));
 //!
 //! let mut runtime = JsRuntime::new(RuntimeOptions {
@@ -101,14 +101,9 @@ mod tests;
 
 pub use fetch::AllowedHosts;
 pub use local_tool_registry::{
-    CallLocalToolArgs, LocalToolDefinition, LocalToolMetadata, LocalToolRegistry,
+    CallLocalToolArgs, CallbackRuntime, LocalToolDefinition, LocalToolMetadata, LocalToolRegistry,
 };
 pub use registry::MCPRegistry;
-
-// Re-export generic types with JS-specific aliases for backwards compatibility
-pub type JsLocalToolMetadata = LocalToolMetadata;
-pub type JsLocalToolDefinition = LocalToolDefinition;
-pub type JsLocalToolRegistry = LocalToolRegistry;
 
 /// Pre-compiled V8 snapshot containing the PCTX runtime
 ///

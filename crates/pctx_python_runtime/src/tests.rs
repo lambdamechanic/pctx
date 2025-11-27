@@ -1,9 +1,10 @@
 //! Tests for Python callback functionality
 //!
 //! Python callbacks are tested end-to-end via the execute() API in deno_executor.
-//! See deno_executor/src/tests/local_tools.rs for comprehensive integration tests.
+//! See deno_executor/src/tests/integration.rs for integration tests.
 
 use super::*;
+use pctx_code_execution_runtime::CallbackRuntime;
 use serial_test::serial;
 
 #[test]
@@ -18,6 +19,7 @@ fn test_register_and_execute_simple_lambda() {
                 description: Some("Adds two numbers".to_string()),
                 input_schema: None,
             },
+            runtime: CallbackRuntime::Python,
             callback_data: "lambda args: args['a'] + args['b']".to_string(),
         })
         .expect("Failed to register callback");
@@ -42,6 +44,7 @@ fn test_register_duplicate_tool() {
                 description: None,
                 input_schema: None,
             },
+            runtime: CallbackRuntime::Python,
             callback_data: "lambda args: 1".to_string(),
         })
         .unwrap();
@@ -52,6 +55,7 @@ fn test_register_duplicate_tool() {
             description: None,
             input_schema: None,
         },
+        runtime: CallbackRuntime::Python,
         callback_data: "lambda args: 2".to_string(),
     });
 

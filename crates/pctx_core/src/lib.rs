@@ -3,6 +3,9 @@ mod tools;
 use codegen::CodegenError;
 pub use tools::PctxTools;
 
+#[cfg(test)]
+mod tests;
+
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

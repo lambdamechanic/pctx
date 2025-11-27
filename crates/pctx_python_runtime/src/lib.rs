@@ -235,9 +235,17 @@ impl PythonCallbackRegistry {
         self.tool_registry.has(name)
     }
 
-    /// List all registered tools
+    /// List all registered tools (metadata only)
     pub fn list(&self) -> Vec<LocalToolMetadata> {
         self.tool_registry.list()
+    }
+
+    /// Get all registered tools as LocalToolDefinitions
+    ///
+    /// This allows extracting the tools from the Python registry
+    /// to pass them to a unified local tools API
+    pub fn list_tools(&self) -> Vec<LocalToolDefinition> {
+        self.tool_registry.get_pre_registered()
     }
 
     /// Execute a Python callback by name

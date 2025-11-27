@@ -9,6 +9,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+/// Runtime type for a local tool callback
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CallbackRuntime {
+    /// JavaScript callback executed in the Deno runtime
+    JavaScript,
+    /// Python callback executed via `PyO3`
+    Python,
+}
+
 /// Metadata for a local tool registration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalToolMetadata {
@@ -27,6 +37,8 @@ pub struct LocalToolMetadata {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalToolDefinition {
     pub metadata: LocalToolMetadata,
+    /// Runtime type for this callback
+    pub runtime: CallbackRuntime,
     /// Runtime-specific callback data
     /// For JS: JavaScript callback code (e.g., "(args) => args.a + args.b")
     /// For Python: Python callback code or reference
@@ -90,7 +102,7 @@ impl LocalToolRegistry {
     /// # Example
     ///
     /// ```rust
-    /// use pctx_code_execution_runtime::{LocalToolRegistry, LocalToolDefinition, LocalToolMetadata};
+    /// use pctx_code_execution_runtime::{CallbackRuntime, LocalToolRegistry, LocalToolDefinition, LocalToolMetadata};
     ///
     /// let registry = LocalToolRegistry::new();
     /// registry.register(LocalToolDefinition {
@@ -99,6 +111,7 @@ impl LocalToolRegistry {
     ///         description: Some("Adds two numbers".to_string()),
     ///         input_schema: None,
     ///     },
+    ///     runtime: CallbackRuntime::JavaScript,
     ///     callback_data: "(args) => args.a + args.b".to_string(),
     /// }).unwrap();
     /// ```

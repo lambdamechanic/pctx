@@ -4,11 +4,7 @@ use deno_runtime::deno_core::ModuleCodeString;
 use deno_runtime::deno_core::RuntimeOptions;
 use deno_runtime::deno_core::anyhow;
 use deno_runtime::deno_core::error::CoreError;
-pub use pctx_code_execution_runtime::{LocalToolDefinition, LocalToolMetadata};
-
-// Re-export with JS-specific aliases for backwards compatibility
-pub type JsLocalToolDefinition = LocalToolDefinition;
-pub type JsLocalToolMetadata = LocalToolMetadata;
+pub use pctx_code_execution_runtime::{CallbackRuntime, LocalToolDefinition, LocalToolMetadata};
 pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, type_check};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
@@ -24,7 +20,6 @@ pub struct ExecuteOptions {
     pub allowed_hosts: Option<Vec<String>>,
     pub mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
     pub local_tools: Option<Vec<pctx_code_execution_runtime::LocalToolDefinition>>,
-    pub python_callback_registry: Option<pctx_python_runtime::PythonCallbackRegistry>,
 }
 
 impl ExecuteOptions {
@@ -49,16 +44,13 @@ impl ExecuteOptions {
         mut self,
         tools: Vec<pctx_code_execution_runtime::LocalToolDefinition>,
     ) -> Self {
-        self.local_tools = Some(tools);
-        self
-    }
-
-    #[must_use]
-    pub fn with_python_callback_registry(
-        mut self,
-        registry: pctx_python_runtime::PythonCallbackRegistry,
-    ) -> Self {
-        self.python_callback_registry = Some(registry);
+        // Merge with existing tools if any
+        if let Some(mut existing) = self.local_tools {
+            existing.extend(tools);
+            self.local_tools = Some(existing);
+        } else {
+            self.local_tools = Some(tools);
+        }
         self
     }
 }
@@ -281,17 +273,42 @@ async fn execute_code(
             }
         }
     }
-    // Create local tool registry and populate it with provided tools
+    // Separate tools by runtime type
+    let (js_tools, python_tools): (Vec<_>, Vec<_>) = options
+        .local_tools
+        .unwrap_or_default()
+        .into_iter()
+        .partition(|tool| tool.runtime == CallbackRuntime::JavaScript);
+
+    // Create local tool registry for JavaScript tools
     let local_tool_registry = pctx_code_execution_runtime::LocalToolRegistry::new();
-    if let Some(tools) = options.local_tools {
-        for tool in tools {
-            if let Err(e) = local_tool_registry.register(tool) {
-                warn!(runtime = "execution", error = %e, "Failed to register local tool");
+    for tool in js_tools {
+        if let Err(e) = local_tool_registry.register(tool) {
+            warn!(runtime = "execution", error = %e, "Failed to register JS local tool");
+            return Ok(InternalExecuteResult {
+                success: false,
+                output: None,
+                error: Some(ExecutionError {
+                    message: format!("JS local tool registration failed: {e}"),
+                    stack: None,
+                }),
+                stdout: String::new(),
+                stderr: String::new(),
+            });
+        }
+    }
+
+    // Create Python callback registry if there are any Python tools
+    let python_registry = if !python_tools.is_empty() {
+        let registry = pctx_python_runtime::PythonCallbackRegistry::new();
+        for tool in python_tools {
+            if let Err(e) = registry.register(tool) {
+                warn!(runtime = "execution", error = %e, "Failed to register Python tool");
                 return Ok(InternalExecuteResult {
                     success: false,
                     output: None,
                     error: Some(ExecutionError {
-                        message: format!("Local tool registration failed: {e}"),
+                        message: format!("Python tool registration failed: {e}"),
                         stack: None,
                     }),
                     stdout: String::new(),
@@ -299,7 +316,10 @@ async fn execute_code(
                 });
             }
         }
-    }
+        Some(registry)
+    } else {
+        None
+    };
 
     let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(options.allowed_hosts);
 
@@ -310,8 +330,8 @@ async fn execute_code(
         allowed_hosts,
     )];
 
-    // Add Python callback extension if registry is provided
-    if options.python_callback_registry.is_some() {
+    // Add Python callback extension if we have Python tools
+    if python_registry.is_some() {
         extensions.push(python_ops::pctx_python_callbacks::init());
     }
 
@@ -325,8 +345,8 @@ async fn execute_code(
         ..Default::default()
     });
 
-    // If Python callback registry is provided, add it to OpState
-    if let Some(python_registry) = options.python_callback_registry {
+    // If Python callback registry was created, add it to OpState
+    if let Some(python_registry) = python_registry {
         js_runtime.op_state().borrow_mut().put(python_registry);
     }
 
