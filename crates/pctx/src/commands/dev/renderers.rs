@@ -171,14 +171,14 @@ fn render_tools_panel(f: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
-    let total_tools: usize = app.upstream_servers.iter().map(|s| s.tools.len()).sum();
+    let total_tools: usize = app.tools.tool_sets.iter().map(|s| s.tools.len()).sum();
     let title = format!("MCP Tools [{total_tools} total]");
 
     // Sort servers alphabetically by name
-    let mut sorted_servers: Vec<_> = app.upstream_servers.iter().collect();
-    sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
+    let mut sorted = app.tools.tool_sets.clone();
+    sorted.sort_by_key(|s| s.name.clone());
 
-    if sorted_servers.is_empty() {
+    if sorted.is_empty() {
         let help_lines = vec![
             Line::from(vec![Span::styled(
                 "No MCP servers connected",
@@ -255,7 +255,7 @@ fn render_tools_panel(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // Create horizontal layout for namespaces
-    let num_servers = sorted_servers.len();
+    let num_servers = sorted.len();
     let percentage_per_server = 100 / num_servers as u16;
     let constraints: Vec<Constraint> = (0..num_servers)
         .map(|_| Constraint::Percentage(percentage_per_server))
@@ -272,43 +272,44 @@ fn render_tools_panel(f: &mut Frame, app: &mut App, area: Rect) {
     // Render each namespace in its own column
     let mut global_tool_index = 0;
 
-    for (idx, server) in sorted_servers.iter().enumerate() {
+    for (idx, tool_set) in sorted.iter().enumerate() {
         let mut items: Vec<ListItem> = Vec::new();
 
         // Server header
-        let server_status = if server.tools.is_empty() { "!" } else { "✓" };
+        let status = if tool_set.tools.is_empty() {
+            "!"
+        } else {
+            "✓"
+        };
 
         items.push(ListItem::new(Line::from(vec![
-            Span::styled(format!("{server_status} "), Style::default().fg(TERTIARY)),
+            Span::styled(format!("{status} "), Style::default().fg(TERTIARY)),
             Span::styled(
-                server.name(),
+                &tool_set.name,
                 Style::default().fg(SECONDARY).add_modifier(Modifier::BOLD),
             ),
         ])));
 
         // Sort tools by usage count (descending)
-        let mut tools_with_usage: Vec<_> = server
+        let mut tools_with_usage: Vec<_> = tool_set
             .tools
             .iter()
-            .map(|(fn_name, tool)| {
-                let usage_key = format!("{}::{}", server.name(), tool.tool_name);
+            .map(|tool| {
+                let usage_key = format!("{}::{}", tool_set.name, tool.name);
                 let usage_count = app.tool_usage.get(&usage_key).map_or(0, |u| u.count);
-                (fn_name, tool, usage_count)
+                (tool, usage_count)
             })
             .collect();
-        tools_with_usage.sort_by(|a, b| b.2.cmp(&a.2));
+        tools_with_usage.sort_by(|a, b| b.1.cmp(&a.1));
 
         // Track the starting index for this server's tools
         let tools_start_index = global_tool_index;
 
         // Render sorted tools
-        for (fn_name, _tool, usage_count) in tools_with_usage {
+        for (tool, usage_count) in tools_with_usage {
             let is_selected_tool = app.selected_tool_index == Some(global_tool_index);
 
-            let mut spans = vec![Span::styled(
-                fn_name.as_str(),
-                Style::default().fg(TERTIARY),
-            )];
+            let mut spans = vec![Span::styled(&tool.fn_name, Style::default().fg(TERTIARY))];
 
             // Add usage count in gray if > 0
             if usage_count > 0 {
@@ -330,7 +331,7 @@ fn render_tools_panel(f: &mut Frame, app: &mut App, area: Rect) {
             global_tool_index += 1;
         }
 
-        let namespace_title = format!("{} ({} tools)", server.name(), server.tools.len());
+        let namespace_title = format!("{} ({} tools)", tool_set.name, tool_set.tools.len());
 
         // Check if a tool in this namespace is selected
         let selected_in_this_namespace = app
@@ -408,8 +409,8 @@ fn render_logs_panel(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_tool_detail(f: &mut Frame, app: &App, area: Rect) {
-    if let Some((server, tool_name, tool)) = app.get_selected_tool() {
-        let usage_key = format!("{}::{}", server.name(), tool.tool_name);
+    if let Some((tool_set, tool)) = app.get_selected_tool() {
+        let usage_key = format!("{}::{}", tool_set.name, tool.name);
         let usage = app.tool_usage.get(&usage_key);
 
         let mut lines: Vec<Line> = vec![
@@ -419,21 +420,21 @@ fn render_tool_detail(f: &mut Frame, app: &App, area: Rect) {
                     "Server: ",
                     Style::default().fg(SECONDARY).add_modifier(Modifier::BOLD),
                 ),
-                Span::raw(server.name()),
+                Span::raw(&tool_set.name),
             ]),
             Line::from(vec![
                 Span::styled(
                     "Function: ",
                     Style::default().fg(TERTIARY).add_modifier(Modifier::BOLD),
                 ),
-                Span::raw(&tool_name),
+                Span::raw(&tool.fn_name),
             ]),
             Line::from(vec![
                 Span::styled(
                     "Tool Name: ",
                     Style::default().fg(TERTIARY).add_modifier(Modifier::BOLD),
                 ),
-                Span::raw(&tool.tool_name),
+                Span::raw(&tool.name),
             ]),
             Line::from(""),
         ];
@@ -478,7 +479,7 @@ fn render_tool_detail(f: &mut Frame, app: &App, area: Rect) {
             "Input Type:",
             Style::default().fg(SECONDARY).add_modifier(Modifier::BOLD),
         )]));
-        lines.push(Line::from(format!("  {}", tool.input_type)));
+        lines.push(Line::from(format!("  {}", tool.input_signature)));
         lines.push(Line::from(""));
 
         // Output type
@@ -486,7 +487,7 @@ fn render_tool_detail(f: &mut Frame, app: &App, area: Rect) {
             "Output Type:",
             Style::default().fg(SECONDARY).add_modifier(Modifier::BOLD),
         )]));
-        lines.push(Line::from(format!("  {}", tool.output_type)));
+        lines.push(Line::from(format!("  {}", tool.output_signature)));
         lines.push(Line::from(""));
 
         // TypeScript types
@@ -512,7 +513,7 @@ fn render_tool_detail(f: &mut Frame, app: &App, area: Rect) {
                     .border_style(Style::default().fg(SECONDARY))
                     .title(format!(
                         "Tool Detail - {} [{}/{}]",
-                        tool_name,
+                        tool.name,
                         app.detail_scroll_offset + 1,
                         lines.len()
                     )),

@@ -33,15 +33,11 @@ impl ToolSet {
     }
 
     pub fn namespace(&self) -> String {
-        let fns: Vec<String> = self
-            .tools
-            .iter()
-            .map(|t| t.fn_impl(&self.mod_name))
-            .collect();
+        let fns: Vec<String> = self.tools.iter().map(|t| t.fn_impl(&self.name)).collect();
         self.wrap_with_namespace(&fns.join("\n\n"))
     }
 
-    fn wrap_with_namespace(&self, content: &str) -> String {
+    pub fn wrap_with_namespace(&self, content: &str) -> String {
         format!(
             "{docstring}
 namespace {namespace} {{
@@ -142,7 +138,7 @@ impl Tool {
         )
     }
 
-    pub fn fn_impl(&self, mod_name: &str) -> String {
+    pub fn fn_impl(&self, toolset_name: &str) -> String {
         match self.variant {
             ToolVariant::Mcp => {
                 format!(
@@ -154,7 +150,7 @@ impl Tool {
   }});
 }}",
                     fn_sig = self.fn_signature(true),
-                    name = json!(mod_name),
+                    name = json!(toolset_name),
                     tool = json!(&self.name),
                     output = &self.output_signature,
                 )

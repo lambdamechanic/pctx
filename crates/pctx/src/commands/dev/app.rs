@@ -8,18 +8,19 @@ use std::{
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use chrono::{DateTime, Utc};
+use codegen::{Tool, ToolSet};
 use pctx_config::logger::LogLevel;
 use ratatui::{layout::Rect, widgets::ListState};
 
 use super::log_entry::LogEntry;
-use crate::mcp::upstream::UpstreamMcp;
+use pctx_core::PctxTools;
 
 // -------- APP STATE & CONTROLS ---------
 
 #[derive(Clone)]
 pub(super) enum AppMessage {
     ServerStarting,
-    ServerReady(Vec<UpstreamMcp>),
+    ServerReady(PctxTools),
     ServerFailed(String),
     ServerStopped,
     ConfigChanged,
@@ -46,7 +47,7 @@ pub(super) struct ToolUsage {
 
 pub(super) struct App {
     pub(super) logs: Vec<LogEntry>,
-    pub(super) upstream_servers: Vec<UpstreamMcp>,
+    pub(super) tools: PctxTools,
     pub(super) server_ready: bool,
     pub(super) host: String,
     pub(super) port: u16,
@@ -79,7 +80,7 @@ impl App {
     pub(super) fn new(host: String, port: u16, log_file_path: Utf8PathBuf) -> Self {
         Self {
             logs: Vec::new(),
-            upstream_servers: Vec::new(),
+            tools: PctxTools::default(),
             server_ready: false,
             host,
             port,
@@ -169,42 +170,41 @@ impl App {
             tracing::trace!(
                 "Found code_from_llm field (length={}), checking for tool usage. Servers available: {}",
                 code_from_llm.len(),
-                self.upstream_servers.len()
+                self.tools.tool_sets.len()
             );
 
             // Parse the code to find upstream tool calls like "Banking.getAccountBalance"
             // Pattern: namespace.methodName(
-            for server in &self.upstream_servers {
-                let namespace_pattern = format!("{}.", server.namespace);
+            for tool_set in &self.tools.tool_sets {
+                let namespace_pattern = format!("{}.", &tool_set.mod_name);
                 tracing::trace!(
-                    "Checking for server '{}' with namespace pattern '{}' in code",
-                    server.name(),
-                    namespace_pattern
+                    "Checking for server '{}' with namespace pattern '{namespace_pattern}' in code",
+                    &tool_set.name
                 );
 
                 if code_from_llm.contains(&namespace_pattern) {
                     tracing::trace!(
                         "✓ Found {} namespace in code_from_llm, checking {} tools",
-                        server.namespace,
-                        server.tools.len()
+                        &tool_set.mod_name,
+                        tool_set.tools.len()
                     );
 
                     // Find all method calls for this server
-                    for (fn_name, tool) in &server.tools {
+                    for tool in &tool_set.tools {
                         // Check if this function is called in the code
-                        let method_pattern = format!("{}.{}(", server.namespace, fn_name);
+                        let method_pattern = format!("{}.{}(", &tool_set.mod_name, &tool.fn_name);
                         tracing::trace!(
                             "Checking for method pattern '{}' for tool '{}'",
                             method_pattern,
-                            tool.tool_name
+                            &tool.name
                         );
 
                         if code_from_llm.contains(&method_pattern) {
                             tracing::trace!(
                                 "✓ Found tool usage: {}.{} (tool_name={})",
-                                server.namespace,
-                                fn_name,
-                                tool.tool_name
+                                &tool_set.mod_name,
+                                &tool.fn_name,
+                                &tool.name
                             );
 
                             // Extract a snippet of the call
@@ -219,7 +219,7 @@ impl App {
                                     .trim()
                                     .to_string();
 
-                                let key = format!("{}::{}", server.name(), tool.tool_name);
+                                let key = format!("{}::{}", tool_set.name, tool.name);
 
                                 self.tool_usage
                                     .entry(key.clone())
@@ -233,8 +233,8 @@ impl App {
                                         }
                                     })
                                     .or_insert_with(|| ToolUsage {
-                                        tool_name: tool.tool_name.clone(),
-                                        server_name: server.name().to_string(),
+                                        tool_name: tool.name.clone(),
+                                        server_name: tool_set.name.clone(),
                                         count: 1,
                                         last_used: entry.timestamp,
                                         code_snippets: if code_snippet.is_empty() {
@@ -290,15 +290,15 @@ impl App {
 
     pub(super) fn handle_message(&mut self, msg: AppMessage) {
         match msg {
-            AppMessage::ServerReady(upstreams) => {
+            AppMessage::ServerReady(tools) => {
                 self.server_ready = true;
                 self.error = None;
-                self.upstream_servers = upstreams;
+                self.tools = tools;
 
                 // Re-process all existing logs now that we have server metadata
                 tracing::info!(
                     "ServerConnected: {} servers available. Re-processing existing logs for tool usage tracking.",
-                    self.upstream_servers.len()
+                    self.tools.tool_sets.len()
                 );
                 self.reprocess_logs_for_tool_usage();
             }
@@ -317,7 +317,7 @@ impl App {
             AppMessage::ConfigChanged => {
                 tracing::info!("Configuration file changed, reloading servers...");
                 // Clear existing servers - they will be repopulated when reconnection completes
-                self.upstream_servers.clear();
+                self.tools = PctxTools::default();
                 self.selected_tool_index = None;
                 self.selected_namespace_index = 0;
             }
@@ -397,26 +397,26 @@ impl App {
 
     pub(super) fn scroll_tools_down(&mut self) {
         // Sort servers alphabetically (same as rendering)
-        let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
+        let mut sorted = self.tools.tool_sets.clone();
+        sorted.sort_by_key(|s| s.name.clone());
 
-        if sorted_servers.is_empty() {
+        if sorted.is_empty() {
             return;
         }
 
         // Get current namespace's tool count
-        if self.selected_namespace_index >= sorted_servers.len() {
+        if self.selected_namespace_index >= sorted.len() {
             return;
         }
 
-        let current_server = sorted_servers[self.selected_namespace_index];
+        let current_server = &sorted[self.selected_namespace_index];
         let tools_in_namespace = current_server.tools.len();
         if tools_in_namespace == 0 {
             return;
         }
 
         // Calculate global indices for this namespace
-        let namespace_start_idx: usize = sorted_servers
+        let namespace_start_idx: usize = sorted
             .iter()
             .take(self.selected_namespace_index)
             .map(|s| s.tools.len())
@@ -433,19 +433,19 @@ impl App {
 
     pub(super) fn scroll_tools_up(&mut self) {
         // Sort servers alphabetically (same as rendering)
-        let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
+        let mut sorted = self.tools.tool_sets.clone();
+        sorted.sort_by_key(|s| s.name.clone());
 
-        if sorted_servers.is_empty() {
+        if sorted.is_empty() {
             return;
         }
 
         // Get current namespace's start index
-        if self.selected_namespace_index >= sorted_servers.len() {
+        if self.selected_namespace_index >= sorted.len() {
             return;
         }
 
-        let namespace_start_idx: usize = sorted_servers
+        let namespace_start_idx: usize = sorted
             .iter()
             .take(self.selected_namespace_index)
             .map(|s| s.tools.len())
@@ -462,15 +462,15 @@ impl App {
     }
 
     pub(super) fn move_to_next_namespace(&mut self) {
-        if self.upstream_servers.is_empty() {
+        if self.tools.tool_sets.is_empty() {
             return;
         }
 
         // Sort servers alphabetically (same as rendering)
-        let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
+        let mut sorted = self.tools.tool_sets.clone();
+        sorted.sort_by_key(|s| s.name.clone());
 
-        let num_namespaces = sorted_servers.len();
+        let num_namespaces = sorted.len();
         if num_namespaces == 0 {
             return;
         }
@@ -483,15 +483,15 @@ impl App {
     }
 
     pub(super) fn move_to_prev_namespace(&mut self) {
-        if self.upstream_servers.is_empty() {
+        if self.tools.tool_sets.is_empty() {
             return;
         }
 
         // Sort servers alphabetically (same as rendering)
-        let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
+        let mut sorted = self.tools.tool_sets.clone();
+        sorted.sort_by_key(|s| s.name.clone());
 
-        let num_namespaces = sorted_servers.len();
+        let num_namespaces = sorted.len();
         if num_namespaces == 0 {
             return;
         }
@@ -509,17 +509,17 @@ impl App {
 
     pub(super) fn select_first_tool_in_current_namespace(&mut self) {
         // Sort servers alphabetically (same as rendering)
-        let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
+        let mut sorted = self.tools.tool_sets.clone();
+        sorted.sort_by_key(|s| s.name.clone());
 
-        if self.selected_namespace_index >= sorted_servers.len() {
+        if self.selected_namespace_index >= sorted.len() {
             self.selected_tool_index = None;
             return;
         }
 
         // Calculate the index of the first tool in the selected namespace
         let mut tool_index = 0;
-        for (idx, server) in sorted_servers.iter().enumerate() {
+        for (idx, server) in sorted.iter().enumerate() {
             if idx == self.selected_namespace_index {
                 // Found our namespace, set to first tool
                 if server.tools.is_empty() {
@@ -533,32 +533,30 @@ impl App {
         }
     }
 
-    pub(super) fn get_selected_tool(
-        &self,
-    ) -> Option<(&UpstreamMcp, String, &crate::mcp::upstream::UpstreamTool)> {
+    pub(super) fn get_selected_tool(&self) -> Option<(ToolSet, Tool)> {
         let idx = self.selected_tool_index?;
         let mut counter = 0;
 
         // Sort servers alphabetically (same as rendering)
-        let mut sorted_servers: Vec<_> = self.upstream_servers.iter().collect();
-        sorted_servers.sort_by(|a, b| a.name().cmp(b.name()));
+        let mut sorted = self.tools.tool_sets.clone();
+        sorted.sort_by_key(|s| s.name.clone());
 
-        for server in sorted_servers {
+        for tool_set in sorted {
             // Sort tools by usage count (same as rendering)
-            let mut tools_with_usage: Vec<_> = server
+            let mut tools_with_usage: Vec<_> = tool_set
                 .tools
                 .iter()
-                .map(|(fn_name, tool)| {
-                    let usage_key = format!("{}::{}", server.name(), tool.tool_name);
+                .map(|tool| {
+                    let usage_key = format!("{}::{}", tool_set.name, tool.name);
                     let usage_count = self.tool_usage.get(&usage_key).map_or(0, |u| u.count);
-                    (fn_name, tool, usage_count)
+                    (tool.clone(), usage_count)
                 })
                 .collect();
-            tools_with_usage.sort_by(|a, b| b.2.cmp(&a.2));
+            tools_with_usage.sort_by(|a, b| b.1.cmp(&a.1));
 
-            for (tool_name, tool, _usage_count) in tools_with_usage {
+            for (tool, _usage_count) in tools_with_usage {
                 if counter == idx {
-                    return Some((server, tool_name.clone(), tool));
+                    return Some((tool_set, tool));
                 }
                 counter += 1;
             }

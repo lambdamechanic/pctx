@@ -6761,6 +6761,7 @@ dependencies = [
  "opentelemetry-otlp 0.31.0",
  "opentelemetry_sdk 0.31.0",
  "pctx_config",
+ "pctx_core",
  "ratatui",
  "rmcp",
  "rustls",
@@ -6827,7 +6828,10 @@ name = "pctx_core"
 version = "0.1.0"
 dependencies = [
  "codegen",
+ "deno_executor",
  "pctx_config",
+ "schemars 1.1.0",
+ "serde",
  "serde_json",
  "thiserror 2.0.17",
  "tracing",
