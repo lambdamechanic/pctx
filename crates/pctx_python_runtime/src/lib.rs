@@ -16,7 +16,7 @@
 //!
 //! ```rust,no_run
 //! use pctx_python_runtime::{PythonCallbackRegistry, execute_python_tool};
-//! use pctx_code_execution_runtime::{LocalToolDefinition, LocalToolMetadata};
+//! use pctx_code_execution_runtime::{CallbackRuntime, LocalToolDefinition, LocalToolMetadata};
 //!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create registry
@@ -30,6 +30,7 @@
 //!         input_schema: None,
 //!         namespace: "MyTools".to_string(),
 //!     },
+//!     runtime: CallbackRuntime::Python,
 //!     callback_data: "lambda args: args['a'] + args['b']".to_string(),
 //! })?;
 //!
