@@ -1,5 +1,5 @@
 use super::serial;
-use crate::execute;
+use crate::{ExecuteOptions, execute};
 
 #[serial]
 #[tokio::test]
@@ -9,7 +9,7 @@ const x: number = 1 + 1;
 export default x;
 ";
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -29,7 +29,7 @@ const greeting = "Hello, World!";
 export default greeting;
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -49,7 +49,7 @@ const data = { name: "Alice", age: 30 };
 export default data;
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -68,7 +68,7 @@ const numbers = [1, 2, 3, 4, 5];
 export default numbers;
 ";
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -88,7 +88,7 @@ const x = 42;
 console.log(x);
 ";
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -112,7 +112,7 @@ console.log("Done!");
 export default result;
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -140,7 +140,7 @@ const isValid = true;
 export default isValid;
 ";
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -159,7 +159,7 @@ async fn test_capture_null_export() {
 export default null;
 ";
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -179,7 +179,7 @@ const x: number = "string";
 export default x;
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Type error should cause failure");
@@ -201,7 +201,7 @@ throw new Error("Runtime error");
 export default 42;
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Runtime error should cause failure");
@@ -232,7 +232,7 @@ const data = {
 export default data;
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");

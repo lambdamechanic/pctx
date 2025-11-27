@@ -1,5 +1,5 @@
 use super::serial;
-use crate::execute;
+use crate::{ExecuteOptions, execute};
 
 #[serial]
 #[tokio::test]
@@ -10,7 +10,7 @@ console.log("Line 2");
 export default "result";
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -34,7 +34,7 @@ console.error("Error message");
 export default "result";
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -55,7 +55,7 @@ console.log("More output");
 export default "result";
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");
@@ -76,7 +76,7 @@ export default "result";
 async fn test_execute_stderr_contains_type_error() {
     let code = r#"const x: number = "string";"#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Type error should cause failure");
@@ -100,7 +100,7 @@ async fn test_execute_stderr_contains_type_error() {
 async fn test_execute_stderr_contains_syntax_error() {
     let code = "async function run() { onst x = 5; return x; }";
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Syntax error should cause failure");
@@ -125,7 +125,7 @@ async fn test_execute_stderr_contains_transpilation_error() {
     // Missing closing brace
     let code = "function test() { return 42;";
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Transpilation error should cause failure");
@@ -146,7 +146,7 @@ async fn test_execute_stderr_contains_runtime_error() {
 throw new Error("Runtime failure");
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Code with runtime error should fail");
@@ -173,7 +173,7 @@ console.log("This prints before error");
 throw new Error("Then fails");
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Code should fail due to runtime error");
@@ -194,7 +194,7 @@ for (let i = 1; i <= 3; i++) {
 export default "done";
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Code should execute successfully");

@@ -1,5 +1,5 @@
 use super::serial;
-use crate::execute;
+use crate::{ExecuteOptions, execute};
 
 #[serial]
 #[tokio::test]
@@ -21,7 +21,7 @@ async function test() {
 export default await test();
 "#;
 
-    let result = execute(code, None, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Execution should succeed");
@@ -68,10 +68,13 @@ async function test() {
 export default await test();
 "#;
 
-    let allowed_hosts = Some(vec!["localhost:8888".to_string()]);
-    let result = execute(code, allowed_hosts, None, None)
-        .await
-        .expect("execution should succeed");
+    let allowed_hosts = vec!["localhost:8888".to_string()];
+    let result = execute(
+        code,
+        ExecuteOptions::new().with_allowed_hosts(allowed_hosts),
+    )
+    .await
+    .expect("execution should succeed");
     assert!(result.success, "Execution should succeed");
 
     let output = result.output.expect("Should have output");
@@ -106,10 +109,13 @@ export default await test();
 "#;
 
     // Allow localhost:3000 but try to access example.com
-    let allowed_hosts = Some(vec!["localhost:3000".to_string()]);
-    let result = execute(code, allowed_hosts, None, None)
-        .await
-        .expect("execution should succeed");
+    let allowed_hosts = vec!["localhost:3000".to_string()];
+    let result = execute(
+        code,
+        ExecuteOptions::new().with_allowed_hosts(allowed_hosts),
+    )
+    .await
+    .expect("execution should succeed");
     assert!(result.success, "Execution should succeed");
 
     let output = result.output.expect("Should have output");
@@ -152,13 +158,13 @@ async function main() {
 export default await main();
 "#;
 
-    let allowed_hosts = Some(vec![
-        "localhost:3000".to_string(),
-        "localhost:4000".to_string(),
-    ]);
-    let result = execute(code, allowed_hosts, None, None)
-        .await
-        .expect("execution should succeed");
+    let allowed_hosts = vec!["localhost:3000".to_string(), "localhost:4000".to_string()];
+    let result = execute(
+        code,
+        ExecuteOptions::new().with_allowed_hosts(allowed_hosts),
+    )
+    .await
+    .expect("execution should succeed");
 
     if !result.success {
         eprintln!("Execution failed!");

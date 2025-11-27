@@ -1,5 +1,5 @@
 use super::serial;
-use crate::{JsLocalToolDefinition, JsLocalToolMetadata, execute};
+use crate::{ExecuteOptions, JsLocalToolDefinition, JsLocalToolMetadata, execute};
 
 #[tokio::test]
 #[serial]
@@ -21,7 +21,7 @@ async fn test_execute_with_pre_registered_local_tool() {
         callback_code: "(args) => args.a + args.b".to_string(),
     }];
 
-    let result = execute(code, None, None, Some(local_tools))
+    let result = execute(code, ExecuteOptions::new().with_local_tools(local_tools))
         .await
         .expect("Execution should succeed");
 
@@ -77,11 +77,11 @@ async fn test_execute_with_multiple_local_tools() {
                 description: Some("Greets someone".to_string()),
                 input_schema: None,
             },
-            callback_code: r#"(args) => `Hello, ${args.name}!`"#.to_string(),
+            callback_code: r"(args) => `Hello, ${args.name}!`".to_string(),
         },
     ];
 
-    let result = execute(code, None, None, Some(local_tools))
+    let result = execute(code, ExecuteOptions::new().with_local_tools(local_tools))
         .await
         .expect("Execution should succeed");
 
@@ -117,7 +117,7 @@ async fn test_local_tool_with_async_callback() {
         .to_string(),
     }];
 
-    let result = execute(code, None, None, Some(local_tools))
+    let result = execute(code, ExecuteOptions::new().with_local_tools(local_tools))
         .await
         .expect("Execution should succeed");
 
@@ -152,7 +152,7 @@ async fn test_local_tool_registration_error() {
         },
     ];
 
-    let result = execute(code, None, None, Some(local_tools))
+    let result = execute(code, ExecuteOptions::new().with_local_tools(local_tools))
         .await
         .expect("Execution should succeed");
 

@@ -18,7 +18,7 @@ pub struct PctxTools {
 
     // configurations
     pub servers: Vec<ServerConfig>,
-    // TODO: callables
+    pub local_tools: Vec<deno_executor::JsLocalToolDefinition>,
 }
 
 impl PctxTools {
@@ -128,12 +128,15 @@ impl PctxTools {
 
         debug!("Executing code in sandbox");
 
-        let execution_res = deno_executor::execute(
-            &to_execute,
-            Some(self.allowed_hosts().into_iter().collect()),
-            Some(self.servers.clone()),
-        )
-        .await?;
+        let mut options = deno_executor::ExecuteOptions::new()
+            .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
+            .with_mcp_configs(self.servers.clone());
+
+        if !self.local_tools.is_empty() {
+            options = options.with_local_tools(self.local_tools.clone());
+        }
+
+        let execution_res = deno_executor::execute(&to_execute, options).await?;
 
         if execution_res.success {
             debug!("Sandbox execution completed successfully");

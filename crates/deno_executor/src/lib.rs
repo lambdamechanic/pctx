@@ -13,6 +13,43 @@ use tracing::{debug, warn};
 
 pub type Result<T> = std::result::Result<T, DenoExecutorError>;
 
+/// Options for executing TypeScript code
+#[derive(Debug, Clone, Default)]
+pub struct ExecuteOptions {
+    pub allowed_hosts: Option<Vec<String>>,
+
+    pub mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
+
+    pub local_tools: Option<Vec<pctx_code_execution_runtime::JsLocalToolDefinition>>,
+}
+
+impl ExecuteOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[must_use]
+    pub fn with_allowed_hosts(mut self, hosts: Vec<String>) -> Self {
+        self.allowed_hosts = Some(hosts);
+        self
+    }
+
+    #[must_use]
+    pub fn with_mcp_configs(mut self, configs: Vec<pctx_config::server::ServerConfig>) -> Self {
+        self.mcp_configs = Some(configs);
+        self
+    }
+
+    #[must_use]
+    pub fn with_local_tools(
+        mut self,
+        tools: Vec<pctx_code_execution_runtime::JsLocalToolDefinition>,
+    ) -> Self {
+        self.local_tools = Some(tools);
+        self
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecuteResult {
     pub success: bool,
@@ -54,13 +91,7 @@ pub enum DenoExecutorError {
 ///
 /// # Arguments
 /// * `code` - The TypeScript code to check and execute
-/// * `allowed_hosts` - Optional list of hosts that network requests are allowed to access.
-///   Format: "hostname:port" or just "hostname" (e.g., "localhost:3000", "api.example.com").
-///   If None or empty, all network access is denied.
-/// * `mcp_configs` - Optional list of MCP server configurations to register.
-///   These will be pre-registered in the runtime before code execution.
-/// * `local_tools` - Optional list of local tool definitions to register.
-///   These will be pre-registered in the runtime before code execution.
+/// * `options` - Execution options (allowed hosts, MCP configs, local tools)
 ///
 /// # Returns
 /// * `Ok(ExecuteResult)` - Contains type diagnostics, runtime errors, and output
@@ -68,12 +99,19 @@ pub enum DenoExecutorError {
 /// # Errors
 /// * Returns error only if internal tooling fails (not for type errors or runtime errors)
 ///
-pub async fn execute(
-    code: &str,
-    allowed_hosts: Option<Vec<String>>,
-    mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
-    local_tools: Option<Vec<pctx_code_execution_runtime::JsLocalToolDefinition>>,
-) -> Result<ExecuteResult> {
+/// # Example
+/// ```rust,no_run
+/// use deno_executor::{execute, ExecuteOptions};
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let options = ExecuteOptions::new()
+///     .with_allowed_hosts(vec!["api.example.com".to_string()]);
+///
+/// let result = execute("const x = 1 + 1; export default x;", options).await?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn execute(code: &str, options: ExecuteOptions) -> Result<ExecuteResult> {
     debug!(
         code_length = code.len(),
         "Code submitted for typecheck & execution"
@@ -107,9 +145,14 @@ pub async fn execute(
 
     debug!(runtime = "type_check", "Type check passed");
 
-    let exec_result = execute_code(code, allowed_hosts, mcp_configs, local_tools)
-        .await
-        .map_err(|e| DenoExecutorError::InternalError(e.to_string()))?;
+    let exec_result = execute_code(
+        code,
+        options.allowed_hosts,
+        options.mcp_configs,
+        options.local_tools,
+    )
+    .await
+    .map_err(|e| DenoExecutorError::InternalError(e.to_string()))?;
 
     let stderr = if let Some(ref err) = exec_result.error {
         err.message.clone()
