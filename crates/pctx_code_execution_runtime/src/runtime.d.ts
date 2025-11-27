@@ -153,6 +153,47 @@ export const JS_LOCAL_TOOLS: {
 };
 
 // ============================================================================
+// Python Callback API
+// ============================================================================
+
+/**
+ * Python callback metadata (returned from registry)
+ */
+export interface PythonCallbackMetadata {
+    name: string;
+    description?: string;
+    input_schema?: {
+        type: string;
+        properties?: Record<string, unknown>;
+        required?: string[];
+        [key: string]: unknown;
+    };
+}
+
+/**
+ * Call a Python callback (invokes registered Python function via pyo3)
+ *
+ * @example
+ * ```typescript
+ * const result = await callPythonCallback("my-callback", { value: 42 });
+ * ```
+ */
+export function callPythonCallback<TReturn = unknown, TArgs = unknown>(
+    name: string,
+    args?: TArgs
+): Promise<TReturn>;
+
+/**
+ * Python Callback Registry - provides access to registered Python callbacks
+ */
+export const PYTHON_CALLBACKS: {
+    /** Check if a Python callback is registered */
+    has(name: string): boolean;
+    /** List all registered Python callbacks */
+    list(): PythonCallbackMetadata[];
+};
+
+// ============================================================================
 // Fetch API
 // ============================================================================
 
@@ -192,5 +233,7 @@ declare global {
     var registerJsLocalTool: typeof import('./runtime').registerJsLocalTool;
     var callJsLocalTool: typeof import('./runtime').callJsLocalTool;
     var JS_LOCAL_TOOLS: typeof import('./runtime').JS_LOCAL_TOOLS;
+    var callPythonCallback: typeof import('./runtime').callPythonCallback;
+    var PYTHON_CALLBACKS: typeof import('./runtime').PYTHON_CALLBACKS;
     var fetch: typeof import('./runtime').fetch;
 }

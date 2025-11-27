@@ -15,6 +15,8 @@ use std::rc::Rc;
 use thiserror::Error;
 use tracing::{debug, warn};
 
+mod python_ops;
+
 pub type Result<T> = std::result::Result<T, DenoExecutorError>;
 
 #[derive(Debug, Clone, Default)]
@@ -22,6 +24,7 @@ pub struct ExecuteOptions {
     pub allowed_hosts: Option<Vec<String>>,
     pub mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
     pub local_tools: Option<Vec<pctx_code_execution_runtime::LocalToolDefinition>>,
+    pub python_callback_registry: Option<pctx_python_runtime::PythonCallbackRegistry>,
 }
 
 impl ExecuteOptions {
@@ -47,6 +50,15 @@ impl ExecuteOptions {
         tools: Vec<pctx_code_execution_runtime::LocalToolDefinition>,
     ) -> Self {
         self.local_tools = Some(tools);
+        self
+    }
+
+    #[must_use]
+    pub fn with_python_callback_registry(
+        mut self,
+        registry: pctx_python_runtime::PythonCallbackRegistry,
+    ) -> Self {
+        self.python_callback_registry = Some(registry);
         self
     }
 }
@@ -291,19 +303,32 @@ async fn execute_code(
 
     let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(options.allowed_hosts);
 
+    // Build extensions list
+    let mut extensions = vec![pctx_code_execution_runtime::pctx_runtime_snapshot::init(
+        mcp_registry,
+        local_tool_registry,
+        allowed_hosts,
+    )];
+
+    // Add Python callback extension if registry is provided
+    if options.python_callback_registry.is_some() {
+        extensions.push(python_ops::pctx_python_callbacks::init());
+    }
+
     // Create JsRuntime from `pctx_runtime` snapshot and extension
     // The snapshot contains the ESM code pre-compiled, and init() registers both ops and ESM
     // Deno handles the deduplication when loading from snapshot
     let mut js_runtime = JsRuntime::new(RuntimeOptions {
         module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
         startup_snapshot: Some(pctx_code_execution_runtime::RUNTIME_SNAPSHOT),
-        extensions: vec![pctx_code_execution_runtime::pctx_runtime_snapshot::init(
-            mcp_registry,
-            local_tool_registry,
-            allowed_hosts,
-        )],
+        extensions,
         ..Default::default()
     });
+
+    // If Python callback registry is provided, add it to OpState
+    if let Some(python_registry) = options.python_callback_registry {
+        js_runtime.op_state().borrow_mut().put(python_registry);
+    }
 
     // Create the main module specifier
     let main_module = deno_core::resolve_url("file:///execute.js")?;

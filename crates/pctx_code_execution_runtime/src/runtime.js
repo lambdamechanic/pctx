@@ -152,22 +152,23 @@ function ensurePreRegisteredToolsLoaded() {
     if (preRegisteredToolsLoaded) return;
     preRegisteredToolsLoaded = true;
 
-    if (typeof ops.op_get_pre_registered_tools !== 'function') return;
-
-    const preRegistered = ops.op_get_pre_registered_tools();
-    for (const tool of preRegistered) {
-        try {
-            // Evaluate the callback_data as JavaScript code to create the function
-            const callback = eval(tool.callback_data);
-            if (typeof callback !== 'function') {
-                console.error(`Pre-registered tool "${tool.metadata.name}" callback_data did not eval to a function`);
-                continue;
+    // Load JS local tools
+    if (typeof ops.op_get_pre_registered_tools === 'function') {
+        const preRegistered = ops.op_get_pre_registered_tools();
+        for (const tool of preRegistered) {
+            try {
+                // Evaluate the callback_data as JavaScript code to create the function
+                const callback = eval(tool.callback_data);
+                if (typeof callback !== 'function') {
+                    console.error(`Pre-registered JS tool "${tool.metadata.name}" callback_data did not eval to a function`);
+                    continue;
+                }
+                // Store the callback
+                localToolCallbacks.set(tool.metadata.name, callback);
+                console.log(`Auto-registered JS local tool: ${tool.metadata.name}`);
+            } catch (e) {
+                console.error(`Failed to register pre-registered JS tool "${tool.metadata.name}":`, e);
             }
-            // Store the callback
-            localToolCallbacks.set(tool.metadata.name, callback);
-            console.log(`Auto-registered local tool: ${tool.metadata.name}`);
-        } catch (e) {
-            console.error(`Failed to register pre-registered tool "${tool.metadata.name}":`, e);
         }
     }
 }
@@ -268,6 +269,52 @@ export const JS_LOCAL_TOOLS = {
     }
 };
 
+// ============================================================================
+// PYTHON CALLBACK API
+// ============================================================================
+
+/**
+ * Call a Python callback (invokes registered Python function via pyo3)
+ * @template T
+ * @param {string} name - Name of the registered Python callback
+ * @param {Object} [args] - Arguments to pass to the callback
+ * @returns {Promise<T>} The callback's return value
+ */
+export async function callPythonCallback(name, args) {
+    if (typeof ops.op_python_callback_execute !== 'function') {
+        throw new Error('Python callback runtime not available');
+    }
+    return await ops.op_python_callback_execute(name, args);
+}
+
+/**
+ * Python Callback Registry - provides access to registered Python callbacks
+ */
+export const PYTHON_CALLBACKS = {
+    /**
+     * Check if a Python callback is registered
+     * @param {string} name - Name of the Python callback
+     * @returns {boolean} True if registered
+     */
+    has(name) {
+        if (typeof ops.op_python_callback_has !== 'function') {
+            return false;
+        }
+        return ops.op_python_callback_has(name);
+    },
+
+    /**
+     * List all registered Python callbacks
+     * @returns {Array<Object>} Array of callback metadata
+     */
+    list() {
+        if (typeof ops.op_python_callback_list !== 'function') {
+            return [];
+        }
+        return ops.op_python_callback_list();
+    },
+};
+
 // Make APIs available globally for convenience (matching original behavior)
 globalThis.registerMCP = registerMCP;
 globalThis.callMCPTool = callMCPTool;
@@ -275,4 +322,6 @@ globalThis.REGISTRY = REGISTRY;
 globalThis.registerJsLocalTool = registerJsLocalTool;
 globalThis.callJsLocalTool = callJsLocalTool;
 globalThis.JS_LOCAL_TOOLS = JS_LOCAL_TOOLS;
+globalThis.callPythonCallback = callPythonCallback;
+globalThis.PYTHON_CALLBACKS = PYTHON_CALLBACKS;
 globalThis.fetch = fetch;

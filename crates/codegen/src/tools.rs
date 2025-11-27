@@ -155,7 +155,18 @@ impl Tool {
                     output = &self.output_signature,
                 )
             }
-            ToolVariant::Callable => todo!("implement callable TS function impl "),
+            ToolVariant::Callable => {
+                // For callable tools (JS/Python callbacks), we call the local tool directly
+                // The toolset_name encodes both the tool name and callback type
+                format!(
+                    "{fn_sig} {{
+  return await callJsLocalTool<{output}>({tool}, input);
+}}",
+                    fn_sig = self.fn_signature(true),
+                    tool = json!(&self.name),
+                    output = &self.output_signature,
+                )
+            }
         }
     }
 }

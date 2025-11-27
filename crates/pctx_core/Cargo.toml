@@ -10,6 +10,7 @@ publish = false
 pctx_config = { path = "../pctx_config" }
 codegen = { path = "../codegen" }
 deno_executor = { path = "../deno_executor" }
+pctx_python_runtime = { path = "../pctx_python_runtime" }
 
 # general
 thiserror = { workspace = true }

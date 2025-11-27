@@ -159,3 +159,160 @@ async fn test_local_tool_registration_error() {
     assert!(!result.success, "Should fail due to duplicate registration");
     assert!(result.stderr.contains("Local tool registration failed"));
 }
+
+// ============================================================================
+// PYTHON CALLBACK TESTS (via unified local tool system)
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_python_callback_via_local_tools() {
+    use pctx_python_runtime::PythonCallbackRegistry;
+
+    let registry = PythonCallbackRegistry::new();
+
+    // Register a simple Python callback
+    registry
+        .register(LocalToolDefinition {
+            metadata: LocalToolMetadata {
+                name: "add".to_string(),
+                description: Some("Adds two numbers".to_string()),
+                input_schema: None,
+            },
+            callback_data: "lambda args: args['a'] + args['b']".to_string(),
+        })
+        .expect("Failed to register Python callback");
+
+    let code = r#"
+        // Python callbacks are called via callPythonCallback
+        export default (async () => {
+            const result = await callPythonCallback("add", { a: 5, b: 3 });
+            return result;
+        })();
+    "#;
+
+    let result = execute(
+        code,
+        ExecuteOptions::new().with_python_callback_registry(registry),
+    )
+    .await
+    .expect("Execution should succeed");
+
+    if !result.success {
+        eprintln!("Execution failed:");
+        eprintln!("  stdout: {}", result.stdout);
+        eprintln!("  stderr: {}", result.stderr);
+        if let Some(err) = &result.runtime_error {
+            eprintln!("  error: {}", err.message);
+        }
+    }
+
+    assert!(result.success, "Code should execute successfully");
+    assert_eq!(result.output, Some(serde_json::json!(8)));
+}
+
+#[tokio::test]
+#[serial]
+async fn test_mixed_js_and_python_tools() {
+    use pctx_python_runtime::PythonCallbackRegistry;
+
+    let registry = PythonCallbackRegistry::new();
+
+    // Register Python callback
+    registry
+        .register(LocalToolDefinition {
+            metadata: LocalToolMetadata {
+                name: "multiply".to_string(),
+                description: Some("Multiplies two numbers".to_string()),
+                input_schema: None,
+            },
+            callback_data: "lambda args: args['a'] * args['b']".to_string(),
+        })
+        .unwrap();
+
+    // Register JS local tool
+    let js_tools = vec![LocalToolDefinition {
+        metadata: LocalToolMetadata {
+            name: "subtract".to_string(),
+            description: Some("Subtracts two numbers".to_string()),
+            input_schema: None,
+        },
+        callback_data: "(args) => args.a - args.b".to_string(),
+    }];
+
+    let code = r#"
+        export default (async () => {
+            // Python callbacks use callPythonCallback, JS local tools use callJsLocalTool
+            const product = await callPythonCallback("multiply", { a: 6, b: 7 });
+            const difference = await callJsLocalTool("subtract", { a: 10, b: 3 });
+
+            return { product, difference };
+        })();
+    "#;
+
+    let result = execute(
+        code,
+        ExecuteOptions::new()
+            .with_python_callback_registry(registry)
+            .with_local_tools(js_tools),
+    )
+    .await
+    .expect("Execution should succeed");
+
+    assert!(result.success, "Code should execute successfully");
+    let output = result.output.unwrap();
+    assert_eq!(output["product"], 42);
+    assert_eq!(output["difference"], 7);
+}
+
+#[tokio::test]
+#[serial]
+async fn test_python_callback_with_stdlib() {
+    use pctx_python_runtime::PythonCallbackRegistry;
+
+    let registry = PythonCallbackRegistry::new();
+
+    registry
+        .register(LocalToolDefinition {
+            metadata: LocalToolMetadata {
+                name: "calculate_stats".to_string(),
+                description: Some("Calculates statistics".to_string()),
+                input_schema: None,
+            },
+            callback_data: r#"
+import statistics
+
+def calculate_stats(args):
+    numbers = args['numbers']
+    return {
+        'mean': statistics.mean(numbers),
+        'median': statistics.median(numbers),
+        'sum': sum(numbers)
+    }
+"#
+            .to_string(),
+        })
+        .unwrap();
+
+    let code = r#"
+        export default (async () => {
+            const stats = await callPythonCallback("calculate_stats", {
+                numbers: [1, 2, 3, 4, 5]
+            });
+            return stats;
+        })();
+    "#;
+
+    let result = execute(
+        code,
+        ExecuteOptions::new().with_python_callback_registry(registry),
+    )
+    .await
+    .expect("Execution should succeed");
+
+    assert!(result.success, "Code should execute successfully");
+    let output = result.output.unwrap();
+    assert_eq!(output["mean"], 3.0);
+    assert_eq!(output["median"], 3.0);
+    assert_eq!(output["sum"], 15);
+}

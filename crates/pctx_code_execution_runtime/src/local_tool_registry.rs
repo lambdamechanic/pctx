@@ -54,6 +54,18 @@ pub struct LocalToolRegistry {
     tools: Arc<RwLock<HashMap<String, LocalToolMetadata>>>,
 }
 
+impl std::fmt::Debug for LocalToolRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LocalToolRegistry")
+            .field(
+                "pre_registered_count",
+                &self.pre_registered.read().unwrap().len(),
+            )
+            .field("tools_count", &self.tools.read().unwrap().len())
+            .finish()
+    }
+}
+
 impl LocalToolRegistry {
     pub fn new() -> Self {
         Self {

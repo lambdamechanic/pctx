@@ -19,15 +19,133 @@ pub struct PctxTools {
     // configurations
     pub servers: Vec<ServerConfig>,
     pub local_tools: Vec<deno_executor::LocalToolDefinition>,
+    pub python_registry: Option<pctx_python_runtime::PythonCallbackRegistry>,
 }
 
 impl PctxTools {
+    /// Convert local tool definitions (JS and Python) into callable ToolSets
+    fn local_tools_as_toolsets(&self) -> Vec<codegen::ToolSet> {
+        let mut toolsets = Vec::new();
+
+        // Convert JS local tools
+        if !self.local_tools.is_empty() {
+            let mut js_tools = Vec::new();
+            for local_tool in &self.local_tools {
+                match Self::local_tool_to_codegen_tool(local_tool) {
+                    Ok(tool) => js_tools.push(tool),
+                    Err(e) => warn!(
+                        "Failed to convert JS local tool '{}': {}",
+                        local_tool.metadata.name, e
+                    ),
+                }
+            }
+            if !js_tools.is_empty() {
+                toolsets.push(codegen::ToolSet::new(
+                    "LocalTools",
+                    "JavaScript local tools registered by the user",
+                    js_tools,
+                ));
+            }
+        }
+
+        // Convert Python callbacks
+        if let Some(ref python_registry) = self.python_registry {
+            let python_metadata = python_registry.list();
+            if !python_metadata.is_empty() {
+                let mut python_tools = Vec::new();
+                for metadata in python_metadata {
+                    match Self::python_metadata_to_codegen_tool(&metadata) {
+                        Ok(tool) => python_tools.push(tool),
+                        Err(e) => warn!(
+                            "Failed to convert Python callback '{}': {}",
+                            metadata.name, e
+                        ),
+                    }
+                }
+                if !python_tools.is_empty() {
+                    toolsets.push(codegen::ToolSet::new(
+                        "PythonTools",
+                        "Python callback tools registered by the user",
+                        python_tools,
+                    ));
+                }
+            }
+        }
+
+        toolsets
+    }
+
+    /// Convert local tool metadata to a codegen Tool
+    ///
+    /// This generic helper works for both JS local tools and Python callbacks
+    fn metadata_to_codegen_tool(
+        name: &str,
+        description: Option<&String>,
+        input_schema: Option<&serde_json::Value>,
+    ) -> Result<codegen::Tool> {
+        let schema_value = if let Some(schema) = input_schema {
+            schema.clone()
+        } else {
+            // Default to accepting any object
+            json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": true
+            })
+        };
+
+        let input_schema: codegen::RootSchema =
+            serde_json::from_value(schema_value).map_err(|e| {
+                Error::Message(format!(
+                    "Failed to parse input schema for '{}': {}",
+                    name, e
+                ))
+            })?;
+
+        codegen::Tool::new_callable(
+            name,
+            description,
+            input_schema,
+            None, // Local tools don't have output schemas yet
+        )
+        .map_err(Error::from)
+    }
+
+    /// Convert a LocalToolDefinition to a codegen Tool
+    fn local_tool_to_codegen_tool(
+        local_tool: &deno_executor::LocalToolDefinition,
+    ) -> Result<codegen::Tool> {
+        Self::metadata_to_codegen_tool(
+            &local_tool.metadata.name,
+            local_tool.metadata.description.as_ref(),
+            local_tool.metadata.input_schema.as_ref(),
+        )
+    }
+
+    /// Convert Python callback metadata to a codegen Tool
+    fn python_metadata_to_codegen_tool(
+        metadata: &pctx_python_runtime::LocalToolMetadata,
+    ) -> Result<codegen::Tool> {
+        Self::metadata_to_codegen_tool(
+            &metadata.name,
+            metadata.description.as_ref(),
+            metadata.input_schema.as_ref(),
+        )
+    }
+
+    /// Get all tool sets including MCP servers and local tools
+    fn all_tool_sets(&self) -> Vec<codegen::ToolSet> {
+        let mut all = self.tool_sets.clone();
+        all.extend(self.local_tools_as_toolsets());
+        all
+    }
+
     /// Returns internal tool sets as minimal code interfaces
     pub fn list_functions(&self) -> ListFunctionsOutput {
         let mut namespaces = vec![];
         let mut functions = vec![];
 
-        for tool_set in &self.tool_sets {
+        for tool_set in &self.all_tool_sets() {
             if tool_set.tools.is_empty() {
                 // skip sets with no tools
                 continue;
@@ -62,7 +180,7 @@ impl PctxTools {
         let mut namespaces = vec![];
         let mut functions = vec![];
 
-        for tool_set in &self.tool_sets {
+        for tool_set in &self.all_tool_sets() {
             if let Some(fn_names) = by_mod.get(&tool_set.mod_name) {
                 // filter tools based on requested fn names
                 let tools: Vec<&codegen::Tool> = tool_set
@@ -110,7 +228,7 @@ impl PctxTools {
 
         // generate the full script to be executed
         let namespaces: Vec<String> = self
-            .tool_sets
+            .all_tool_sets()
             .iter()
             .filter_map(|s| {
                 if s.tools.is_empty() {
@@ -134,6 +252,10 @@ impl PctxTools {
 
         if !self.local_tools.is_empty() {
             options = options.with_local_tools(self.local_tools.clone());
+        }
+
+        if let Some(ref python_registry) = self.python_registry {
+            options = options.with_python_callback_registry(python_registry.clone());
         }
 
         let execution_res = deno_executor::execute(&to_execute, options).await?;
