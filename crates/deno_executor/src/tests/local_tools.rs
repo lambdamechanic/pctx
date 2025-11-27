@@ -1,5 +1,5 @@
 use super::serial;
-use crate::{ExecuteOptions, JsLocalToolDefinition, JsLocalToolMetadata, execute};
+use crate::{ExecuteOptions, LocalToolDefinition, LocalToolMetadata, execute};
 
 #[tokio::test]
 #[serial]
@@ -12,13 +12,13 @@ async fn test_execute_with_pre_registered_local_tool() {
         })();
     "#;
 
-    let local_tools = vec![JsLocalToolDefinition {
-        metadata: JsLocalToolMetadata {
+    let local_tools = vec![LocalToolDefinition {
+        metadata: LocalToolMetadata {
             name: "add".to_string(),
             description: Some("Adds two numbers".to_string()),
             input_schema: None,
         },
-        callback_code: "(args) => args.a + args.b".to_string(),
+        callback_data: "(args) => args.a + args.b".to_string(),
     }];
 
     let result = execute(code, ExecuteOptions::new().with_local_tools(local_tools))
@@ -55,29 +55,29 @@ async fn test_execute_with_multiple_local_tools() {
     "#;
 
     let local_tools = vec![
-        JsLocalToolDefinition {
-            metadata: JsLocalToolMetadata {
+        LocalToolDefinition {
+            metadata: LocalToolMetadata {
                 name: "add".to_string(),
                 description: Some("Adds two numbers".to_string()),
                 input_schema: None,
             },
-            callback_code: "(args) => args.a + args.b".to_string(),
+            callback_data: "(args) => args.a + args.b".to_string(),
         },
-        JsLocalToolDefinition {
-            metadata: JsLocalToolMetadata {
+        LocalToolDefinition {
+            metadata: LocalToolMetadata {
                 name: "multiply".to_string(),
                 description: Some("Multiplies two numbers".to_string()),
                 input_schema: None,
             },
-            callback_code: "(args) => args.a * args.b".to_string(),
+            callback_data: "(args) => args.a * args.b".to_string(),
         },
-        JsLocalToolDefinition {
-            metadata: JsLocalToolMetadata {
+        LocalToolDefinition {
+            metadata: LocalToolMetadata {
                 name: "greet".to_string(),
                 description: Some("Greets someone".to_string()),
                 input_schema: None,
             },
-            callback_code: r"(args) => `Hello, ${args.name}!`".to_string(),
+            callback_data: r"(args) => `Hello, ${args.name}!`".to_string(),
         },
     ];
 
@@ -102,13 +102,13 @@ async fn test_local_tool_with_async_callback() {
         })();
     "#;
 
-    let local_tools = vec![JsLocalToolDefinition {
-        metadata: JsLocalToolMetadata {
+    let local_tools = vec![LocalToolDefinition {
+        metadata: LocalToolMetadata {
             name: "delayed".to_string(),
             description: Some("Returns value after async operation".to_string()),
             input_schema: None,
         },
-        callback_code: r"
+        callback_data: r"
             async (args) => {
                 await Promise.resolve();
                 return args.value * 2;
@@ -134,21 +134,21 @@ async fn test_local_tool_registration_error() {
 
     // Register two tools with the same name - should fail
     let local_tools = vec![
-        JsLocalToolDefinition {
-            metadata: JsLocalToolMetadata {
+        LocalToolDefinition {
+            metadata: LocalToolMetadata {
                 name: "duplicate".to_string(),
                 description: None,
                 input_schema: None,
             },
-            callback_code: "() => 1".to_string(),
+            callback_data: "() => 1".to_string(),
         },
-        JsLocalToolDefinition {
-            metadata: JsLocalToolMetadata {
+        LocalToolDefinition {
+            metadata: LocalToolMetadata {
                 name: "duplicate".to_string(),
                 description: None,
                 input_schema: None,
             },
-            callback_code: "() => 2".to_string(),
+            callback_data: "() => 2".to_string(),
         },
     ];
 

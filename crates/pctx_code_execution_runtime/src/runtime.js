@@ -138,11 +138,11 @@ async function fetch(url, options) {
 }
 
 // ============================================================================
-// JS LOCAL TOOL API (JavaScript Callbacks)
+// LOCAL TOOL API (Runtime-agnostic Callbacks - JavaScript implementation)
 // ============================================================================
 
 // Store callbacks in a JavaScript Map (avoids V8 lifetime issues with Rust ops)
-const jsLocalToolCallbacks = new Map();
+const localToolCallbacks = new Map();
 
 // Flag to track if pre-registered tools have been loaded
 let preRegisteredToolsLoaded = false;
@@ -157,14 +157,14 @@ function ensurePreRegisteredToolsLoaded() {
     const preRegistered = ops.op_get_pre_registered_tools();
     for (const tool of preRegistered) {
         try {
-            // Evaluate the callback code to create the function
-            const callback = eval(tool.callback_code);
+            // Evaluate the callback_data as JavaScript code to create the function
+            const callback = eval(tool.callback_data);
             if (typeof callback !== 'function') {
-                console.error(`Pre-registered tool "${tool.metadata.name}" callback_code did not eval to a function`);
+                console.error(`Pre-registered tool "${tool.metadata.name}" callback_data did not eval to a function`);
                 continue;
             }
             // Store the callback
-            jsLocalToolCallbacks.set(tool.metadata.name, callback);
+            localToolCallbacks.set(tool.metadata.name, callback);
             console.log(`Auto-registered local tool: ${tool.metadata.name}`);
         } catch (e) {
             console.error(`Failed to register pre-registered tool "${tool.metadata.name}":`, e);
@@ -186,10 +186,10 @@ export function registerJsLocalTool(config, callback) {
     }
 
     // Store the callback in JavaScript
-    jsLocalToolCallbacks.set(config.name, callback);
+    localToolCallbacks.set(config.name, callback);
 
-    // Register metadata in Rust
-    return ops.op_register_js_local_tool_metadata({
+    // Register metadata in Rust (using generic local tool ops)
+    return ops.op_register_local_tool_metadata({
         name: config.name,
         description: config.description,
         input_schema: config.inputSchema
@@ -208,7 +208,7 @@ export async function callJsLocalTool(name, args) {
     ensurePreRegisteredToolsLoaded();
 
     // Get the callback from our JavaScript Map
-    const callback = jsLocalToolCallbacks.get(name);
+    const callback = localToolCallbacks.get(name);
 
     if (!callback) {
         throw new Error(`JS local tool "${name}" not found`);
@@ -229,7 +229,7 @@ export const JS_LOCAL_TOOLS = {
      * @returns {boolean} True if registered
      */
     has(name) {
-        return ops.op_js_local_tool_has(name);
+        return ops.op_local_tool_has(name);
     },
 
     /**
@@ -238,7 +238,7 @@ export const JS_LOCAL_TOOLS = {
      * @returns {Object|undefined} Tool metadata or undefined
      */
     get(name) {
-        return ops.op_js_local_tool_get(name);
+        return ops.op_local_tool_get(name);
     },
 
     /**
@@ -246,7 +246,7 @@ export const JS_LOCAL_TOOLS = {
      * @returns {Array<Object>} Array of tool metadata
      */
     list() {
-        return ops.op_js_local_tool_list();
+        return ops.op_local_tool_list();
     },
 
     /**
@@ -255,16 +255,16 @@ export const JS_LOCAL_TOOLS = {
      * @returns {boolean} True if deleted, false if not found
      */
     delete(name) {
-        jsLocalToolCallbacks.delete(name);
-        return ops.op_js_local_tool_delete(name);
+        localToolCallbacks.delete(name);
+        return ops.op_local_tool_delete(name);
     },
 
     /**
      * Clear all JS local tools
      */
     clear() {
-        jsLocalToolCallbacks.clear();
-        ops.op_js_local_tool_clear();
+        localToolCallbacks.clear();
+        ops.op_local_tool_clear();
     }
 };
 

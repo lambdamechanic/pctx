@@ -4,7 +4,11 @@ use deno_runtime::deno_core::ModuleCodeString;
 use deno_runtime::deno_core::RuntimeOptions;
 use deno_runtime::deno_core::anyhow;
 use deno_runtime::deno_core::error::CoreError;
-pub use pctx_code_execution_runtime::{JsLocalToolDefinition, JsLocalToolMetadata};
+pub use pctx_code_execution_runtime::{LocalToolDefinition, LocalToolMetadata};
+
+// Re-export with JS-specific aliases for backwards compatibility
+pub type JsLocalToolDefinition = LocalToolDefinition;
+pub type JsLocalToolMetadata = LocalToolMetadata;
 pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, type_check};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
@@ -13,14 +17,11 @@ use tracing::{debug, warn};
 
 pub type Result<T> = std::result::Result<T, DenoExecutorError>;
 
-/// Options for executing TypeScript code
 #[derive(Debug, Clone, Default)]
 pub struct ExecuteOptions {
     pub allowed_hosts: Option<Vec<String>>,
-
     pub mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
-
-    pub local_tools: Option<Vec<pctx_code_execution_runtime::JsLocalToolDefinition>>,
+    pub local_tools: Option<Vec<pctx_code_execution_runtime::LocalToolDefinition>>,
 }
 
 impl ExecuteOptions {
@@ -43,7 +44,7 @@ impl ExecuteOptions {
     #[must_use]
     pub fn with_local_tools(
         mut self,
-        tools: Vec<pctx_code_execution_runtime::JsLocalToolDefinition>,
+        tools: Vec<pctx_code_execution_runtime::LocalToolDefinition>,
     ) -> Self {
         self.local_tools = Some(tools);
         self
@@ -145,14 +146,9 @@ pub async fn execute(code: &str, options: ExecuteOptions) -> Result<ExecuteResul
 
     debug!(runtime = "type_check", "Type check passed");
 
-    let exec_result = execute_code(
-        code,
-        options.allowed_hosts,
-        options.mcp_configs,
-        options.local_tools,
-    )
-    .await
-    .map_err(|e| DenoExecutorError::InternalError(e.to_string()))?;
+    let exec_result = execute_code(code, options)
+        .await
+        .map_err(|e| DenoExecutorError::InternalError(e.to_string()))?;
 
     let stderr = if let Some(ref err) = exec_result.error {
         err.message.clone()
@@ -225,9 +221,7 @@ struct InternalExecuteResult {
 #[tracing::instrument(fields(runtime = "execution"))]
 async fn execute_code(
     code: &str,
-    allowed_hosts: Option<Vec<String>>,
-    mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
-    local_tools: Option<Vec<pctx_code_execution_runtime::JsLocalToolDefinition>>,
+    options: ExecuteOptions,
 ) -> anyhow::Result<InternalExecuteResult> {
     debug!("Starting code execution");
 
@@ -258,7 +252,7 @@ async fn execute_code(
 
     // Create MCP registry and populate it with provided configs
     let mcp_registry = pctx_code_execution_runtime::MCPRegistry::new();
-    if let Some(configs) = mcp_configs {
+    if let Some(configs) = options.mcp_configs {
         for config in configs {
             if let Err(e) = mcp_registry.add(config) {
                 warn!(runtime = "execution", error = %e, "Failed to register MCP server");
@@ -276,10 +270,10 @@ async fn execute_code(
         }
     }
     // Create local tool registry and populate it with provided tools
-    let js_local_tool_registry = pctx_code_execution_runtime::JsLocalToolRegistry::new();
-    if let Some(tools) = local_tools {
+    let local_tool_registry = pctx_code_execution_runtime::LocalToolRegistry::new();
+    if let Some(tools) = options.local_tools {
         for tool in tools {
-            if let Err(e) = js_local_tool_registry.register(tool) {
+            if let Err(e) = local_tool_registry.register(tool) {
                 warn!(runtime = "execution", error = %e, "Failed to register local tool");
                 return Ok(InternalExecuteResult {
                     success: false,
@@ -295,7 +289,7 @@ async fn execute_code(
         }
     }
 
-    let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(allowed_hosts);
+    let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(options.allowed_hosts);
 
     // Create JsRuntime from `pctx_runtime` snapshot and extension
     // The snapshot contains the ESM code pre-compiled, and init() registers both ops and ESM
@@ -305,7 +299,7 @@ async fn execute_code(
         startup_snapshot: Some(pctx_code_execution_runtime::RUNTIME_SNAPSHOT),
         extensions: vec![pctx_code_execution_runtime::pctx_runtime_snapshot::init(
             mcp_registry,
-            js_local_tool_registry,
+            local_tool_registry,
             allowed_hosts,
         )],
         ..Default::default()

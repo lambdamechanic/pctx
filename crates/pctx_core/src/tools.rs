@@ -18,7 +18,7 @@ pub struct PctxTools {
 
     // configurations
     pub servers: Vec<ServerConfig>,
-    pub local_tools: Vec<deno_executor::JsLocalToolDefinition>,
+    pub local_tools: Vec<deno_executor::LocalToolDefinition>,
 }
 
 impl PctxTools {

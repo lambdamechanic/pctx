@@ -16,7 +16,7 @@ fn op_test_set_result(#[serde] value: serde_json::Value) -> serde_json::Value {
 /// Helper function to create a JavaScript runtime with `pctx_runtime` extension and test ops
 fn create_test_runtime() -> JsRuntime {
     let registry = MCPRegistry::new();
-    let local_tool_registry = crate::JsLocalToolRegistry::new();
+    let local_tool_registry = crate::LocalToolRegistry::new();
     let allowed_hosts = crate::AllowedHosts::default();
 
     // Create a simple extension for test helpers
@@ -334,16 +334,16 @@ async fn test_runtime_console_output_capturing() {
 #[tokio::test]
 async fn test_pre_register_local_tool_from_rust() {
     // Create registry and pre-register a tool BEFORE runtime creation
-    let local_tool_registry = crate::JsLocalToolRegistry::new();
+    let local_tool_registry = crate::LocalToolRegistry::new();
 
     local_tool_registry
-        .register(crate::JsLocalToolDefinition {
-            metadata: crate::JsLocalToolMetadata {
+        .register(crate::LocalToolDefinition {
+            metadata: crate::LocalToolMetadata {
                 name: "add".to_string(),
                 description: Some("Adds two numbers".to_string()),
                 input_schema: None,
             },
-            callback_code: "(args) => args.a + args.b".to_string(),
+            callback_data: "(args) => args.a + args.b".to_string(),
         })
         .expect("Failed to register tool");
 
@@ -426,39 +426,39 @@ async fn test_pre_register_local_tool_from_rust() {
 
 #[tokio::test]
 async fn test_multiple_pre_registered_tools() {
-    let local_tool_registry = crate::JsLocalToolRegistry::new();
+    let local_tool_registry = crate::LocalToolRegistry::new();
 
     // Register multiple tools
     local_tool_registry
-        .register(crate::JsLocalToolDefinition {
-            metadata: crate::JsLocalToolMetadata {
+        .register(crate::LocalToolDefinition {
+            metadata: crate::LocalToolMetadata {
                 name: "add".to_string(),
                 description: Some("Adds two numbers".to_string()),
                 input_schema: None,
             },
-            callback_code: "(args) => args.a + args.b".to_string(),
+            callback_data: "(args) => args.a + args.b".to_string(),
         })
         .unwrap();
 
     local_tool_registry
-        .register(crate::JsLocalToolDefinition {
-            metadata: crate::JsLocalToolMetadata {
+        .register(crate::LocalToolDefinition {
+            metadata: crate::LocalToolMetadata {
                 name: "multiply".to_string(),
                 description: Some("Multiplies two numbers".to_string()),
                 input_schema: None,
             },
-            callback_code: "(args) => args.a * args.b".to_string(),
+            callback_data: "(args) => args.a * args.b".to_string(),
         })
         .unwrap();
 
     local_tool_registry
-        .register(crate::JsLocalToolDefinition {
-            metadata: crate::JsLocalToolMetadata {
+        .register(crate::LocalToolDefinition {
+            metadata: crate::LocalToolMetadata {
                 name: "greet".to_string(),
                 description: Some("Greets a person".to_string()),
                 input_schema: None,
             },
-            callback_code: "(args) => `Hello, ${args.name}!`".to_string(),
+            callback_data: "(args) => `Hello, ${args.name}!`".to_string(),
         })
         .unwrap();
 
