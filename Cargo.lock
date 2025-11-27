@@ -6834,6 +6834,7 @@ dependencies = [
  "deno_executor",
  "pctx_config",
  "pctx_python_runtime",
+ "pyo3",
  "schemars 1.1.0",
  "serde",
  "serde_json",

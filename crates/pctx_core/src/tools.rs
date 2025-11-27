@@ -281,13 +281,8 @@ impl PctxTools {
 
         debug!("Executing code in sandbox");
 
-        // Collect all local tools (both JS and Python)
-        let mut all_local_tools = self.local_tools.clone();
-
-        // Convert Python registry tools to LocalToolDefinitions and add them
-        if let Some(ref python_registry) = self.python_registry {
-            all_local_tools.extend(python_registry.list_tools());
-        }
+        // Collect all local tools (JS only)
+        let all_local_tools = self.local_tools.clone();
 
         let mut options = deno_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
@@ -295,6 +290,11 @@ impl PctxTools {
 
         if !all_local_tools.is_empty() {
             options = options.with_local_tools(all_local_tools);
+        }
+
+        // Pass Python registry directly (not as LocalToolDefinitions)
+        if let Some(ref python_registry) = self.python_registry {
+            options = options.with_python_registry(python_registry.clone());
         }
 
         let execution_res = deno_executor::execute(&to_execute, options).await?;

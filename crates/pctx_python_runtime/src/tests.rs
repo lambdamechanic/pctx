@@ -4,7 +4,7 @@
 //! See deno_executor/src/tests/integration.rs for integration tests.
 
 use super::*;
-use pctx_code_execution_runtime::CallbackRuntime;
+use pyo3::ffi::c_str;
 use serial_test::serial;
 
 #[test]
@@ -12,18 +12,24 @@ use serial_test::serial;
 fn test_register_and_execute_simple_lambda() {
     let registry = PythonCallbackRegistry::new();
 
-    registry
-        .register(LocalToolDefinition {
-            metadata: LocalToolMetadata {
-                name: "add".to_string(),
-                description: Some("Adds two numbers".to_string()),
-                input_schema: None,
-                namespace: "TestTools".to_string(),
-            },
-            runtime: CallbackRuntime::Python,
-            callback_data: "lambda args: args['a'] + args['b']".to_string(),
-        })
-        .expect("Failed to register callback");
+    // Register a Python callable directly (no code compilation)
+    Python::with_gil(|py| {
+        let func = py
+            .eval(c_str!("lambda args: args['a'] + args['b']"), None, None)
+            .expect("Failed to create lambda");
+
+        registry
+            .register_callable(
+                LocalToolMetadata {
+                    name: "add".to_string(),
+                    description: Some("Adds two numbers".to_string()),
+                    input_schema: None,
+                    namespace: "TestTools".to_string(),
+                },
+                func.unbind(),
+            )
+            .expect("Failed to register callback");
+    });
 
     assert!(registry.has("add"));
 
@@ -38,31 +44,35 @@ fn test_register_and_execute_simple_lambda() {
 fn test_register_duplicate_tool() {
     let registry = PythonCallbackRegistry::new();
 
-    registry
-        .register(LocalToolDefinition {
-            metadata: LocalToolMetadata {
+    Python::with_gil(|py| {
+        let func1 = py.eval(c_str!("lambda args: 1"), None, None).unwrap();
+
+        registry
+            .register_callable(
+                LocalToolMetadata {
+                    name: "duplicate".to_string(),
+                    description: None,
+                    input_schema: None,
+                    namespace: "TestTools".to_string(),
+                },
+                func1.unbind(),
+            )
+            .unwrap();
+
+        let func2 = py.eval(c_str!("lambda args: 2"), None, None).unwrap();
+
+        let result = registry.register_callable(
+            LocalToolMetadata {
                 name: "duplicate".to_string(),
                 description: None,
                 input_schema: None,
                 namespace: "TestTools".to_string(),
             },
-            runtime: CallbackRuntime::Python,
-            callback_data: "lambda args: 1".to_string(),
-        })
-        .unwrap();
+            func2.unbind(),
+        );
 
-    let result = registry.register(LocalToolDefinition {
-        metadata: LocalToolMetadata {
-            name: "duplicate".to_string(),
-            description: None,
-            input_schema: None,
-            namespace: "TestTools".to_string(),
-        },
-        runtime: CallbackRuntime::Python,
-        callback_data: "lambda args: 2".to_string(),
+        assert!(result.is_err());
     });
-
-    assert!(result.is_err());
 }
 
 #[test]

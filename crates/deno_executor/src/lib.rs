@@ -20,6 +20,7 @@ pub struct ExecuteOptions {
     pub allowed_hosts: Option<Vec<String>>,
     pub mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
     pub local_tools: Option<Vec<pctx_code_execution_runtime::LocalToolDefinition>>,
+    pub python_registry: Option<pctx_python_runtime::PythonCallbackRegistry>,
 }
 
 impl ExecuteOptions {
@@ -51,6 +52,15 @@ impl ExecuteOptions {
         } else {
             self.local_tools = Some(tools);
         }
+        self
+    }
+
+    #[must_use]
+    pub fn with_python_registry(
+        mut self,
+        registry: pctx_python_runtime::PythonCallbackRegistry,
+    ) -> Self {
+        self.python_registry = Some(registry);
         self
     }
 }
@@ -273,16 +283,18 @@ async fn execute_code(
             }
         }
     }
-    // Separate tools by runtime type
-    let (js_tools, python_tools): (Vec<_>, Vec<_>) = options
+    // Separate tools by runtime type (for JS tools only - Python comes via registry)
+    let js_tools: Vec<_> = options
         .local_tools
         .unwrap_or_default()
         .into_iter()
-        .partition(|tool| tool.runtime == CallbackRuntime::JavaScript);
+        .filter(|tool| tool.runtime == CallbackRuntime::JavaScript)
+        .collect();
 
     // Create local tool registry for JavaScript tools
     let local_tool_registry = pctx_code_execution_runtime::LocalToolRegistry::new();
     for tool in js_tools {
+        #[allow(deprecated)]
         if let Err(e) = local_tool_registry.register(tool) {
             warn!(runtime = "execution", error = %e, "Failed to register JS local tool");
             return Ok(InternalExecuteResult {
@@ -298,28 +310,8 @@ async fn execute_code(
         }
     }
 
-    // Create Python callback registry if there are any Python tools
-    let python_registry = if !python_tools.is_empty() {
-        let registry = pctx_python_runtime::PythonCallbackRegistry::new();
-        for tool in python_tools {
-            if let Err(e) = registry.register(tool) {
-                warn!(runtime = "execution", error = %e, "Failed to register Python tool");
-                return Ok(InternalExecuteResult {
-                    success: false,
-                    output: None,
-                    error: Some(ExecutionError {
-                        message: format!("Python tool registration failed: {e}"),
-                        stack: None,
-                    }),
-                    stdout: String::new(),
-                    stderr: String::new(),
-                });
-            }
-        }
-        Some(registry)
-    } else {
-        None
-    };
+    // Use the provided Python callback registry directly
+    let python_registry = options.python_registry;
 
     let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(options.allowed_hosts);
 

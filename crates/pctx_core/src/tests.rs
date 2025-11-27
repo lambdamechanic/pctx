@@ -40,22 +40,29 @@ async fn test_javascript_local_tool() {
 #[tokio::test]
 #[serial]
 async fn test_python_local_tool() {
+    use pyo3::{ffi::c_str, Python};
+
     let mut tools = PctxTools::default();
 
-    // Register a Python tool
+    // Register a Python tool using the new API (PyObject directly)
     let python_registry = pctx_python_runtime::PythonCallbackRegistry::new();
-    python_registry
-        .register(LocalToolDefinition {
-            metadata: LocalToolMetadata {
-                name: "multiply".to_string(),
-                description: Some("Multiplies two numbers".to_string()),
-                input_schema: None,
-                namespace: "PythonTools".to_string(),
-            },
-            runtime: CallbackRuntime::Python,
-            callback_data: "lambda args: args['a'] * args['b']".to_string(),
-        })
-        .expect("Failed to register Python tool");
+    Python::with_gil(|py| {
+        let func = py
+            .eval(c_str!("lambda args: args['a'] * args['b']"), None, None)
+            .expect("Failed to create lambda");
+
+        python_registry
+            .register_callable(
+                LocalToolMetadata {
+                    name: "multiply".to_string(),
+                    description: Some("Multiplies two numbers".to_string()),
+                    input_schema: None,
+                    namespace: "PythonTools".to_string(),
+                },
+                func.unbind(),
+            )
+            .expect("Failed to register Python tool");
+    });
 
     tools.python_registry = Some(python_registry);
 
@@ -86,6 +93,8 @@ async fn test_python_local_tool() {
 #[tokio::test]
 #[serial]
 async fn test_mixed_js_and_python_tools() {
+    use pyo3::Python;
+
     let mut tools = PctxTools::default();
 
     // Register JavaScript tool
@@ -100,20 +109,27 @@ async fn test_mixed_js_and_python_tools() {
         callback_data: "(args) => args.a + args.b".to_string(),
     }];
 
-    // Register Python tool
+    // Register Python tool using the new API
     let python_registry = pctx_python_runtime::PythonCallbackRegistry::new();
-    python_registry
-        .register(LocalToolDefinition {
-            metadata: LocalToolMetadata {
-                name: "multiply".to_string(),
-                description: Some("Multiplies two numbers".to_string()),
-                input_schema: None,
-                namespace: "PythonTools".to_string(),
-            },
-            runtime: CallbackRuntime::Python,
-            callback_data: "lambda args: args['a'] * args['b']".to_string(),
-        })
-        .expect("Failed to register Python tool");
+    Python::with_gil(|py| {
+        use pyo3::ffi::c_str;
+
+        let func = py
+            .eval(c_str!("lambda args: args['a'] * args['b']"), None, None)
+            .expect("Failed to create lambda");
+
+        python_registry
+            .register_callable(
+                LocalToolMetadata {
+                    name: "multiply".to_string(),
+                    description: Some("Multiplies two numbers".to_string()),
+                    input_schema: None,
+                    namespace: "PythonTools".to_string(),
+                },
+                func.unbind(),
+            )
+            .expect("Failed to register Python tool");
+    });
 
     tools.python_registry = Some(python_registry);
 
@@ -218,21 +234,20 @@ async fn test_js_code_can_use_date_api() {
 #[tokio::test]
 #[serial]
 async fn test_python_callback_can_use_dependencies() {
+    use pyo3::Python;
+
     let mut tools = PctxTools::default();
 
     // Test that Python callbacks can use standard library imports
     // Using json module which is a lightweight built-in dependency
     let python_registry = pctx_python_runtime::PythonCallbackRegistry::new();
-    python_registry
-        .register(LocalToolDefinition {
-            metadata: LocalToolMetadata {
-                name: "jsonParser".to_string(),
-                description: Some("Parse JSON using the json module".to_string()),
-                input_schema: None,
-                namespace: "PythonTools".to_string(),
-            },
-            runtime: CallbackRuntime::Python,
-            callback_data: r#"
+
+    // For complex code with imports, we compile it in the test and pass the PyObject
+    Python::with_gil(|py| {
+        use pyo3::types::{PyDict, PyDictMethods, PyModuleMethods};
+        use std::ffi::CString;
+
+        let code = r#"
 import json
 
 def tool(args):
@@ -241,10 +256,35 @@ def tool(args):
     # Verify json module works by dumping and loading
     json_str = json.dumps(data)
     return json.loads(json_str)
-"#
-            .to_string(),
-        })
-        .expect("Failed to register Python callback");
+"#;
+
+        // Create globals dict with builtins
+        let globals = PyDict::new(py);
+        let main_module = py.import("__main__").unwrap();
+        let main_dict = main_module.dict();
+        if let Ok(Some(builtins)) = main_dict.get_item("__builtins__") {
+            globals.set_item("__builtins__", builtins).unwrap();
+        }
+
+        // Execute the code to define the function
+        let code_cstr = CString::new(code).unwrap();
+        py.run(code_cstr.as_c_str(), Some(&globals), None).unwrap();
+
+        // Extract the 'tool' function
+        let func = globals.get_item("tool").unwrap().unwrap();
+
+        python_registry
+            .register_callable(
+                LocalToolMetadata {
+                    name: "jsonParser".to_string(),
+                    description: Some("Parse JSON using the json module".to_string()),
+                    input_schema: None,
+                    namespace: "PythonTools".to_string(),
+                },
+                func.unbind(),
+            )
+            .expect("Failed to register Python callback");
+    });
 
     tools.python_registry = Some(python_registry);
 

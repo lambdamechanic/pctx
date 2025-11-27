@@ -117,7 +117,86 @@ impl PythonCallbackRegistry {
         }
     }
 
-    /// Register a Python callback from a tool definition
+    /// Register a Python callable directly (preferred method)
+    ///
+    /// This method accepts an already-compiled Python callable (PyObject),
+    /// avoiding the need for eval/exec at registration time.
+    ///
+    /// # Arguments
+    /// * `metadata` - Tool metadata (name, description, schema, namespace)
+    /// * `callback` - A Python callable object (function, lambda, method, etc.)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The tool is already registered
+    /// - The callback is not callable
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use pctx_python_runtime::{PythonCallbackRegistry, LocalToolMetadata};
+    /// use pyo3::prelude::*;
+    ///
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let registry = PythonCallbackRegistry::new();
+    /// Python::with_gil(|py| {
+    ///     let func = py.eval("lambda args: args['a'] + args['b']", None, None)?;
+    ///     registry.register_callable(
+    ///         LocalToolMetadata {
+    ///             name: "add".to_string(),
+    ///             description: Some("Adds two numbers".to_string()),
+    ///             input_schema: None,
+    ///             namespace: "math".to_string(),
+    ///         },
+    ///         func.unbind(),
+    ///     )
+    /// })
+    /// # }
+    /// ```
+    pub fn register_callable(&self, metadata: LocalToolMetadata, callback: PyObject) -> Result<()> {
+        debug!(
+            name = %metadata.name,
+            "Registering Python callable directly"
+        );
+
+        Python::with_gil(|py| {
+            // Verify it's callable
+            if !callback.bind(py).is_callable() {
+                return Err(PythonRuntimeError::RegistrationError(
+                    "Provided PyObject is not callable".to_string(),
+                ));
+            }
+
+            // Store in callbacks map
+            let mut callbacks = self.callbacks.write().unwrap();
+            if callbacks.contains_key(&metadata.name) {
+                return Err(PythonRuntimeError::RegistrationError(format!(
+                    "Tool '{}' is already registered",
+                    metadata.name
+                )));
+            }
+
+            // Create empty globals dict (since function is already compiled)
+            let globals = PyDict::new(py).unbind();
+
+            callbacks.insert(
+                metadata.name.clone(),
+                StoredCallback { callback, globals: globals.into() },
+            );
+
+            // Register metadata with the generic registry
+            self.tool_registry
+                .register_metadata_only(metadata)
+                .map_err(|e| PythonRuntimeError::RegistrationError(e.to_string()))?;
+
+            Ok(())
+        })
+    }
+
+    /// Register a Python callback from a tool definition (legacy method)
+    ///
+    /// **DEPRECATED**: This method compiles Python source code at registration time.
+    /// Use `register_callable()` instead to register already-compiled Python functions.
     ///
     /// The `callback_data` field should contain Python code that evaluates to a callable.
     /// This can be:
@@ -131,6 +210,7 @@ impl PythonCallbackRegistry {
     /// - The tool is already registered
     /// - The Python code fails to compile or evaluate
     /// - The evaluated result is not callable
+    #[deprecated(note = "Use register_callable() instead")]
     pub fn register(&self, definition: LocalToolDefinition) -> Result<()> {
         debug!(
             name = %definition.metadata.name,
