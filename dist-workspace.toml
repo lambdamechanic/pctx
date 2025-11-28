@@ -22,7 +22,7 @@ github-release = "announce"
 # Path that installers should place binaries in
 install-path = "~/.local/bin"
 # Which actions to run on pull requests
-pr-run-mode = "plan"
+pr-run-mode = "skip"
 # Whether CI should include auto-generated code to build local artifacts
 build-local-artifacts = true
 # Target platforms to build apps for (Rust target-triple syntax)
