@@ -1,0 +1,27 @@
+[package]
+name = "pctx_python_sdk"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Python SDK bindings for PCTX - complete toolkit for MCP servers and local tools"
+keywords = ["pctx", "mcp", "python", "bindings", "ai"]
+categories = ["api-bindings"]
+
+[lib]
+name = "pctx"
+crate-type = ["cdylib"]
+
+[dependencies]
+pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
+pctx_core = { path = "../pctx_core" }
+pctx_config = { path = "../pctx_config" }
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-py38"] }
+serde_json = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros"] }
+
+[lints]
+workspace = true

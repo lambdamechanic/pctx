@@ -176,10 +176,11 @@ impl Tool {
                 )
             }
             ToolVariant::Python => {
-                // For Python local tools, call the Python runtime function
+                // For Python local tools, call the unified local tool function
+                // This also works for other runtime callbacks (Node.js, etc.)
                 format!(
                     "{fn_sig} {{
-  return await callPythonCallback<{output}>({tool}, input);
+  return await callLocalTool<{output}>({tool}, input);
 }}",
                     fn_sig = self.fn_signature(true),
                     tool = json!(&self.name),

@@ -2348,7 +2348,6 @@ dependencies = [
  "node_resolver",
  "pctx_code_execution_runtime",
  "pctx_config",
- "pctx_python_runtime",
  "pctx_type_check_runtime",
  "regex",
  "rustls",
@@ -6832,24 +6831,10 @@ version = "0.1.0"
 dependencies = [
  "codegen",
  "deno_executor",
+ "pctx_code_execution_runtime",
  "pctx_config",
- "pctx_python_runtime",
  "pyo3",
  "schemars 1.1.0",
- "serde",
- "serde_json",
- "serial_test",
- "thiserror 2.0.17",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "pctx_python_runtime"
-version = "0.1.0"
-dependencies = [
- "pctx_code_execution_runtime",
- "pyo3",
  "serde",
  "serde_json",
  "serial_test",

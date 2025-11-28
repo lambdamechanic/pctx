@@ -173,155 +173,50 @@ function ensurePreRegisteredToolsLoaded() {
     }
 }
 
-/**
- * Register a JS local tool with a JavaScript callback
- * @param {Object} config - JS local tool configuration
- * @param {string} config.name - Unique name for the tool
- * @param {string} [config.description] - Tool description
- * @param {Object} [config.inputSchema] - JSON Schema for tool input
- * @param {Function} callback - JavaScript function to invoke when tool is called
- */
-export function registerJsLocalTool(config, callback) {
-    if (typeof callback !== 'function') {
-        throw new TypeError('callback must be a function');
-    }
 
-    // Store the callback in JavaScript
-    localToolCallbacks.set(config.name, callback);
-
-    // Register metadata in Rust (using generic local tool ops)
-    return ops.op_register_local_tool_metadata({
-        name: config.name,
-        description: config.description,
-        input_schema: config.inputSchema
-    });
-}
-
-/**
- * Call a JS local tool (invokes the registered JavaScript callback)
- * @template T
- * @param {string} name - Name of the registered JS local tool
- * @param {Object} [args] - Arguments to pass to the callback
- * @returns {Promise<T>} The callback's return value
- */
-export async function callJsLocalTool(name, args) {
-    // Ensure pre-registered tools are loaded (lazy initialization)
-    ensurePreRegisteredToolsLoaded();
-
-    // Get the callback from our JavaScript Map
-    const callback = localToolCallbacks.get(name);
-
-    if (!callback) {
-        throw new Error(`JS local tool "${name}" not found`);
-    }
-
-    // Invoke the callback with the arguments
-    // The callback can be sync or async, so we await it
-    return await callback(args);
-}
-
-/**
- * JS Local Tool Registry - provides access to registered JS local tools
- */
-export const JS_LOCAL_TOOLS = {
-    /**
-     * Check if a JS local tool is registered
-     * @param {string} name - Name of the JS local tool
-     * @returns {boolean} True if registered
-     */
-    has(name) {
-        return ops.op_local_tool_has(name);
-    },
-
-    /**
-     * Get JS local tool metadata
-     * @param {string} name - Name of the JS local tool
-     * @returns {Object|undefined} Tool metadata or undefined
-     */
-    get(name) {
-        return ops.op_local_tool_get(name);
-    },
-
-    /**
-     * List all registered JS local tools
-     * @returns {Array<Object>} Array of tool metadata
-     */
-    list() {
-        return ops.op_local_tool_list();
-    },
-
-    /**
-     * Delete a JS local tool
-     * @param {string} name - Name of the JS local tool
-     * @returns {boolean} True if deleted, false if not found
-     */
-    delete(name) {
-        localToolCallbacks.delete(name);
-        return ops.op_local_tool_delete(name);
-    },
-
-    /**
-     * Clear all JS local tools
-     */
-    clear() {
-        localToolCallbacks.clear();
-        ops.op_local_tool_clear();
-    }
-};
 
 // ============================================================================
-// PYTHON CALLBACK API
+// UNIFIED LOCAL TOOL API (Language-Agnostic - works for Python, JS, anything!)
 // ============================================================================
 
 /**
- * Call a Python callback (invokes registered Python function via pyo3)
+ * Call a local tool (UNIFIED API)
+ *
+ * This function works for ANY local tool regardless of its implementation language:
+ * - Python callbacks (registered via wrap_python_callback)
+ * - JavaScript callbacks (registered via registerJsLocalTool)
+ * - Native Rust callbacks
+ * - Future: Ruby, WASM, etc.
+ *
+ * From JavaScript's perspective, they're all just "tools" - the source language
+ * is irrelevant!
+ *
  * @template T
- * @param {string} name - Name of the registered Python callback
- * @param {Object} [args] - Arguments to pass to the callback
- * @returns {Promise<T>} The callback's return value
+ * @param {string} name - Name of the tool to call
+ * @param {Object} [args] - Arguments to pass to the tool
+ * @returns {Promise<T>} The tool's return value
  */
-export async function callPythonCallback(name, args) {
-    if (typeof ops.op_python_callback_execute !== 'function') {
-        throw new Error('Python callback runtime not available');
+export async function callLocalTool(name, args) {
+    try {
+        // Try the unified callback registry first (Python, native Rust, new JS callbacks)
+        return await ops.op_execute_local_tool(name, args || null);
+    } catch (err) {
+        // Fall back to legacy JS tools if not found in unified registry
+        if (err && err.message && err.message.includes("not found")) {
+            ensurePreRegisteredToolsLoaded();
+            const callback = localToolCallbacks.get(name);
+            if (callback) {
+                return await callback(args || {});
+            }
+        }
+        // Re-throw error if tool truly doesn't exist
+        throw err;
     }
-    return await ops.op_python_callback_execute(name, args);
 }
-
-/**
- * Python Callback Registry - provides access to registered Python callbacks
- */
-export const PYTHON_CALLBACKS = {
-    /**
-     * Check if a Python callback is registered
-     * @param {string} name - Name of the Python callback
-     * @returns {boolean} True if registered
-     */
-    has(name) {
-        if (typeof ops.op_python_callback_has !== 'function') {
-            return false;
-        }
-        return ops.op_python_callback_has(name);
-    },
-
-    /**
-     * List all registered Python callbacks
-     * @returns {Array<Object>} Array of callback metadata
-     */
-    list() {
-        if (typeof ops.op_python_callback_list !== 'function') {
-            return [];
-        }
-        return ops.op_python_callback_list();
-    },
-};
 
 // Make APIs available globally for convenience (matching original behavior)
 globalThis.registerMCP = registerMCP;
 globalThis.callMCPTool = callMCPTool;
 globalThis.REGISTRY = REGISTRY;
-globalThis.registerJsLocalTool = registerJsLocalTool;
-globalThis.callJsLocalTool = callJsLocalTool;
-globalThis.JS_LOCAL_TOOLS = JS_LOCAL_TOOLS;
-globalThis.callPythonCallback = callPythonCallback;
-globalThis.PYTHON_CALLBACKS = PYTHON_CALLBACKS;
+globalThis.callLocalTool = callLocalTool;
 globalThis.fetch = fetch;

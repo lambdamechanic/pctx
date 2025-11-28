@@ -98,7 +98,7 @@ mod registry;
 
 pub use fetch::AllowedHosts;
 pub use local_tool_registry::{
-    CallLocalToolArgs, CallbackRuntime, LocalToolDefinition, LocalToolMetadata, LocalToolRegistry,
+    CallLocalToolArgs, LocalToolCallback, LocalToolMetadata, LocalToolRegistry,
 };
 pub use registry::MCPRegistry;
 
@@ -147,13 +147,12 @@ deno_core::extension!(
         ops::op_mcp_delete,
         ops::op_mcp_clear,
         ops::op_fetch,
-        local_tool_ops::op_register_local_tool_metadata,
         local_tool_ops::op_local_tool_has,
         local_tool_ops::op_local_tool_get,
         local_tool_ops::op_local_tool_list,
         local_tool_ops::op_local_tool_delete,
         local_tool_ops::op_local_tool_clear,
-        local_tool_ops::op_get_pre_registered_tools,
+        local_tool_ops::op_execute_local_tool,
     ],
     esm_entry_point = "ext:pctx_runtime_snapshot/runtime.js",
     esm = [ dir "src", "runtime.js" ],

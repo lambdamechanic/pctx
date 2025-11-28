@@ -18,68 +18,36 @@ pub struct PctxTools {
 
     // configurations
     pub servers: Vec<ServerConfig>,
-    pub local_tools: Vec<deno_executor::LocalToolDefinition>,
-    pub python_registry: Option<pctx_python_runtime::PythonCallbackRegistry>,
+    pub local_registry: Option<pctx_code_execution_runtime::LocalToolRegistry>,
 }
 
 impl PctxTools {
-    /// Convert local tool definitions (JS and Python) into callable ToolSets
+    /// Convert local tool callbacks into callable ToolSets
     fn local_tools_as_toolsets(&self) -> Vec<codegen::ToolSet> {
         let mut toolsets = Vec::new();
 
-        // Convert JS local tools - group by namespace
-        if !self.local_tools.is_empty() {
-            let mut tools_by_namespace: HashMap<String, Vec<codegen::Tool>> = HashMap::new();
-
-            for local_tool in &self.local_tools {
-                match Self::local_tool_to_codegen_tool(local_tool) {
-                    Ok(tool) => {
-                        tools_by_namespace
-                            .entry(local_tool.metadata.namespace.clone())
-                            .or_default()
-                            .push(tool);
-                    }
-                    Err(e) => warn!(
-                        "Failed to convert JS local tool '{}': {}",
-                        local_tool.metadata.name, e
-                    ),
-                }
-            }
-
-            for (namespace, tools) in tools_by_namespace {
-                toolsets.push(codegen::ToolSet::new(
-                    &namespace,
-                    &format!("JavaScript local tools in namespace '{}'", namespace),
-                    tools,
-                ));
-            }
-        }
-
-        // Convert Python callbacks - group by namespace
-        if let Some(ref python_registry) = self.python_registry {
-            let python_metadata = python_registry.list();
-            if !python_metadata.is_empty() {
+        // Convert local tool callbacks - group by namespace
+        if let Some(ref local_registry) = self.local_registry {
+            let local_metadata = local_registry.list();
+            if !local_metadata.is_empty() {
                 let mut tools_by_namespace: HashMap<String, Vec<codegen::Tool>> = HashMap::new();
 
-                for metadata in python_metadata {
-                    match Self::python_metadata_to_codegen_tool(&metadata) {
+                for metadata in local_metadata {
+                    match Self::local_tool_metadata_to_codegen_tool(&metadata) {
                         Ok(tool) => {
                             tools_by_namespace
                                 .entry(metadata.namespace.clone())
                                 .or_default()
                                 .push(tool);
                         }
-                        Err(e) => warn!(
-                            "Failed to convert Python callback '{}': {}",
-                            metadata.name, e
-                        ),
+                        Err(e) => warn!("Failed to convert local tool '{}': {}", metadata.name, e),
                     }
                 }
 
                 for (namespace, tools) in tools_by_namespace {
                     toolsets.push(codegen::ToolSet::new(
                         &namespace,
-                        &format!("Python callback tools in namespace '{}'", namespace),
+                        &format!("Local tools in namespace '{}'", namespace),
                         tools,
                     ));
                 }
@@ -90,55 +58,8 @@ impl PctxTools {
     }
 
     /// Convert local tool metadata to a codegen Tool
-    ///
-    /// This generic helper works for both JS local tools and Python callbacks
-    fn metadata_to_codegen_tool(
-        name: &str,
-        description: Option<&String>,
-        input_schema: Option<&serde_json::Value>,
-    ) -> Result<codegen::Tool> {
-        let schema_value = if let Some(schema) = input_schema {
-            schema.clone()
-        } else {
-            // Default to accepting any object
-            json!({
-                "type": "object",
-                "properties": {},
-                "additionalProperties": true
-            })
-        };
-
-        let input_schema: codegen::RootSchema =
-            serde_json::from_value(schema_value).map_err(|e| {
-                Error::Message(format!(
-                    "Failed to parse input schema for '{}': {}",
-                    name, e
-                ))
-            })?;
-
-        codegen::Tool::new_javascript(
-            name,
-            description,
-            input_schema,
-            None, // Local tools don't have output schemas yet
-        )
-        .map_err(Error::from)
-    }
-
-    /// Convert a LocalToolDefinition to a codegen Tool
-    fn local_tool_to_codegen_tool(
-        local_tool: &deno_executor::LocalToolDefinition,
-    ) -> Result<codegen::Tool> {
-        Self::metadata_to_codegen_tool(
-            &local_tool.metadata.name,
-            local_tool.metadata.description.as_ref(),
-            local_tool.metadata.input_schema.as_ref(),
-        )
-    }
-
-    /// Convert Python callback metadata to a codegen Tool
-    fn python_metadata_to_codegen_tool(
-        metadata: &pctx_python_runtime::LocalToolMetadata,
+    fn local_tool_metadata_to_codegen_tool(
+        metadata: &pctx_code_execution_runtime::LocalToolMetadata,
     ) -> Result<codegen::Tool> {
         let schema_value = if let Some(schema) = &metadata.input_schema {
             schema.clone()
@@ -281,21 +202,16 @@ impl PctxTools {
 
         debug!("Executing code in sandbox");
 
-        // Collect all local tools (JS only)
-        let all_local_tools = self.local_tools.clone();
+        // Use the unified LocalToolRegistry
+        let unified_registry = self
+            .local_registry
+            .clone()
+            .unwrap_or_default();
 
-        let mut options = deno_executor::ExecuteOptions::new()
+        let options = deno_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
-            .with_mcp_configs(self.servers.clone());
-
-        if !all_local_tools.is_empty() {
-            options = options.with_local_tools(all_local_tools);
-        }
-
-        // Pass Python registry directly (not as LocalToolDefinitions)
-        if let Some(ref python_registry) = self.python_registry {
-            options = options.with_python_registry(python_registry.clone());
-        }
+            .with_mcp_configs(self.servers.clone())
+            .with_unified_local_registry(unified_registry);
 
         let execution_res = deno_executor::execute(&to_execute, options).await?;
 

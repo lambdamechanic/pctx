@@ -4,14 +4,12 @@ use deno_runtime::deno_core::ModuleCodeString;
 use deno_runtime::deno_core::RuntimeOptions;
 use deno_runtime::deno_core::anyhow;
 use deno_runtime::deno_core::error::CoreError;
-pub use pctx_code_execution_runtime::{CallbackRuntime, LocalToolDefinition, LocalToolMetadata};
+pub use pctx_code_execution_runtime::LocalToolMetadata;
 pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, type_check};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 use thiserror::Error;
 use tracing::{debug, warn};
-
-mod python_ops;
 
 pub type Result<T> = std::result::Result<T, DenoExecutorError>;
 
@@ -19,8 +17,8 @@ pub type Result<T> = std::result::Result<T, DenoExecutorError>;
 pub struct ExecuteOptions {
     pub allowed_hosts: Option<Vec<String>>,
     pub mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
-    pub local_tools: Option<Vec<pctx_code_execution_runtime::LocalToolDefinition>>,
-    pub python_registry: Option<pctx_python_runtime::PythonCallbackRegistry>,
+    /// Unified registry containing all local tool callbacks (Python, Node.js, Rust, etc.)
+    pub unified_local_registry: Option<pctx_code_execution_runtime::LocalToolRegistry>,
 }
 
 impl ExecuteOptions {
@@ -40,27 +38,16 @@ impl ExecuteOptions {
         self
     }
 
+    /// Set the unified local tool registry
+    ///
+    /// This registry contains all local tool callbacks regardless of their source language.
+    /// Python, Node.js, and Rust callbacks are all wrapped as Rust closures and stored here.
     #[must_use]
-    pub fn with_local_tools(
+    pub fn with_unified_local_registry(
         mut self,
-        tools: Vec<pctx_code_execution_runtime::LocalToolDefinition>,
+        registry: pctx_code_execution_runtime::LocalToolRegistry,
     ) -> Self {
-        // Merge with existing tools if any
-        if let Some(mut existing) = self.local_tools {
-            existing.extend(tools);
-            self.local_tools = Some(existing);
-        } else {
-            self.local_tools = Some(tools);
-        }
-        self
-    }
-
-    #[must_use]
-    pub fn with_python_registry(
-        mut self,
-        registry: pctx_python_runtime::PythonCallbackRegistry,
-    ) -> Self {
-        self.python_registry = Some(registry);
+        self.unified_local_registry = Some(registry);
         self
     }
 }
@@ -283,49 +270,19 @@ async fn execute_code(
             }
         }
     }
-    // Separate tools by runtime type (for JS tools only - Python comes via registry)
-    let js_tools: Vec<_> = options
-        .local_tools
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|tool| tool.runtime == CallbackRuntime::JavaScript)
-        .collect();
-
-    // Create local tool registry for JavaScript tools
-    let local_tool_registry = pctx_code_execution_runtime::LocalToolRegistry::new();
-    for tool in js_tools {
-        #[allow(deprecated)]
-        if let Err(e) = local_tool_registry.register(tool) {
-            warn!(runtime = "execution", error = %e, "Failed to register JS local tool");
-            return Ok(InternalExecuteResult {
-                success: false,
-                output: None,
-                error: Some(ExecutionError {
-                    message: format!("JS local tool registration failed: {e}"),
-                    stack: None,
-                }),
-                stdout: String::new(),
-                stderr: String::new(),
-            });
-        }
-    }
-
-    // Use the provided Python callback registry directly
-    let python_registry = options.python_registry;
+    // Use the unified local tool registry if provided, otherwise create empty one
+    let local_tool_registry = options
+        .unified_local_registry
+        .unwrap_or_default();
 
     let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(options.allowed_hosts);
 
     // Build extensions list
-    let mut extensions = vec![pctx_code_execution_runtime::pctx_runtime_snapshot::init(
+    let extensions = vec![pctx_code_execution_runtime::pctx_runtime_snapshot::init(
         mcp_registry,
         local_tool_registry,
         allowed_hosts,
     )];
-
-    // Add Python callback extension if we have Python tools
-    if python_registry.is_some() {
-        extensions.push(python_ops::pctx_python_callbacks::init());
-    }
 
     // Create JsRuntime from `pctx_runtime` snapshot and extension
     // The snapshot contains the ESM code pre-compiled, and init() registers both ops and ESM
@@ -336,11 +293,6 @@ async fn execute_code(
         extensions,
         ..Default::default()
     });
-
-    // If Python callback registry was created, add it to OpState
-    if let Some(python_registry) = python_registry {
-        js_runtime.op_state().borrow_mut().put(python_registry);
-    }
 
     // Create the main module specifier
     let main_module = deno_core::resolve_url("file:///execute.js")?;

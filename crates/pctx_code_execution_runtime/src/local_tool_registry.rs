@@ -1,23 +1,53 @@
 //! Generic local tool registry for storing tool metadata and callback definitions
 //!
 //! This module provides a runtime-agnostic registry for user-defined callback tools.
-//! The actual callback execution is delegated to the runtime (JavaScript, Python, etc.),
-//! while this registry tracks metadata and callback specifications.
+//! Callbacks are stored as Rust closures, regardless of their source language (Python, Node.js, etc.).
+//!
+//! ## Architecture: Unified Host Callbacks
+//!
+//! PCTX supports local tool callbacks from multiple host environments:
+//!
+//! ### Host Python Callbacks (via `PyO3`)
+//! - **Execution**: Host Python interpreter
+//! - **Storage**: `callbacks` `HashMap` (as Rust closures)
+//! - **Registration**: `pctx_python_runtime::PythonCallbackRegistry::register_callable()`
+//! - **Use case**: Python-based local tools from Python SDK
+//!
+//! ### Host Node.js Callbacks (via napi-rs - future)
+//! - **Execution**: Host Node.js environment
+//! - **Storage**: `callbacks` `HashMap` (as Rust closures)
+//! - **Registration**: `pctx_nodejs_bindings::wrap_nodejs_callback()`
+//! - **Use case**: JavaScript-based local tools from TypeScript SDK
+//!
+//! ## Unified Callback Storage
+//!
+//! All callbacks are stored as the same Rust closure type:
+//! ```rust
+//! use std::sync::Arc;
+//! pub type LocalToolCallback = Arc<
+//!     dyn Fn(Option<serde_json::Value>) -> Result<serde_json::Value, String>
+//!     + Send + Sync
+//! >;
+//! ```
+//!
+//! This unified type allows tools from different languages (Python, Node.js, Rust)
+//! to be stored together and called through the same interface.
 
 use crate::error::McpError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-/// Runtime type for a local tool callback
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum CallbackRuntime {
-    /// JavaScript callback executed in the Deno runtime
-    JavaScript,
-    /// Python callback executed via `PyO3`
-    Python,
-}
+/// A callable function that executes a local tool
+///
+/// This is a Rust closure that wraps any kind of callback (Python, Node.js, Rust native, etc.).
+/// All language-specific FFI complexity is hidden inside the closure.
+///
+/// # Arguments
+/// * Input: `Option<serde_json::Value>` - Tool arguments as JSON
+/// * Output: `Result<serde_json::Value, String>` - Tool result or error message
+pub type LocalToolCallback =
+    Arc<dyn Fn(Option<serde_json::Value>) -> Result<serde_json::Value, String> + Send + Sync>;
 
 /// Metadata for a local tool registration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,25 +56,8 @@ pub struct LocalToolMetadata {
     pub description: Option<String>,
     /// JSON Schema for tool input parameters
     pub input_schema: Option<serde_json::Value>,
-    /// Namespace for this tool (e.g., "math", "db_connections")
+    /// Namespace for this tool (e.g., "math", "`db_connections`")
     pub namespace: String,
-}
-
-/// A complete local tool definition with callback specification
-///
-/// This is generic over different runtimes. The callback data can be:
-/// - JavaScript: A string containing JS code like "(args) => args.a + args.b"
-/// - Python: A string containing Python code or a pickled function
-/// - Any other runtime: Whatever format that runtime needs
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LocalToolDefinition {
-    pub metadata: LocalToolMetadata,
-    /// Runtime type for this callback
-    pub runtime: CallbackRuntime,
-    /// Runtime-specific callback data
-    /// For JS: JavaScript callback code (e.g., "(args) => args.a + args.b")
-    /// For Python: Python callback code or reference
-    pub callback_data: String,
 }
 
 /// Arguments for calling a local tool
@@ -56,26 +69,28 @@ pub struct CallLocalToolArgs {
     pub arguments: Option<serde_json::Value>,
 }
 
-/// Registry for local tool metadata and definitions
+/// Registry for local tool metadata and callbacks
 ///
-/// This registry stores:
-/// 1. Pre-registered tools (from Rust) with their callback data
-/// 2. Runtime-registered tools (from the runtime) - just metadata
+/// This registry stores all local tool callbacks as Rust closures, regardless of their
+/// source language (Python, Node.js, Rust, etc.). Each callback is wrapped using
+/// language-specific FFI (`PyO3` for Python, napi-rs for Node.js) into a unified
+/// `LocalToolCallback` type.
+///
+/// ## Storage
+/// - **metadata**: Tool metadata (name, description, schema, namespace)
+/// - **callbacks**: Rust closures that execute the tools (unified interface for all languages)
 pub struct LocalToolRegistry {
-    /// Tools registered from Rust (before runtime creation)
-    pre_registered: Arc<RwLock<HashMap<String, LocalToolDefinition>>>,
-    /// Metadata for all tools (both pre-registered and runtime-registered)
-    tools: Arc<RwLock<HashMap<String, LocalToolMetadata>>>,
+    /// Metadata for all registered tools
+    metadata: Arc<RwLock<HashMap<String, LocalToolMetadata>>>,
+    /// Unified callback storage (Python, Node.js, Rust, etc. all stored as Rust closures)
+    callbacks: Arc<RwLock<HashMap<String, LocalToolCallback>>>,
 }
 
 impl std::fmt::Debug for LocalToolRegistry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LocalToolRegistry")
-            .field(
-                "pre_registered_count",
-                &self.pre_registered.read().unwrap().len(),
-            )
-            .field("tools_count", &self.tools.read().unwrap().len())
+            .field("tool_count", &self.metadata.read().unwrap().len())
+            .field("callback_count", &self.callbacks.read().unwrap().len())
             .finish()
     }
 }
@@ -83,89 +98,101 @@ impl std::fmt::Debug for LocalToolRegistry {
 impl LocalToolRegistry {
     pub fn new() -> Self {
         Self {
-            pre_registered: Arc::new(RwLock::new(HashMap::new())),
-            tools: Arc::new(RwLock::new(HashMap::new())),
+            metadata: Arc::new(RwLock::new(HashMap::new())),
+            callbacks: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    /// Register a local tool from Rust (before runtime creation)
+    /// Register a local tool with a Rust callback (NEW UNIFIED API)
     ///
-    /// This allows you to pre-register tools with their callback data.
-    /// The tools will be automatically registered when the runtime starts.
+    /// This is the primary registration method. The callback can wrap:
+    /// - Python functions (via `PyO3`)
+    /// - JavaScript functions (via Deno ops)
+    /// - Native Rust code
+    /// - Anything else that can be called from Rust
+    ///
+    /// # Arguments
+    /// * `metadata` - Tool metadata (name, description, schema, namespace)
+    /// * `callback` - Rust closure that executes the tool
     ///
     /// # Errors
-    ///
     /// Returns an error if a tool with the same name is already registered
     ///
     /// # Panics
-    ///
     /// Panics if the internal lock is poisoned
     ///
     /// # Example
-    ///
-    /// ```rust
-    /// use pctx_code_execution_runtime::{CallbackRuntime, LocalToolRegistry, LocalToolDefinition, LocalToolMetadata};
+    /// ```rust,no_run
+    /// use pctx_code_execution_runtime::{LocalToolRegistry, LocalToolMetadata, LocalToolCallback};
+    /// use std::sync::Arc;
     ///
     /// let registry = LocalToolRegistry::new();
-    /// registry.register(LocalToolDefinition {
-    ///     metadata: LocalToolMetadata {
+    ///
+    /// // Register a simple Rust callback
+    /// let callback: LocalToolCallback = Arc::new(|args| {
+    ///     let a = args.as_ref().and_then(|v| v["a"].as_i64()).unwrap_or(0);
+    ///     let b = args.as_ref().and_then(|v| v["b"].as_i64()).unwrap_or(0);
+    ///     Ok(serde_json::json!(a + b))
+    /// });
+    ///
+    /// registry.register_callback(
+    ///     LocalToolMetadata {
     ///         name: "add".to_string(),
     ///         description: Some("Adds two numbers".to_string()),
     ///         input_schema: None,
-    ///         namespace: "MyTools".to_string(),
+    ///         namespace: "math".to_string(),
     ///     },
-    ///     runtime: CallbackRuntime::JavaScript,
-    ///     callback_data: "(args) => args.a + args.b".to_string(),
-    /// }).unwrap();
+    ///     callback,
+    /// ).unwrap();
     /// ```
-    pub fn register(&self, definition: LocalToolDefinition) -> Result<(), McpError> {
-        let mut pre_registered = self.pre_registered.write().unwrap();
-        let mut tools = self.tools.write().unwrap();
+    pub fn register_callback(
+        &self,
+        metadata: LocalToolMetadata,
+        callback: LocalToolCallback,
+    ) -> Result<(), McpError> {
+        let mut metadata_map = self.metadata.write().unwrap();
+        let mut callbacks = self.callbacks.write().unwrap();
 
-        if tools.contains_key(&definition.metadata.name) {
-            return Err(McpError::Config(format!(
-                "Local tool with name \"{}\" is already registered",
-                definition.metadata.name
-            )));
-        }
-
-        let name = definition.metadata.name.clone();
-        tools.insert(name.clone(), definition.metadata.clone());
-        pre_registered.insert(name, definition);
-        Ok(())
-    }
-
-    /// Get all pre-registered tools (for runtime initialization)
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal lock is poisoned
-    pub fn get_pre_registered(&self) -> Vec<LocalToolDefinition> {
-        let pre_registered = self.pre_registered.read().unwrap();
-        pre_registered.values().cloned().collect()
-    }
-
-    /// Register local tool metadata only (called from runtime)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a tool with the same name is already registered
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal lock is poisoned
-    pub fn register_metadata_only(&self, metadata: LocalToolMetadata) -> Result<(), McpError> {
-        let mut tools = self.tools.write().unwrap();
-
-        if tools.contains_key(&metadata.name) {
+        if metadata_map.contains_key(&metadata.name) {
             return Err(McpError::Config(format!(
                 "Local tool with name \"{}\" is already registered",
                 metadata.name
             )));
         }
 
-        tools.insert(metadata.name.clone(), metadata);
+        let name = metadata.name.clone();
+        metadata_map.insert(name.clone(), metadata);
+        callbacks.insert(name, callback);
+
         Ok(())
+    }
+
+    /// Execute a registered tool by name
+    ///
+    /// # Arguments
+    /// * `name` - Name of the tool to execute
+    /// * `args` - Optional JSON arguments
+    ///
+    /// # Returns
+    /// The tool's result as JSON, or an error message
+    ///
+    /// # Errors
+    /// Returns an error if the tool is not found or the callback fails
+    ///
+    /// # Panics
+    /// Panics if the internal lock is poisoned
+    pub fn execute(
+        &self,
+        name: &str,
+        args: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value, String> {
+        let callbacks = self.callbacks.read().unwrap();
+
+        let callback = callbacks
+            .get(name)
+            .ok_or_else(|| format!("Tool '{name}' not found"))?;
+
+        callback(args)
     }
 
     /// Check if a local tool is registered
@@ -174,8 +201,8 @@ impl LocalToolRegistry {
     ///
     /// Panics if the internal lock is poisoned
     pub fn has(&self, name: &str) -> bool {
-        let tools = self.tools.read().unwrap();
-        tools.contains_key(name)
+        let metadata_map = self.metadata.read().unwrap();
+        metadata_map.contains_key(name)
     }
 
     /// Get local tool metadata
@@ -184,8 +211,8 @@ impl LocalToolRegistry {
     ///
     /// Panics if the internal lock is poisoned
     pub fn get_metadata(&self, name: &str) -> Option<LocalToolMetadata> {
-        let tools = self.tools.read().unwrap();
-        tools.get(name).cloned()
+        let metadata_map = self.metadata.read().unwrap();
+        metadata_map.get(name).cloned()
     }
 
     /// List all registered local tools
@@ -194,8 +221,8 @@ impl LocalToolRegistry {
     ///
     /// Panics if the internal lock is poisoned
     pub fn list(&self) -> Vec<LocalToolMetadata> {
-        let tools = self.tools.read().unwrap();
-        tools.values().cloned().collect()
+        let metadata_map = self.metadata.read().unwrap();
+        metadata_map.values().cloned().collect()
     }
 
     /// Delete a local tool
@@ -204,8 +231,12 @@ impl LocalToolRegistry {
     ///
     /// Panics if the internal lock is poisoned
     pub fn delete(&self, name: &str) -> bool {
-        let mut tools = self.tools.write().unwrap();
-        tools.remove(name).is_some()
+        let mut metadata_map = self.metadata.write().unwrap();
+        let mut callbacks = self.callbacks.write().unwrap();
+
+        let removed_metadata = metadata_map.remove(name).is_some();
+        callbacks.remove(name);
+        removed_metadata
     }
 
     /// Clear all local tools
@@ -214,8 +245,11 @@ impl LocalToolRegistry {
     ///
     /// Panics if the internal lock is poisoned
     pub fn clear(&self) {
-        let mut tools = self.tools.write().unwrap();
-        tools.clear();
+        let mut metadata_map = self.metadata.write().unwrap();
+        let mut callbacks = self.callbacks.write().unwrap();
+
+        metadata_map.clear();
+        callbacks.clear();
     }
 }
 
@@ -228,8 +262,8 @@ impl Default for LocalToolRegistry {
 impl Clone for LocalToolRegistry {
     fn clone(&self) -> Self {
         Self {
-            pre_registered: Arc::clone(&self.pre_registered),
-            tools: Arc::clone(&self.tools),
+            metadata: Arc::clone(&self.metadata),
+            callbacks: Arc::clone(&self.callbacks),
         }
     }
 }
