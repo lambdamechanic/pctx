@@ -88,18 +88,18 @@
 //! - **Memory**: ~2MB base runtime overhead
 //! - **Operations**: Rust ops provide native performance
 
+mod callable_tool_registry;
 mod error;
 mod fetch;
 mod js_error_impl;
 mod local_tool_ops;
-mod local_tool_registry;
 pub mod ops;
 mod registry;
 
-pub use fetch::AllowedHosts;
-pub use local_tool_registry::{
+pub use callable_tool_registry::{
     CallLocallyCallableToolArgs, CallableToolMetadata, CallableToolRegistry, LocalToolCallback,
 };
+pub use fetch::AllowedHosts;
 pub use registry::MCPRegistry;
 
 /// Pre-compiled V8 snapshot containing the PCTX runtime

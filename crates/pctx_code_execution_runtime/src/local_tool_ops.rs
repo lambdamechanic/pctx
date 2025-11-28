@@ -10,8 +10,8 @@
 
 use deno_core::{OpState, op2};
 
+use crate::callable_tool_registry::{CallableToolMetadata, CallableToolRegistry};
 use crate::error::McpError;
-use crate::local_tool_registry::{CallableToolMetadata, CallableToolRegistry};
 
 /// Check if a local tool is registered
 #[op2(fast)]
