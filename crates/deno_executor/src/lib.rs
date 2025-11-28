@@ -4,7 +4,7 @@ use deno_runtime::deno_core::ModuleCodeString;
 use deno_runtime::deno_core::RuntimeOptions;
 use deno_runtime::deno_core::anyhow;
 use deno_runtime::deno_core::error::CoreError;
-pub use pctx_code_execution_runtime::LocalToolMetadata;
+pub use pctx_code_execution_runtime::CallableToolMetadata;
 pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, type_check};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
@@ -18,7 +18,7 @@ pub struct ExecuteOptions {
     pub allowed_hosts: Option<Vec<String>>,
     pub mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
     /// Unified registry containing all local tool callbacks (Python, Node.js, Rust, etc.)
-    pub unified_local_registry: Option<pctx_code_execution_runtime::LocalToolRegistry>,
+    pub callable_registry: Option<pctx_code_execution_runtime::CallableToolRegistry>,
 }
 
 impl ExecuteOptions {
@@ -38,16 +38,16 @@ impl ExecuteOptions {
         self
     }
 
-    /// Set the unified local tool registry
+    /// Set the unified local callable registry
     ///
     /// This registry contains all local tool callbacks regardless of their source language.
     /// Python, Node.js, and Rust callbacks are all wrapped as Rust closures and stored here.
     #[must_use]
-    pub fn with_unified_local_registry(
+    pub fn with_callable_registry(
         mut self,
-        registry: pctx_code_execution_runtime::LocalToolRegistry,
+        registry: pctx_code_execution_runtime::CallableToolRegistry,
     ) -> Self {
-        self.unified_local_registry = Some(registry);
+        self.callable_registry = Some(registry);
         self
     }
 }
@@ -271,7 +271,7 @@ async fn execute_code(
         }
     }
     // Use the unified local tool registry if provided, otherwise create empty one
-    let local_tool_registry = options.unified_local_registry.unwrap_or_default();
+    let local_tool_registry = options.callable_registry.unwrap_or_default();
 
     let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(options.allowed_hosts);
 

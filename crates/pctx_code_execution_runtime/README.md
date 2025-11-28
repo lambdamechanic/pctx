@@ -44,13 +44,13 @@ See the complete example: [typescript_sdk_with_dependencies.rs](examples/typescr
 ```rust
 use deno_core::{JsRuntime, RuntimeOptions};
 use pctx_code_execution_runtime::{
-    pctx_runtime_snapshot, MCPRegistry, JsLocalToolRegistry,
+    pctx_runtime_snapshot, MCPRegistry, JsCallableToolRegistry,
     AllowedHosts, RUNTIME_SNAPSHOT
 };
 
 // Create registries
 let mcp_registry = MCPRegistry::new();
-let js_local_tool_registry = JsLocalToolRegistry::new();
+let js_local_tool_registry = JsCallableToolRegistry::new();
 let allowed_hosts = AllowedHosts::new(Some(vec!["example.com".to_string()]));
 
 let mut runtime = JsRuntime::new(RuntimeOptions {
@@ -104,20 +104,20 @@ Thread-safe registry for MCP server configurations.
 let registry = MCPRegistry::new();
 ```
 
-#### `JsLocalToolRegistry`
+#### `JsCallableToolRegistry`
 
 Thread-safe registry for local tool metadata (callbacks stored in JS).
 
 ```rust
-let local_registry = JsLocalToolRegistry::new();
+let callable_registry = JsCallableToolRegistry::new();
 
 // Query tools
-if local_registry.has("my-tool") {
+if callable_registry.has("my-tool") {
     println!("Tool exists!");
 }
 
-let metadata = local_registry.get_metadata("my-tool");
-let all_tools = local_registry.list();
+let metadata = callable_registry.get_metadata("my-tool");
+let all_tools = callable_registry.list();
 ```
 
 #### `AllowedHosts`

@@ -74,13 +74,13 @@ impl Tool {
         Self::_new(name, description, input, output, ToolVariant::Mcp)
     }
 
-    pub fn new_local(
+    pub fn new_callable(
         name: &str,
         description: Option<String>,
         input: RootSchema,
         output: Option<RootSchema>,
     ) -> CodegenResult<Self> {
-        Self::_new(name, description, input, output, ToolVariant::Local)
+        Self::_new(name, description, input, output, ToolVariant::Callable)
     }
 
     fn _new(
@@ -155,11 +155,10 @@ impl Tool {
                     output = &self.output_signature,
                 )
             }
-            ToolVariant::Local => {
-                // Unified local tool - works for all runtime callbacks (Python, JS, Rust, etc.)
+            ToolVariant::Callable => {
                 format!(
                     "{fn_sig} {{
-  return await callLocalTool<{output}>({tool}, input);
+  return await callLocallyCallableTool<{output}>({tool}, input);
 }}",
                     fn_sig = self.fn_signature(true),
                     tool = json!(&self.name),
@@ -173,6 +172,5 @@ impl Tool {
 #[derive(Clone, Copy, Debug)]
 pub enum ToolVariant {
     Mcp,
-    /// Unified local tool (works for Python, JavaScript, Rust, and any other runtime callbacks)
-    Local,
+    Callable,
 }

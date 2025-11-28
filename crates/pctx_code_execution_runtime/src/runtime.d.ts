@@ -102,14 +102,14 @@ export function fetch(url: string, options?: FetchOptions): Promise<FetchRespons
  *
  * @example
  * // Works for Python tools
- * const result1 = await callLocalTool("python_tool", { value: 42 });
+ * const result1 = await callLocallyCallableTool("python_tool", { value: 42 });
  *
  * // Works for JavaScript tools
- * const result2 = await callLocalTool("js_tool", { value: 42 });
+ * const result2 = await callLocallyCallableTool("js_tool", { value: 42 });
  *
  * // You don't need to know which language the tool is written in!
  */
-export function callLocalTool<TReturn = unknown, TArgs = unknown>(
+export function callLocallyCallableTool<TReturn = unknown, TArgs = unknown>(
     name: string,
     args?: TArgs
 ): Promise<TReturn>;
@@ -124,6 +124,6 @@ declare global {
     var registerMCP: typeof import('./runtime').registerMCP;
     var callMCPTool: typeof import('./runtime').callMCPTool;
     var REGISTRY: typeof import('./runtime').REGISTRY;
-    var callLocalTool: typeof import('./runtime').callLocalTool;
+    var callLocallyCallableTool: typeof import('./runtime').callLocallyCallableTool;
     var fetch: typeof import('./runtime').fetch;
 }

@@ -1,6 +1,6 @@
 use crate::{CodeMode, model::ExecuteInput, test_utils};
-use deno_executor::LocalToolMetadata;
-use pctx_code_execution_runtime::LocalToolRegistry;
+use deno_executor::CallableToolMetadata;
+use pctx_code_execution_runtime::CallableToolRegistry;
 use serial_test::serial;
 use std::sync::Arc;
 
@@ -10,7 +10,7 @@ async fn test_nodejs_callback_simulation() {
     let mut tools = CodeMode::default();
 
     // Register a simulated Node.js callback using the test helper
-    let registry = LocalToolRegistry::new();
+    let registry = CallableToolRegistry::new();
 
     // This simulates what wrap_nodejs_callback() would create - a Rust closure
     // that wraps a JavaScript function from the host Node.js environment
@@ -24,7 +24,7 @@ async fn test_nodejs_callback_simulation() {
 
     registry
         .register_callback(
-            LocalToolMetadata {
+            CallableToolMetadata {
                 name: "multiply".to_string(),
                 description: Some("Multiplies two numbers (Node.js)".to_string()),
                 input_schema: None,
@@ -35,7 +35,7 @@ async fn test_nodejs_callback_simulation() {
         .expect("Failed to register Node.js callback");
 
     // Use the unified registry directly
-    tools.local_registry = Some(registry);
+    tools.callable_registry = Some(registry);
 
     // Execute code that calls the simulated Node.js callback
     let code = r#"
@@ -69,7 +69,7 @@ async fn test_python_local_tool() {
     let mut tools = CodeMode::default();
 
     // Register a Python tool directly in the local registry
-    let registry = pctx_code_execution_runtime::LocalToolRegistry::new();
+    let registry = pctx_code_execution_runtime::CallableToolRegistry::new();
     Python::with_gil(|py| {
         let func = py
             .eval(c_str!("lambda args: args['a'] * args['b']"), None, None)
@@ -79,7 +79,7 @@ async fn test_python_local_tool() {
 
         registry
             .register_callback(
-                LocalToolMetadata {
+                CallableToolMetadata {
                     name: "multiply".to_string(),
                     description: Some("Multiplies two numbers".to_string()),
                     input_schema: None,
@@ -90,7 +90,7 @@ async fn test_python_local_tool() {
             .expect("Failed to register Python tool");
     });
 
-    tools.local_registry = Some(registry);
+    tools.callable_registry = Some(registry);
 
     let code = r#"
         async function run() {
@@ -200,7 +200,7 @@ async fn test_python_callback_can_use_dependencies() {
 
     // Test that Python callbacks can use standard library imports
     // Using json module which is a lightweight built-in dependency
-    let registry = pctx_code_execution_runtime::LocalToolRegistry::new();
+    let registry = pctx_code_execution_runtime::CallableToolRegistry::new();
 
     // For complex code with imports, we compile it in the test and pass the PyObject
     Python::with_gil(|py| {
@@ -237,7 +237,7 @@ def tool(args):
 
         registry
             .register_callback(
-                LocalToolMetadata {
+                CallableToolMetadata {
                     name: "jsonParser".to_string(),
                     description: Some("Parse JSON using the json module".to_string()),
                     input_schema: None,
@@ -248,7 +248,7 @@ def tool(args):
             .expect("Failed to register Python callback");
     });
 
-    tools.local_registry = Some(registry);
+    tools.callable_registry = Some(registry);
 
     let code = r#"
         async function run() {
@@ -284,7 +284,7 @@ async fn test_mixed_rust_and_python_callbacks() {
     let mut tools = CodeMode::default();
 
     // First, register a simulated Node.js callback
-    let registry = LocalToolRegistry::new();
+    let registry = CallableToolRegistry::new();
 
     let add_callback = Arc::new(|args: Option<serde_json::Value>| {
         let args = args.ok_or("Missing arguments")?;
@@ -296,7 +296,7 @@ async fn test_mixed_rust_and_python_callbacks() {
 
     registry
         .register_callback(
-            LocalToolMetadata {
+            CallableToolMetadata {
                 name: "add".to_string(),
                 description: Some("Adds two numbers (Node.js)".to_string()),
                 input_schema: None,
@@ -316,7 +316,7 @@ async fn test_mixed_rust_and_python_callbacks() {
 
         registry
             .register_callback(
-                LocalToolMetadata {
+                CallableToolMetadata {
                     name: "multiply".to_string(),
                     description: Some("Multiplies two numbers".to_string()),
                     input_schema: None,
@@ -327,7 +327,7 @@ async fn test_mixed_rust_and_python_callbacks() {
             .expect("Failed to register Python tool");
     });
 
-    tools.local_registry = Some(registry);
+    tools.callable_registry = Some(registry);
 
     // Use BOTH tools - one from Node.js (simulated), one from Python
     let code = r#"

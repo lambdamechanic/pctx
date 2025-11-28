@@ -16,7 +16,7 @@ use std::sync::Arc;
 /// * `py_func` - A Python callable (function, lambda, method, etc.)
 ///
 /// # Returns
-/// A `LocalToolCallback` that can be registered in `LocalToolRegistry`
+/// A `LocalToolCallback` that can be registered in `CallableToolRegistry`
 pub fn wrap_python_callback(py_func: PyObject) -> LocalToolCallback {
     Arc::new(move |args: Option<serde_json::Value>| {
         Python::with_gil(|py| {

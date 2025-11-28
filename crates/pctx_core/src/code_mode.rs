@@ -18,36 +18,37 @@ pub struct CodeMode {
 
     // configurations
     pub servers: Vec<ServerConfig>,
-    pub local_registry: Option<pctx_code_execution_runtime::LocalToolRegistry>,
+    pub callable_registry: Option<pctx_code_execution_runtime::CallableToolRegistry>,
 }
 
 impl CodeMode {
-    /// Convert local tool callbacks into callable ToolSets
-    fn local_tools_as_toolsets(&self) -> Vec<codegen::ToolSet> {
+    fn callables_as_toolsets(&self) -> Vec<codegen::ToolSet> {
         let mut toolsets = Vec::new();
 
         // Convert local tool callbacks - group by namespace
-        if let Some(ref local_registry) = self.local_registry {
-            let local_metadata = local_registry.list();
-            if !local_metadata.is_empty() {
+        if let Some(ref callable_registry) = self.callable_registry {
+            let callable_metadata = callable_registry.list();
+            if !callable_metadata.is_empty() {
                 let mut tools_by_namespace: HashMap<String, Vec<codegen::Tool>> = HashMap::new();
 
-                for metadata in local_metadata {
-                    match Self::local_tool_metadata_to_codegen_tool(&metadata) {
+                for metadata in callable_metadata {
+                    match Self::callable_metadata_to_codegen_tool(&metadata) {
                         Ok(tool) => {
                             tools_by_namespace
                                 .entry(metadata.namespace.clone())
                                 .or_default()
                                 .push(tool);
                         }
-                        Err(e) => warn!("Failed to convert local tool '{}': {}", metadata.name, e),
+                        Err(e) => {
+                            warn!("Failed to convert callable tool '{}': {}", metadata.name, e)
+                        }
                     }
                 }
 
                 for (namespace, tools) in tools_by_namespace {
                     toolsets.push(codegen::ToolSet::new(
                         &namespace,
-                        &format!("Local tools in namespace '{}'", namespace),
+                        &format!("Callable tools in namespace '{}'", namespace),
                         tools,
                     ));
                 }
@@ -58,8 +59,8 @@ impl CodeMode {
     }
 
     /// Convert local tool metadata to a codegen Tool
-    fn local_tool_metadata_to_codegen_tool(
-        metadata: &pctx_code_execution_runtime::LocalToolMetadata,
+    fn callable_metadata_to_codegen_tool(
+        metadata: &pctx_code_execution_runtime::CallableToolMetadata,
     ) -> Result<codegen::Tool> {
         let schema_value = if let Some(schema) = &metadata.input_schema {
             schema.clone()
@@ -80,11 +81,11 @@ impl CodeMode {
                 ))
             })?;
 
-        codegen::Tool::new_local(
+        codegen::Tool::new_callable(
             &metadata.name,
             metadata.description.clone(),
             input_schema,
-            None, // Local tools don't have output schemas yet
+            None, // Callable tools don't have output schemas yet
         )
         .map_err(Error::from)
     }
@@ -92,7 +93,7 @@ impl CodeMode {
     /// Get all tool sets including MCP servers and local tools
     fn all_tool_sets(&self) -> Vec<codegen::ToolSet> {
         let mut all = self.tool_sets.clone();
-        all.extend(self.local_tools_as_toolsets());
+        all.extend(self.callables_as_toolsets());
         all
     }
 
@@ -202,13 +203,13 @@ impl CodeMode {
 
         debug!("Executing code in sandbox");
 
-        // Use the unified LocalToolRegistry
-        let unified_registry = self.local_registry.clone().unwrap_or_default();
+        // Use the unified CallableToolRegistry
+        let unified_registry = self.callable_registry.clone().unwrap_or_default();
 
         let options = deno_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
             .with_mcp_configs(self.servers.clone())
-            .with_unified_local_registry(unified_registry);
+            .with_callable_registry(unified_registry);
 
         let execution_res = deno_executor::execute(&to_execute, options).await?;
 

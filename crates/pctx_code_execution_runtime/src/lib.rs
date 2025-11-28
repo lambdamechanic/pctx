@@ -24,13 +24,13 @@
 //!
 //! ```rust,no_run
 //! use deno_core::{JsRuntime, RuntimeOptions};
-//! use pctx_code_execution_runtime::{pctx_runtime_snapshot, MCPRegistry, LocalToolRegistry, AllowedHosts, RUNTIME_SNAPSHOT};
+//! use pctx_code_execution_runtime::{pctx_runtime_snapshot, MCPRegistry, CallableToolRegistry, AllowedHosts, RUNTIME_SNAPSHOT};
 //! use std::rc::Rc;
 //!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create registries
 //! let mcp_registry = MCPRegistry::new();
-//! let local_tool_registry = LocalToolRegistry::new();
+//! let local_tool_registry = CallableToolRegistry::new();
 //! let allowed_hosts = AllowedHosts::new(Some(vec!["example.com".to_string()]));
 //!
 //! let mut runtime = JsRuntime::new(RuntimeOptions {
@@ -98,7 +98,7 @@ mod registry;
 
 pub use fetch::AllowedHosts;
 pub use local_tool_registry::{
-    CallLocalToolArgs, LocalToolCallback, LocalToolMetadata, LocalToolRegistry,
+    CallLocallyCallableToolArgs, CallableToolMetadata, CallableToolRegistry, LocalToolCallback,
 };
 pub use registry::MCPRegistry;
 
@@ -116,11 +116,11 @@ pub use registry::MCPRegistry;
 ///
 /// ```rust,no_run
 /// use deno_core::{JsRuntime, RuntimeOptions};
-/// use pctx_code_execution_runtime::{RUNTIME_SNAPSHOT, pctx_runtime_snapshot, MCPRegistry, LocalToolRegistry, AllowedHosts};
+/// use pctx_code_execution_runtime::{RUNTIME_SNAPSHOT, pctx_runtime_snapshot, MCPRegistry, CallableToolRegistry, AllowedHosts};
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let mcp_registry = MCPRegistry::new();
-/// let local_tool_registry = LocalToolRegistry::new();
+/// let local_tool_registry = CallableToolRegistry::new();
 /// let allowed_hosts = AllowedHosts::new(None);
 ///
 /// let mut runtime = JsRuntime::new(RuntimeOptions {
@@ -135,7 +135,7 @@ pub static RUNTIME_SNAPSHOT: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/PCTX_RUNTIME_SNAPSHOT.bin"));
 
 // Deno extension providing MCP client, local tools, and console capturing.
-// Initialize with MCPRegistry, LocalToolRegistry, and AllowedHosts configuration.
+// Initialize with MCPRegistry, CallableToolRegistry, and AllowedHosts configuration.
 // See README.md for complete documentation.
 deno_core::extension!(
     pctx_runtime_snapshot,
@@ -158,7 +158,7 @@ deno_core::extension!(
     esm = [ dir "src", "runtime.js" ],
     options = {
         registry: MCPRegistry,
-        local_tool_registry: LocalToolRegistry,
+        local_tool_registry: CallableToolRegistry,
         allowed_hosts: AllowedHosts,
     },
     state = |state, options| {

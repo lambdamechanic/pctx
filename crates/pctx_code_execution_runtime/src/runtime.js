@@ -196,7 +196,7 @@ function ensurePreRegisteredToolsLoaded() {
  * @param {Object} [args] - Arguments to pass to the tool
  * @returns {Promise<T>} The tool's return value
  */
-export async function callLocalTool(name, args) {
+export async function callLocallyCallableTool(name, args) {
     try {
         // Try the unified callback registry first (Python, native Rust, new JS callbacks)
         return await ops.op_execute_local_tool(name, args || null);
@@ -218,5 +218,5 @@ export async function callLocalTool(name, args) {
 globalThis.registerMCP = registerMCP;
 globalThis.callMCPTool = callMCPTool;
 globalThis.REGISTRY = REGISTRY;
-globalThis.callLocalTool = callLocalTool;
+globalThis.callLocallyCallableTool = callLocallyCallableTool;
 globalThis.fetch = fetch;

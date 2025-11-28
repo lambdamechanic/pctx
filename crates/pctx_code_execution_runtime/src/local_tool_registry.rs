@@ -51,7 +51,7 @@ pub type LocalToolCallback =
 
 /// Metadata for a local tool registration
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LocalToolMetadata {
+pub struct CallableToolMetadata {
     pub name: String,
     pub description: Option<String>,
     /// JSON Schema for tool input parameters
@@ -62,7 +62,7 @@ pub struct LocalToolMetadata {
 
 /// Arguments for calling a local tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CallLocalToolArgs {
+pub struct CallLocallyCallableToolArgs {
     pub name: String,
     /// Tool arguments as JSON object
     #[serde(default)]
@@ -79,23 +79,23 @@ pub struct CallLocalToolArgs {
 /// ## Storage
 /// - **metadata**: Tool metadata (name, description, schema, namespace)
 /// - **callbacks**: Rust closures that execute the tools (unified interface for all languages)
-pub struct LocalToolRegistry {
+pub struct CallableToolRegistry {
     /// Metadata for all registered tools
-    metadata: Arc<RwLock<HashMap<String, LocalToolMetadata>>>,
+    metadata: Arc<RwLock<HashMap<String, CallableToolMetadata>>>,
     /// Unified callback storage (Python, Node.js, Rust, etc. all stored as Rust closures)
     callbacks: Arc<RwLock<HashMap<String, LocalToolCallback>>>,
 }
 
-impl std::fmt::Debug for LocalToolRegistry {
+impl std::fmt::Debug for CallableToolRegistry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LocalToolRegistry")
+        f.debug_struct("CallableToolRegistry")
             .field("tool_count", &self.metadata.read().unwrap().len())
             .field("callback_count", &self.callbacks.read().unwrap().len())
             .finish()
     }
 }
 
-impl LocalToolRegistry {
+impl CallableToolRegistry {
     pub fn new() -> Self {
         Self {
             metadata: Arc::new(RwLock::new(HashMap::new())),
@@ -123,10 +123,10 @@ impl LocalToolRegistry {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use pctx_code_execution_runtime::{LocalToolRegistry, LocalToolMetadata, LocalToolCallback};
+    /// use pctx_code_execution_runtime::{CallableToolRegistry, CallableToolMetadata, LocalToolCallback};
     /// use std::sync::Arc;
     ///
-    /// let registry = LocalToolRegistry::new();
+    /// let registry = CallableToolRegistry::new();
     ///
     /// // Register a simple Rust callback
     /// let callback: LocalToolCallback = Arc::new(|args| {
@@ -136,7 +136,7 @@ impl LocalToolRegistry {
     /// });
     ///
     /// registry.register_callback(
-    ///     LocalToolMetadata {
+    ///     CallableToolMetadata {
     ///         name: "add".to_string(),
     ///         description: Some("Adds two numbers".to_string()),
     ///         input_schema: None,
@@ -147,7 +147,7 @@ impl LocalToolRegistry {
     /// ```
     pub fn register_callback(
         &self,
-        metadata: LocalToolMetadata,
+        metadata: CallableToolMetadata,
         callback: LocalToolCallback,
     ) -> Result<(), McpError> {
         let mut metadata_map = self.metadata.write().unwrap();
@@ -210,7 +210,7 @@ impl LocalToolRegistry {
     /// # Panics
     ///
     /// Panics if the internal lock is poisoned
-    pub fn get_metadata(&self, name: &str) -> Option<LocalToolMetadata> {
+    pub fn get_metadata(&self, name: &str) -> Option<CallableToolMetadata> {
         let metadata_map = self.metadata.read().unwrap();
         metadata_map.get(name).cloned()
     }
@@ -220,7 +220,7 @@ impl LocalToolRegistry {
     /// # Panics
     ///
     /// Panics if the internal lock is poisoned
-    pub fn list(&self) -> Vec<LocalToolMetadata> {
+    pub fn list(&self) -> Vec<CallableToolMetadata> {
         let metadata_map = self.metadata.read().unwrap();
         metadata_map.values().cloned().collect()
     }
@@ -253,13 +253,13 @@ impl LocalToolRegistry {
     }
 }
 
-impl Default for LocalToolRegistry {
+impl Default for CallableToolRegistry {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Clone for LocalToolRegistry {
+impl Clone for CallableToolRegistry {
     fn clone(&self) -> Self {
         Self {
             metadata: Arc::clone(&self.metadata),

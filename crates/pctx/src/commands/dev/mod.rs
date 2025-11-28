@@ -560,7 +560,7 @@ mod tests {
                 url: "http://localhost:8080/mcp".parse().unwrap(),
                 auth: None,
             }],
-            local_registry: None,
+            callable_registry: None,
         }
     }
 
