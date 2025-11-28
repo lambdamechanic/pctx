@@ -206,12 +206,12 @@ impl CodeMode {
         // Use the unified CallableToolRegistry
         let unified_registry = self.callable_registry.clone().unwrap_or_default();
 
-        let options = deno_executor::ExecuteOptions::new()
+        let options = pctx_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
             .with_mcp_configs(self.servers.clone())
             .with_callable_registry(unified_registry);
 
-        let execution_res = deno_executor::execute(&to_execute, options).await?;
+        let execution_res = pctx_executor::execute(&to_execute, options).await?;
 
         if execution_res.success {
             debug!("Sandbox execution completed successfully");

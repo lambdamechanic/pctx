@@ -1,5 +1,5 @@
 [package]
-name = "pctx_core"
+name = "pctx_code_mode"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
@@ -9,7 +9,7 @@ publish = false
 # local
 pctx_config = { path = "../pctx_config" }
 codegen = { path = "../codegen" }
-deno_executor = { path = "../deno_executor" }
+pctx_executor = { path = "../pctx_executor" }
 pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
 
 # general
@@ -22,4 +22,3 @@ schemars = "1.1.0"
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 serial_test = "3"
-pyo3 = { version = "0.23", features = ["auto-initialize"] }

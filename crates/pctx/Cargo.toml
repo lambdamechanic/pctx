@@ -23,8 +23,8 @@ path = "src/bin/generate-cli-docs.rs"
 
 [dependencies]
 # local crates
-pctx_core = { path = "../pctx_core" }
-deno_executor = { path = "../deno_executor" }
+pctx_code_mode = { path = "../pctx_code_mode" }
+pctx_executor = { path = "../pctx_executor" }
 codegen = { path = "../codegen" }
 pctx_config = { path = "../pctx_config" }
 

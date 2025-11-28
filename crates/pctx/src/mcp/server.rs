@@ -45,7 +45,11 @@ impl PctxMcpServer {
         }
     }
 
-    pub(crate) async fn serve(&self, cfg: &Config, code_mode: pctx_core::CodeMode) -> Result<()> {
+    pub(crate) async fn serve(
+        &self,
+        cfg: &Config,
+        code_mode: pctx_code_mode::CodeMode,
+    ) -> Result<()> {
         let shutdown_signal = async {
             tokio::signal::ctrl_c()
                 .await
@@ -58,7 +62,7 @@ impl PctxMcpServer {
     pub(crate) async fn serve_with_shutdown<F>(
         &self,
         cfg: &Config,
-        code_mode: pctx_core::CodeMode,
+        code_mode: pctx_code_mode::CodeMode,
         shutdown_signal: F,
     ) -> Result<()>
     where
@@ -113,7 +117,7 @@ impl PctxMcpServer {
         Ok(())
     }
 
-    fn banner(&self, cfg: &pctx_config::Config, code_mode: &pctx_core::CodeMode) {
+    fn banner(&self, cfg: &pctx_config::Config, code_mode: &pctx_code_mode::CodeMode) {
         let mcp_url = format!("http://{}:{}/mcp", self.host, self.port);
         let logo_max_length = LOGO
             .lines()

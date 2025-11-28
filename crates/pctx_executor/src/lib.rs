@@ -103,7 +103,7 @@ pub enum DenoExecutorError {
 ///
 /// # Example
 /// ```rust,no_run
-/// use deno_executor::{execute, ExecuteOptions};
+/// use pctx_executor::{execute, ExecuteOptions};
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let options = ExecuteOptions::new()

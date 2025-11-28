@@ -1373,6 +1373,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "code_mode_py_bindings"
+version = "0.1.0"
+dependencies = [
+ "pctx_code_execution_runtime",
+ "pctx_code_mode",
+ "pctx_config",
+ "pyo3",
+ "pyo3-async-runtimes",
+ "pythonize",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "codegen"
 version = "0.1.0"
 dependencies = [
@@ -2332,34 +2349,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.111",
-]
-
-[[package]]
-name = "deno_executor"
-version = "0.1.0"
-dependencies = [
- "deno_core",
- "deno_error",
- "deno_resolver",
- "deno_runtime",
- "deno_transpiler",
- "futures",
- "node_resolver",
- "pctx_code_execution_runtime",
- "pctx_config",
- "pctx_type_check_runtime",
- "regex",
- "rustls",
- "serde",
- "serde_json",
- "serial_test",
- "sys_traits",
- "tempfile",
- "thiserror 2.0.17",
- "tokio",
- "tracing",
- "url",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6751,7 +6740,6 @@ dependencies = [
  "clap-markdown",
  "codegen",
  "crossterm 0.29.0",
- "deno_executor",
  "env_logger",
  "indexmap 2.12.1",
  "inquire",
@@ -6760,8 +6748,9 @@ dependencies = [
  "opentelemetry 0.31.0",
  "opentelemetry-otlp 0.31.0",
  "opentelemetry_sdk 0.31.0",
+ "pctx_code_mode",
  "pctx_config",
- "pctx_core",
+ "pctx_executor",
  "ratatui",
  "rmcp",
  "rustls",
@@ -6801,6 +6790,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pctx_code_mode"
+version = "0.1.0"
+dependencies = [
+ "codegen",
+ "pctx_code_execution_runtime",
+ "pctx_config",
+ "pctx_executor",
+ "schemars 1.1.0",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pctx_config"
 version = "0.1.0"
 dependencies = [
@@ -6824,21 +6830,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "pctx_core"
+name = "pctx_executor"
 version = "0.1.0"
 dependencies = [
- "codegen",
- "deno_executor",
+ "deno_core",
+ "deno_error",
+ "deno_resolver",
+ "deno_runtime",
+ "deno_transpiler",
+ "futures",
+ "node_resolver",
  "pctx_code_execution_runtime",
  "pctx_config",
- "pyo3",
- "schemars 1.1.0",
+ "pctx_type_check_runtime",
+ "regex",
+ "rustls",
  "serde",
  "serde_json",
  "serial_test",
+ "sys_traits",
+ "tempfile",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
+ "url",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7341,6 +7357,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pyo3-async-runtimes"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "977dc837525cfd22919ba6a831413854beb7c99a256c03bf8624ad707e45810e"
+dependencies = [
+ "futures",
+ "once_cell",
+ "pin-project-lite",
+ "pyo3",
+ "tokio",
+]
+
+[[package]]
 name = "pyo3-build-config"
 version = "0.23.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7383,6 +7412,16 @@ dependencies = [
  "pyo3-build-config",
  "quote",
  "syn 2.0.111",
+]
+
+[[package]]
+name = "pythonize"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91a6ee7a084f913f98d70cdc3ebec07e852b735ae3059a1500db2661265da9ff"
+dependencies = [
+ "pyo3",
+ "serde",
 ]
 
 [[package]]

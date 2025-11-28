@@ -1,5 +1,5 @@
 use opentelemetry::KeyValue;
-use pctx_core::{
+use pctx_code_mode::{
     CodeMode,
     model::{
         ExecuteInput, ExecuteOutput, GetFunctionDetailsInput, GetFunctionDetailsOutput,

@@ -450,7 +450,7 @@ fn spawn_server_task(
             tracing::warn!(
                 "No MCP servers configured, add servers with 'pctx add <name> <url>' and PCTX Dev Mode will refresh"
             );
-            pctx_core::CodeMode::default()
+            pctx_code_mode::CodeMode::default()
         } else {
             let loaded = match StartCmd::load_code_mode(&cfg).await {
                 Ok(t) => t,
@@ -459,7 +459,7 @@ fn spawn_server_task(
                         "Failed loading upstream MCPs: {e:?}"
                     )))
                     .ok();
-                    pctx_core::CodeMode::default()
+                    pctx_code_mode::CodeMode::default()
                 }
             };
 
@@ -507,8 +507,8 @@ mod tests {
     use crate::commands::dev::log_entry::{LogEntry, LogEntryFields};
     use chrono::Utc;
     use codegen::{Tool, ToolSet};
+    use pctx_code_mode::CodeMode;
     use pctx_config::{logger::LogLevel, server::ServerConfig};
-    use pctx_core::CodeMode;
     use serde_json::json;
 
     fn create_pctx_tools() -> CodeMode {
