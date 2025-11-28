@@ -271,9 +271,7 @@ async fn execute_code(
         }
     }
     // Use the unified local tool registry if provided, otherwise create empty one
-    let local_tool_registry = options
-        .unified_local_registry
-        .unwrap_or_default();
+    let local_tool_registry = options.unified_local_registry.unwrap_or_default();
 
     let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(options.allowed_hosts);
 

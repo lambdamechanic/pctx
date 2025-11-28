@@ -93,16 +93,11 @@
 
 #![deny(clippy::all)]
 
-use napi::{
-    bindgen_prelude::*,
-    threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFunctionCallMode},
-    JsFunction, JsObject,
-};
+use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use pctx_code_execution_runtime::{LocalToolCallback, LocalToolMetadata, LocalToolRegistry};
+use pctx_code_execution_runtime::{LocalToolRegistry};
 use pctx_config::server::ServerConfig;
-use pctx_core::{PctxTools, model::{ExecuteInput, GetFunctionDetailsInput}};
-use std::sync::Arc;
+use pctx_core::PctxTools;
 
 // ==================== MCP Server Configuration ====================
 
@@ -247,8 +242,8 @@ impl JsPctxTools {
         let registry = self.inner.local_registry.as_ref().unwrap();
 
         // Create a threadsafe function that can be called from Rust threads
-        let tsfn: ThreadsafeFunction<serde_json::Value, ErrorStrategy::CalleeHandled> =
-            handler.create_threadsafe_function(0, |ctx| {
+        let tsfn: ThreadsafeFunction<serde_json::Value, ErrorStrategy::CalleeHandled> = handler
+            .create_threadsafe_function(0, |ctx| {
                 // Convert Rust JSON value to JavaScript value
                 ctx.env.to_js_value(&ctx.value).map(|v| vec![v])
             })?;
@@ -259,11 +254,11 @@ impl JsPctxTools {
 
             // Call the JavaScript function and wait for result
             tsfn.call_with_return_value(
-                    args_value,
-                    ThreadsafeFunctionCallMode::Blocking,
-                    |result: serde_json::Value| Ok(result),
-                )
-                .map_err(|e| format!("JavaScript callback failed: {e}"))
+                args_value,
+                ThreadsafeFunctionCallMode::Blocking,
+                |result: serde_json::Value| Ok(result),
+            )
+            .map_err(|e| format!("JavaScript callback failed: {e}"))
         });
 
         // Register the callback in the registry
@@ -379,7 +374,10 @@ impl JsPctxTools {
                     if parts.len() != 2 {
                         return Err(Error::new(
                             Status::InvalidArg,
-                            format!("Invalid function ID format: '{}'. Expected 'namespace.name'", s),
+                            format!(
+                                "Invalid function ID format: '{}'. Expected 'namespace.name'",
+                                s
+                            ),
                         ));
                     }
                     Ok(pctx_core::model::FunctionId {

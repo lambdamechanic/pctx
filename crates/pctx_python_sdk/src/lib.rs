@@ -99,7 +99,10 @@
 
 use pctx_code_execution_runtime::{LocalToolCallback, LocalToolMetadata, LocalToolRegistry};
 use pctx_config::server::ServerConfig;
-use pctx_core::{PctxTools, model::{ExecuteInput, GetFunctionDetailsInput, FunctionId}};
+use pctx_core::{
+    PctxTools,
+    model::{ExecuteInput, FunctionId, GetFunctionDetailsInput},
+};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
@@ -110,21 +113,19 @@ use std::sync::Arc;
 /// Convert Python dict/None to serde_json::Value
 fn py_to_json(py: Python, obj: &Bound<'_, PyAny>) -> PyResult<serde_json::Value> {
     let json_module = py.import("json")?;
-    let json_str: String = json_module
-        .call_method1("dumps", (obj,))?
-        .extract()?;
-    serde_json::from_str(&json_str)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("JSON conversion failed: {}", e)))
+    let json_str: String = json_module.call_method1("dumps", (obj,))?.extract()?;
+    serde_json::from_str(&json_str).map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("JSON conversion failed: {}", e))
+    })
 }
 
 /// Convert serde_json::Value to Python object
 fn json_to_py(py: Python, value: &serde_json::Value) -> PyResult<PyObject> {
-    let json_str = serde_json::to_string(value)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("JSON serialization failed: {}", e)))?;
+    let json_str = serde_json::to_string(value).map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("JSON serialization failed: {}", e))
+    })?;
     let json_module = py.import("json")?;
-    json_module
-        .call_method1("loads", (json_str,))?
-        .extract()
+    json_module.call_method1("loads", (json_str,))?.extract()
 }
 
 // ==================== Main PctxTools Class ====================
@@ -146,10 +147,12 @@ impl PyPctxTools {
     fn new() -> PyResult<Self> {
         tracing::debug!("Creating new PctxTools from Python");
 
-        let runtime = tokio::runtime::Runtime::new()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                format!("Failed to create async runtime: {}", e)
-            ))?;
+        let runtime = tokio::runtime::Runtime::new().map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to create async runtime: {}",
+                e
+            ))
+        })?;
 
         Ok(Self {
             inner: PctxTools::default(),
@@ -253,9 +256,7 @@ impl PyPctxTools {
         let registry = self.inner.local_registry.as_ref().unwrap();
 
         // Convert input schema if provided
-        let schema = input_schema
-            .map(|s| py_to_json(py, s))
-            .transpose()?;
+        let schema = input_schema.map(|s| py_to_json(py, s)).transpose()?;
 
         // Wrap the Python callback
         let callback: LocalToolCallback = Arc::new(move |args: Option<serde_json::Value>| {
@@ -291,9 +292,12 @@ impl PyPctxTools {
                 },
                 callback,
             )
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Failed to register tool '{}': {}", name, e)
-            ))
+            .map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Failed to register tool '{}': {}",
+                    name, e
+                ))
+            })
     }
 
     /// Check if a local tool is registered
@@ -373,9 +377,10 @@ impl PyPctxTools {
             .map(|s| {
                 let parts: Vec<&str> = s.splitn(2, '.').collect();
                 if parts.len() != 2 {
-                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        format!("Invalid function ID format: '{}'. Expected 'namespace.name'", s)
-                    ));
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "Invalid function ID format: '{}'. Expected 'namespace.name'",
+                        s
+                    )));
                 }
                 Ok(FunctionId {
                     mod_name: parts[0].to_string(),
@@ -388,12 +393,10 @@ impl PyPctxTools {
             functions: function_ids,
         };
 
-        let output = self.runtime.block_on(async {
-            self.inner
-                .get_function_details(input_data)
-                .await
-        })
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))?;
+        let output = self
+            .runtime
+            .block_on(async { self.inner.get_function_details(input_data).await })
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))?;
 
         let dict = PyDict::new(py);
 
@@ -446,10 +449,10 @@ impl PyPctxTools {
 
         let input_data = ExecuteInput { code };
 
-        let output = self.runtime.block_on(async {
-            self.inner.execute(input_data).await
-        })
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))?;
+        let output = self
+            .runtime
+            .block_on(async { self.inner.execute(input_data).await })
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))?;
 
         let dict = PyDict::new(py);
         dict.set_item("success", output.success)?;

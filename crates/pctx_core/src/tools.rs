@@ -203,10 +203,7 @@ impl PctxTools {
         debug!("Executing code in sandbox");
 
         // Use the unified LocalToolRegistry
-        let unified_registry = self
-            .local_registry
-            .clone()
-            .unwrap_or_default();
+        let unified_registry = self.local_registry.clone().unwrap_or_default();
 
         let options = deno_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())

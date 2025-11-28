@@ -286,14 +286,13 @@ async fn test_mixed_rust_and_python_callbacks() {
     // First, register a simulated Node.js callback
     let registry = LocalToolRegistry::new();
 
-    let add_callback =
-        Arc::new(|args: Option<serde_json::Value>| {
-            let args = args.ok_or("Missing arguments")?;
-            let a = args["a"].as_i64().ok_or("Missing 'a'")?;
-            let b = args["b"].as_i64().ok_or("Missing 'b'")?;
-            // Simulates: (args) => args.a + args.b
-            Ok(serde_json::json!(a + b))
-        });
+    let add_callback = Arc::new(|args: Option<serde_json::Value>| {
+        let args = args.ok_or("Missing arguments")?;
+        let a = args["a"].as_i64().ok_or("Missing 'a'")?;
+        let b = args["b"].as_i64().ok_or("Missing 'b'")?;
+        // Simulates: (args) => args.a + args.b
+        Ok(serde_json::json!(a + b))
+    });
 
     registry
         .register_callback(
