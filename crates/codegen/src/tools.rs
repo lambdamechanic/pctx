@@ -155,7 +155,16 @@ impl Tool {
                     output = &self.output_signature,
                 )
             }
-            ToolVariant::Callable => todo!("implement callable TS function impl "),
+            ToolVariant::Callable => {
+                format!(
+                    "{fn_sig} {{
+  return await callLocallyCallableTool<{output}>({tool}, input);
+}}",
+                    fn_sig = self.fn_signature(true),
+                    tool = json!(&self.name),
+                    output = &self.output_signature,
+                )
+            }
         }
     }
 }

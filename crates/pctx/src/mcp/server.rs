@@ -45,27 +45,28 @@ impl PctxMcpServer {
         }
     }
 
-    pub(crate) async fn serve(&self, cfg: &Config, tools: pctx_core::PctxTools) -> Result<()> {
+    pub(crate) async fn serve(&self, cfg: &Config, code_mode: pctx_core::CodeMode) -> Result<()> {
         let shutdown_signal = async {
             tokio::signal::ctrl_c()
                 .await
                 .expect("failed graceful shutdown");
         };
-        self.serve_with_shutdown(cfg, tools, shutdown_signal).await
+        self.serve_with_shutdown(cfg, code_mode, shutdown_signal)
+            .await
     }
 
     pub(crate) async fn serve_with_shutdown<F>(
         &self,
         cfg: &Config,
-        tools: pctx_core::PctxTools,
+        code_mode: pctx_core::CodeMode,
         shutdown_signal: F,
     ) -> Result<()>
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
-        self.banner(cfg, &tools);
+        self.banner(cfg, &code_mode);
 
-        let mcp_service = PctxMcpService::new(cfg, tools);
+        let mcp_service = PctxMcpService::new(cfg, code_mode);
 
         let service = StreamableHttpService::new(
             move || Ok(mcp_service.clone()),
@@ -112,7 +113,7 @@ impl PctxMcpServer {
         Ok(())
     }
 
-    fn banner(&self, cfg: &pctx_config::Config, tools: &pctx_core::PctxTools) {
+    fn banner(&self, cfg: &pctx_config::Config, code_mode: &pctx_core::CodeMode) {
         let mcp_url = format!("http://{}:{}/mcp", self.host, self.port);
         let logo_max_length = LOGO
             .lines()
@@ -134,7 +135,7 @@ impl PctxMcpServer {
             ]);
             builder.push_record(["Docs", &fmt_dimmed("https://github.com/portofcontext/pctx")]);
 
-            if !tools.tool_sets.is_empty() {
+            if !code_mode.tool_sets.is_empty() {
                 builder.push_record(["", ""]);
 
                 let tool_record = |s: &codegen::ToolSet| {
@@ -147,9 +148,13 @@ impl PctxMcpServer {
                 };
                 builder.push_record([
                     "Upstream MCPs",
-                    &tools.tool_sets.first().map(tool_record).unwrap_or_default(),
+                    &code_mode
+                        .tool_sets
+                        .first()
+                        .map(tool_record)
+                        .unwrap_or_default(),
                 ]);
-                for s in &tools.tool_sets[1..] {
+                for s in &code_mode.tool_sets[1..] {
                     builder.push_record(["", &tool_record(s)]);
                 }
             }

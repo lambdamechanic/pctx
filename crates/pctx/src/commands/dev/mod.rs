@@ -450,16 +450,16 @@ fn spawn_server_task(
             tracing::warn!(
                 "No MCP servers configured, add servers with 'pctx add <name> <url>' and PCTX Dev Mode will refresh"
             );
-            pctx_core::PctxTools::default()
+            pctx_core::CodeMode::default()
         } else {
-            let loaded = match StartCmd::load_tools(&cfg).await {
+            let loaded = match StartCmd::load_code_mode(&cfg).await {
                 Ok(t) => t,
                 Err(e) => {
                     tx.send(AppMessage::ServerFailed(format!(
                         "Failed loading upstream MCPs: {e:?}"
                     )))
                     .ok();
-                    pctx_core::PctxTools::default()
+                    pctx_core::CodeMode::default()
                 }
             };
 
@@ -508,10 +508,10 @@ mod tests {
     use chrono::Utc;
     use codegen::{Tool, ToolSet};
     use pctx_config::{logger::LogLevel, server::ServerConfig};
-    use pctx_core::PctxTools;
+    use pctx_core::CodeMode;
     use serde_json::json;
 
-    fn create_pctx_tools() -> PctxTools {
+    fn create_pctx_tools() -> CodeMode {
         let account_schema = json!({
             "type": "object",
             "required": ["account_id", "opened_at", "balance", "status"],
@@ -553,13 +553,14 @@ mod tests {
             .unwrap(),
         ];
 
-        PctxTools {
+        CodeMode {
             tool_sets: vec![ToolSet::new("banking", "Banking MCP Server", tools)],
             servers: vec![ServerConfig {
                 name: "banking".into(),
                 url: "http://localhost:8080/mcp".parse().unwrap(),
                 auth: None,
             }],
+            callable_registry: None,
         }
     }
 

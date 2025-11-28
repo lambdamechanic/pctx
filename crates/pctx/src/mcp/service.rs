@@ -1,6 +1,6 @@
 use opentelemetry::KeyValue;
 use pctx_core::{
-    PctxTools,
+    CodeMode,
     model::{
         ExecuteInput, ExecuteOutput, GetFunctionDetailsInput, GetFunctionDetailsOutput,
         ListFunctionsOutput,
@@ -28,18 +28,18 @@ pub(crate) struct PctxMcpService {
     name: String,
     version: String,
     description: Option<String>,
-    tools: PctxTools,
+    code_mode: CodeMode,
     tool_router: ToolRouter<PctxMcpService>,
 }
 
 #[tool_router]
 impl PctxMcpService {
-    pub(crate) fn new(cfg: &pctx_config::Config, tools: PctxTools) -> Self {
+    pub(crate) fn new(cfg: &pctx_config::Config, code_mode: CodeMode) -> Self {
         Self {
             name: cfg.name.clone(),
             version: cfg.version.clone(),
             description: cfg.description.clone(),
-            tools,
+            code_mode,
             tool_router: Self::tool_router(),
         }
     }
@@ -57,7 +57,7 @@ impl PctxMcpService {
         output_schema = rmcp::handler::server::tool::cached_schema_for_type::<ListFunctionsOutput>()
     )]
     async fn list_functions(&self) -> McpResult<CallToolResult> {
-        let listed = self.tools.list_functions();
+        let listed = self.code_mode.list_functions();
         let mut res = CallToolResult::success(vec![Content::text(&listed.code)]);
         res.structured_content = Some(json!(listed));
 
@@ -85,7 +85,7 @@ impl PctxMcpService {
         &self,
         Parameters(input): Parameters<GetFunctionDetailsInput>,
     ) -> McpResult<CallToolResult> {
-        let details = self.tools.get_function_details(input);
+        let details = self.code_mode.get_function_details(input);
         let mut res = CallToolResult::success(vec![Content::text(&details.code)]);
         res.structured_content = Some(json!(details));
 
@@ -134,7 +134,7 @@ impl PctxMcpService {
         // Capture current tracing context to propagate to spawned thread
         let current_span = tracing::Span::current();
 
-        let tools = self.tools.clone();
+        let code_mode = self.code_mode.clone();
 
         let execution_output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
             // Enter the captured span context in the new thread
@@ -147,7 +147,7 @@ impl PctxMcpService {
                 .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
 
             rt.block_on(async {
-                tools
+                code_mode
                     .execute(input)
                     .await
                     .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
@@ -174,7 +174,7 @@ impl ServerHandler for PctxMcpService {
     fn get_info(&self) -> ServerInfo {
         let default_description = format!(
             "This server provides tools to explore SDK functions and execute SDK scripts for the following services: {}",
-            self.tools
+            self.code_mode
                 .tool_sets
                 .iter()
                 .map(|s| s.name.clone())

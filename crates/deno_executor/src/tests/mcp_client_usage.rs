@@ -1,5 +1,5 @@
 use super::serial;
-use crate::execute;
+use crate::{ExecuteOptions, execute};
 use pctx_config::server::ServerConfig;
 use serde_json::json;
 use url::Url;
@@ -14,13 +14,13 @@ console.log("registered value:", registered);
 export default registered;
 "#;
 
-    let mcp_configs = Some(vec![ServerConfig {
+    let mcp_configs = vec![ServerConfig {
         name: "test-server".to_string(),
         url: Url::parse("http://localhost:3000").unwrap(),
         auth: None,
-    }]);
+    }];
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, ExecuteOptions::new().with_mcp_configs(mcp_configs))
         .await
         .expect("execution should succeed");
 
@@ -51,7 +51,7 @@ export default true;
 ";
 
     // Attempt to register the same server twice
-    let mcp_configs = Some(vec![
+    let mcp_configs = vec![
         ServerConfig {
             name: "duplicate-server".to_string(),
             url: Url::parse("http://localhost:3000").unwrap(),
@@ -62,9 +62,9 @@ export default true;
             url: Url::parse("http://localhost:3001").unwrap(),
             auth: None,
         },
-    ]);
+    ];
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, ExecuteOptions::new().with_mcp_configs(mcp_configs))
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Duplicate MCP registration should fail");
@@ -87,13 +87,13 @@ const config = REGISTRY.get("my-server");
 export default config;
 "#;
 
-    let mcp_configs = Some(vec![ServerConfig {
+    let mcp_configs = vec![ServerConfig {
         name: "my-server".to_string(),
         url: Url::parse("http://localhost:4000").unwrap(),
         auth: None,
-    }]);
+    }];
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, ExecuteOptions::new().with_mcp_configs(mcp_configs))
         .await
         .expect("execution should succeed");
     assert!(result.success, "Getting MCP config should succeed");
@@ -120,7 +120,7 @@ const hasServer3 = REGISTRY.has("server3");
 export default { hasServer1, hasServer2, hasServer3 };
 "#;
 
-    let mcp_configs = Some(vec![
+    let mcp_configs = vec![
         ServerConfig {
             name: "server1".to_string(),
             url: Url::parse("http://localhost:3000").unwrap(),
@@ -136,9 +136,9 @@ export default { hasServer1, hasServer2, hasServer3 };
             url: Url::parse("http://localhost:3002").unwrap(),
             auth: None,
         },
-    ]);
+    ];
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, ExecuteOptions::new().with_mcp_configs(mcp_configs))
         .await
         .expect("execution should succeed");
     assert!(
@@ -173,13 +173,13 @@ const existsAfter = REGISTRY.has("temp-server");
 export default { existsBefore, existsAfter };
 "#;
 
-    let mcp_configs = Some(vec![ServerConfig {
+    let mcp_configs = vec![ServerConfig {
         name: "temp-server".to_string(),
         url: Url::parse("http://localhost:5000").unwrap(),
         auth: None,
-    }]);
+    }];
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, ExecuteOptions::new().with_mcp_configs(mcp_configs))
         .await
         .expect("execution should succeed");
     assert!(result.success, "Registry operations should succeed");
@@ -210,7 +210,7 @@ const hasAfter = REGISTRY.has("server1") || REGISTRY.has("server2");
 export default { hasBefore, hasAfter };
 "#;
 
-    let mcp_configs = Some(vec![
+    let mcp_configs = vec![
         ServerConfig {
             name: "server1".to_string(),
             url: Url::parse("http://localhost:3000").unwrap(),
@@ -221,9 +221,9 @@ export default { hasBefore, hasAfter };
             url: Url::parse("http://localhost:3001").unwrap(),
             auth: None,
         },
-    ]);
+    ];
 
-    let result = execute(code, None, mcp_configs)
+    let result = execute(code, ExecuteOptions::new().with_mcp_configs(mcp_configs))
         .await
         .expect("execution should succeed");
     assert!(result.success, "Registry clear should succeed");
@@ -253,7 +253,7 @@ const deleteResult = REGISTRY.delete("nonexistent-server");
 export default deleteResult;
 "#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Deleting nonexistent server should succeed");
@@ -290,7 +290,7 @@ async function test() {
 export default await test();
 "#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Execution should succeed even with error");

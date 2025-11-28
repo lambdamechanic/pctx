@@ -137,8 +137,86 @@ async function fetch(url, options) {
     return await ops.op_fetch(url, options);
 }
 
+// ============================================================================
+// LOCAL TOOL API (Runtime-agnostic Callbacks - JavaScript implementation)
+// ============================================================================
+
+// Store callbacks in a JavaScript Map (avoids V8 lifetime issues with Rust ops)
+const localToolCallbacks = new Map();
+
+// Flag to track if pre-registered tools have been loaded
+let preRegisteredToolsLoaded = false;
+
+// Load pre-registered tools (called lazily on first use)
+function ensurePreRegisteredToolsLoaded() {
+    if (preRegisteredToolsLoaded) return;
+    preRegisteredToolsLoaded = true;
+
+    // Load JS local tools
+    if (typeof ops.op_get_pre_registered_tools === 'function') {
+        const preRegistered = ops.op_get_pre_registered_tools();
+        for (const tool of preRegistered) {
+            try {
+                // Evaluate the callback_data as JavaScript code to create the function
+                const callback = eval(tool.callback_data);
+                if (typeof callback !== 'function') {
+                    console.error(`Pre-registered JS tool "${tool.metadata.name}" callback_data did not eval to a function`);
+                    continue;
+                }
+                // Store the callback
+                localToolCallbacks.set(tool.metadata.name, callback);
+                console.log(`Auto-registered JS local tool: ${tool.metadata.name}`);
+            } catch (e) {
+                console.error(`Failed to register pre-registered JS tool "${tool.metadata.name}":`, e);
+            }
+        }
+    }
+}
+
+
+
+// ============================================================================
+// UNIFIED LOCAL TOOL API (Language-Agnostic - works for Python, JS, anything!)
+// ============================================================================
+
+/**
+ * Call a local tool (UNIFIED API)
+ *
+ * This function works for ANY local tool regardless of its implementation language:
+ * - Python callbacks (registered via wrap_python_callback)
+ * - JavaScript callbacks (registered via registerJsLocalTool)
+ * - Native Rust callbacks
+ * - Future: Ruby, WASM, etc.
+ *
+ * From JavaScript's perspective, they're all just "tools" - the source language
+ * is irrelevant!
+ *
+ * @template T
+ * @param {string} name - Name of the tool to call
+ * @param {Object} [args] - Arguments to pass to the tool
+ * @returns {Promise<T>} The tool's return value
+ */
+export async function callLocallyCallableTool(name, args) {
+    try {
+        // Try the unified callback registry first (Python, native Rust, new JS callbacks)
+        return await ops.op_execute_local_tool(name, args || null);
+    } catch (err) {
+        // Fall back to legacy JS tools if not found in unified registry
+        if (err && err.message && err.message.includes("not found")) {
+            ensurePreRegisteredToolsLoaded();
+            const callback = localToolCallbacks.get(name);
+            if (callback) {
+                return await callback(args || {});
+            }
+        }
+        // Re-throw error if tool truly doesn't exist
+        throw err;
+    }
+}
+
 // Make APIs available globally for convenience (matching original behavior)
 globalThis.registerMCP = registerMCP;
 globalThis.callMCPTool = callMCPTool;
 globalThis.REGISTRY = REGISTRY;
+globalThis.callLocallyCallableTool = callLocallyCallableTool;
 globalThis.fetch = fetch;

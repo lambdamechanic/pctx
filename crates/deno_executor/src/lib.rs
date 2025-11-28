@@ -4,6 +4,7 @@ use deno_runtime::deno_core::ModuleCodeString;
 use deno_runtime::deno_core::RuntimeOptions;
 use deno_runtime::deno_core::anyhow;
 use deno_runtime::deno_core::error::CoreError;
+pub use pctx_code_execution_runtime::CallableToolMetadata;
 pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, type_check};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
@@ -11,6 +12,45 @@ use thiserror::Error;
 use tracing::{debug, warn};
 
 pub type Result<T> = std::result::Result<T, DenoExecutorError>;
+
+#[derive(Debug, Clone, Default)]
+pub struct ExecuteOptions {
+    pub allowed_hosts: Option<Vec<String>>,
+    pub mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
+    /// Unified registry containing all local tool callbacks (Python, Node.js, Rust, etc.)
+    pub callable_registry: Option<pctx_code_execution_runtime::CallableToolRegistry>,
+}
+
+impl ExecuteOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[must_use]
+    pub fn with_allowed_hosts(mut self, hosts: Vec<String>) -> Self {
+        self.allowed_hosts = Some(hosts);
+        self
+    }
+
+    #[must_use]
+    pub fn with_mcp_configs(mut self, configs: Vec<pctx_config::server::ServerConfig>) -> Self {
+        self.mcp_configs = Some(configs);
+        self
+    }
+
+    /// Set the unified local callable registry
+    ///
+    /// This registry contains all local tool callbacks regardless of their source language.
+    /// Python, Node.js, and Rust callbacks are all wrapped as Rust closures and stored here.
+    #[must_use]
+    pub fn with_callable_registry(
+        mut self,
+        registry: pctx_code_execution_runtime::CallableToolRegistry,
+    ) -> Self {
+        self.callable_registry = Some(registry);
+        self
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecuteResult {
@@ -53,11 +93,7 @@ pub enum DenoExecutorError {
 ///
 /// # Arguments
 /// * `code` - The TypeScript code to check and execute
-/// * `allowed_hosts` - Optional list of hosts that network requests are allowed to access.
-///   Format: "hostname:port" or just "hostname" (e.g., "localhost:3000", "api.example.com").
-///   If None or empty, all network access is denied.
-/// * `mcp_configs` - Optional list of MCP server configurations to register.
-///   These will be pre-registered in the runtime before code execution.
+/// * `options` - Execution options (allowed hosts, MCP configs, local tools)
 ///
 /// # Returns
 /// * `Ok(ExecuteResult)` - Contains type diagnostics, runtime errors, and output
@@ -65,11 +101,19 @@ pub enum DenoExecutorError {
 /// # Errors
 /// * Returns error only if internal tooling fails (not for type errors or runtime errors)
 ///
-pub async fn execute(
-    code: &str,
-    allowed_hosts: Option<Vec<String>>,
-    mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
-) -> Result<ExecuteResult> {
+/// # Example
+/// ```rust,no_run
+/// use deno_executor::{execute, ExecuteOptions};
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let options = ExecuteOptions::new()
+///     .with_allowed_hosts(vec!["api.example.com".to_string()]);
+///
+/// let result = execute("const x = 1 + 1; export default x;", options).await?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn execute(code: &str, options: ExecuteOptions) -> Result<ExecuteResult> {
     debug!(
         code_length = code.len(),
         "Code submitted for typecheck & execution"
@@ -103,7 +147,7 @@ pub async fn execute(
 
     debug!(runtime = "type_check", "Type check passed");
 
-    let exec_result = execute_code(code, allowed_hosts, mcp_configs)
+    let exec_result = execute_code(code, options)
         .await
         .map_err(|e| DenoExecutorError::InternalError(e.to_string()))?;
 
@@ -168,6 +212,7 @@ struct InternalExecuteResult {
 /// * `code` - The TypeScript/JavaScript code to execute
 /// * `allowed_hosts` - Optional list of hosts that network requests are allowed to access
 /// * `mcp_configs` - Optional list of MCP server configurations to pre-register
+/// * `local_tools` - Optional list of local tool definitions to pre-register
 ///
 /// # Returns
 /// * `Ok(ExecuteResult)` - Contains execution result or error information
@@ -177,8 +222,7 @@ struct InternalExecuteResult {
 #[tracing::instrument(fields(runtime = "execution"))]
 async fn execute_code(
     code: &str,
-    allowed_hosts: Option<Vec<String>>,
-    mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
+    options: ExecuteOptions,
 ) -> anyhow::Result<InternalExecuteResult> {
     debug!("Starting code execution");
 
@@ -209,7 +253,7 @@ async fn execute_code(
 
     // Create MCP registry and populate it with provided configs
     let mcp_registry = pctx_code_execution_runtime::MCPRegistry::new();
-    if let Some(configs) = mcp_configs {
+    if let Some(configs) = options.mcp_configs {
         for config in configs {
             if let Err(e) = mcp_registry.add(config) {
                 warn!(runtime = "execution", error = %e, "Failed to register MCP server");
@@ -226,7 +270,17 @@ async fn execute_code(
             }
         }
     }
-    let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(allowed_hosts);
+    // Use the unified local tool registry if provided, otherwise create empty one
+    let local_tool_registry = options.callable_registry.unwrap_or_default();
+
+    let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(options.allowed_hosts);
+
+    // Build extensions list
+    let extensions = vec![pctx_code_execution_runtime::pctx_runtime_snapshot::init(
+        mcp_registry,
+        local_tool_registry,
+        allowed_hosts,
+    )];
 
     // Create JsRuntime from `pctx_runtime` snapshot and extension
     // The snapshot contains the ESM code pre-compiled, and init() registers both ops and ESM
@@ -234,10 +288,7 @@ async fn execute_code(
     let mut js_runtime = JsRuntime::new(RuntimeOptions {
         module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
         startup_snapshot: Some(pctx_code_execution_runtime::RUNTIME_SNAPSHOT),
-        extensions: vec![pctx_code_execution_runtime::pctx_runtime_snapshot::init(
-            mcp_registry,
-            allowed_hosts,
-        )],
+        extensions,
         ..Default::default()
     });
 

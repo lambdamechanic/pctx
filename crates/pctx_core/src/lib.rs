@@ -1,7 +1,13 @@
+mod code_mode;
 pub mod model;
-mod tools;
+pub use code_mode::CodeMode;
 use codegen::CodegenError;
-pub use tools::PctxTools;
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod test_utils;
 
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]

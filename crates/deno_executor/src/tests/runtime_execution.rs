@@ -1,5 +1,5 @@
 use super::serial;
-use crate::execute;
+use crate::{ExecuteOptions, execute};
 
 #[tokio::test]
 #[serial]
@@ -9,7 +9,7 @@ const x = 1 + 1;
 export default x;
 ";
 
-    let result = execute(code, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(result.success, "Simple code should execute successfully");
@@ -27,7 +27,7 @@ async fn test_execute_runtime_error() {
 throw new Error("This is a runtime error");
 "#;
 
-    let result = execute(code, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Code with runtime error should fail");
@@ -47,7 +47,7 @@ async fn test_execute_syntax_error() {
 const x = ;
 ";
 
-    let result = execute(code, None, None)
+    let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
     assert!(!result.success, "Code with syntax error should fail");

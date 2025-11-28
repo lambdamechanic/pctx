@@ -13,21 +13,96 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct PctxTools {
+pub struct CodeMode {
     pub tool_sets: Vec<codegen::ToolSet>,
 
     // configurations
     pub servers: Vec<ServerConfig>,
-    // TODO: callables
+    pub callable_registry: Option<pctx_code_execution_runtime::CallableToolRegistry>,
 }
 
-impl PctxTools {
+impl CodeMode {
+    fn callables_as_toolsets(&self) -> Vec<codegen::ToolSet> {
+        let mut toolsets = Vec::new();
+
+        // Convert local tool callbacks - group by namespace
+        if let Some(ref callable_registry) = self.callable_registry {
+            let callable_metadata = callable_registry.list();
+            if !callable_metadata.is_empty() {
+                let mut tools_by_namespace: HashMap<String, Vec<codegen::Tool>> = HashMap::new();
+
+                for metadata in callable_metadata {
+                    match Self::callable_metadata_to_codegen_tool(&metadata) {
+                        Ok(tool) => {
+                            tools_by_namespace
+                                .entry(metadata.namespace.clone())
+                                .or_default()
+                                .push(tool);
+                        }
+                        Err(e) => {
+                            warn!("Failed to convert callable tool '{}': {}", metadata.name, e)
+                        }
+                    }
+                }
+
+                for (namespace, tools) in tools_by_namespace {
+                    toolsets.push(codegen::ToolSet::new(
+                        &namespace,
+                        &format!("Callable tools in namespace '{}'", namespace),
+                        tools,
+                    ));
+                }
+            }
+        }
+
+        toolsets
+    }
+
+    /// Convert local tool metadata to a codegen Tool
+    fn callable_metadata_to_codegen_tool(
+        metadata: &pctx_code_execution_runtime::CallableToolMetadata,
+    ) -> Result<codegen::Tool> {
+        let schema_value = if let Some(schema) = &metadata.input_schema {
+            schema.clone()
+        } else {
+            // Default to accepting any object
+            json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": true
+            })
+        };
+
+        let input_schema: codegen::RootSchema =
+            serde_json::from_value(schema_value).map_err(|e| {
+                Error::Message(format!(
+                    "Failed to parse input schema for '{}': {}",
+                    metadata.name, e
+                ))
+            })?;
+
+        codegen::Tool::new_callable(
+            &metadata.name,
+            metadata.description.clone(),
+            input_schema,
+            None, // Callable tools don't have output schemas yet
+        )
+        .map_err(Error::from)
+    }
+
+    /// Get all tool sets including MCP servers and local tools
+    fn all_tool_sets(&self) -> Vec<codegen::ToolSet> {
+        let mut all = self.tool_sets.clone();
+        all.extend(self.callables_as_toolsets());
+        all
+    }
+
     /// Returns internal tool sets as minimal code interfaces
     pub fn list_functions(&self) -> ListFunctionsOutput {
         let mut namespaces = vec![];
         let mut functions = vec![];
 
-        for tool_set in &self.tool_sets {
+        for tool_set in &self.all_tool_sets() {
             if tool_set.tools.is_empty() {
                 // skip sets with no tools
                 continue;
@@ -62,7 +137,7 @@ impl PctxTools {
         let mut namespaces = vec![];
         let mut functions = vec![];
 
-        for tool_set in &self.tool_sets {
+        for tool_set in &self.all_tool_sets() {
             if let Some(fn_names) = by_mod.get(&tool_set.mod_name) {
                 // filter tools based on requested fn names
                 let tools: Vec<&codegen::Tool> = tool_set
@@ -110,7 +185,7 @@ impl PctxTools {
 
         // generate the full script to be executed
         let namespaces: Vec<String> = self
-            .tool_sets
+            .all_tool_sets()
             .iter()
             .filter_map(|s| {
                 if s.tools.is_empty() {
@@ -128,12 +203,15 @@ impl PctxTools {
 
         debug!("Executing code in sandbox");
 
-        let execution_res = deno_executor::execute(
-            &to_execute,
-            Some(self.allowed_hosts().into_iter().collect()),
-            Some(self.servers.clone()),
-        )
-        .await?;
+        // Use the unified CallableToolRegistry
+        let unified_registry = self.callable_registry.clone().unwrap_or_default();
+
+        let options = deno_executor::ExecuteOptions::new()
+            .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
+            .with_mcp_configs(self.servers.clone())
+            .with_callable_registry(unified_registry);
+
+        let execution_res = deno_executor::execute(&to_execute, options).await?;
 
         if execution_res.success {
             debug!("Sandbox execution completed successfully");

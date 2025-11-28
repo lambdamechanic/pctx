@@ -14,6 +14,9 @@ pub enum McpError {
     /// Tool call error (HTTP, parsing, etc.)
     #[error("MCP tool call error: {0}")]
     ToolCall(String),
+    /// Local tool execution error
+    #[error("Local tool execution error: {0}")]
+    ExecutionError(String),
 }
 
 impl From<McpConnectionError> for McpError {

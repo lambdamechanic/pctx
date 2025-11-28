@@ -13,14 +13,14 @@ use pctx_config::logger::LogLevel;
 use ratatui::{layout::Rect, widgets::ListState};
 
 use super::log_entry::LogEntry;
-use pctx_core::PctxTools;
+use pctx_core::CodeMode;
 
 // -------- APP STATE & CONTROLS ---------
 
 #[derive(Clone)]
 pub(super) enum AppMessage {
     ServerStarting,
-    ServerReady(PctxTools),
+    ServerReady(CodeMode),
     ServerFailed(String),
     ServerStopped,
     ConfigChanged,
@@ -47,7 +47,7 @@ pub(super) struct ToolUsage {
 
 pub(super) struct App {
     pub(super) logs: Vec<LogEntry>,
-    pub(super) tools: PctxTools,
+    pub(super) tools: CodeMode,
     pub(super) server_ready: bool,
     pub(super) host: String,
     pub(super) port: u16,
@@ -80,7 +80,7 @@ impl App {
     pub(super) fn new(host: String, port: u16, log_file_path: Utf8PathBuf) -> Self {
         Self {
             logs: Vec::new(),
-            tools: PctxTools::default(),
+            tools: CodeMode::default(),
             server_ready: false,
             host,
             port,
@@ -317,7 +317,7 @@ impl App {
             AppMessage::ConfigChanged => {
                 tracing::info!("Configuration file changed, reloading servers...");
                 // Clear existing servers - they will be repopulated when reconnection completes
-                self.tools = PctxTools::default();
+                self.tools = CodeMode::default();
                 self.selected_tool_index = None;
                 self.selected_namespace_index = 0;
             }
