@@ -67,7 +67,7 @@ pub struct Tool {
 impl Tool {
     pub fn new_mcp(
         name: &str,
-        description: Option<&String>,
+        description: Option<String>,
         input: RootSchema,
         output: Option<RootSchema>,
     ) -> CodegenResult<Self> {
@@ -76,7 +76,7 @@ impl Tool {
 
     pub fn new_local(
         name: &str,
-        description: Option<&String>,
+        description: Option<String>,
         input: RootSchema,
         output: Option<RootSchema>,
     ) -> CodegenResult<Self> {
@@ -85,7 +85,7 @@ impl Tool {
 
     fn _new(
         name: &str,
-        description: Option<&String>,
+        description: Option<String>,
         input: RootSchema,
         output: Option<RootSchema>,
         variant: ToolVariant,
@@ -109,7 +109,7 @@ impl Tool {
 
         Ok(Self {
             name: name.into(),
-            description: description.cloned(),
+            description,
             input_schema: input,
             output_schema: output,
             fn_name,
