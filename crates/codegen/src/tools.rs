@@ -74,22 +74,13 @@ impl Tool {
         Self::_new(name, description, input, output, ToolVariant::Mcp)
     }
 
-    pub fn new_javascript(
+    pub fn new_local(
         name: &str,
         description: Option<&String>,
         input: RootSchema,
         output: Option<RootSchema>,
     ) -> CodegenResult<Self> {
-        Self::_new(name, description, input, output, ToolVariant::JavaScript)
-    }
-
-    pub fn new_python(
-        name: &str,
-        description: Option<&String>,
-        input: RootSchema,
-        output: Option<RootSchema>,
-    ) -> CodegenResult<Self> {
-        Self::_new(name, description, input, output, ToolVariant::Python)
+        Self::_new(name, description, input, output, ToolVariant::Local)
     }
 
     fn _new(
@@ -164,20 +155,8 @@ impl Tool {
                     output = &self.output_signature,
                 )
             }
-            ToolVariant::JavaScript => {
-                // For JavaScript local tools, call the JS runtime function
-                format!(
-                    "{fn_sig} {{
-  return await callJsLocalTool<{output}>({tool}, input);
-}}",
-                    fn_sig = self.fn_signature(true),
-                    tool = json!(&self.name),
-                    output = &self.output_signature,
-                )
-            }
-            ToolVariant::Python => {
-                // For Python local tools, call the unified local tool function
-                // This also works for other runtime callbacks (Node.js, etc.)
+            ToolVariant::Local => {
+                // Unified local tool - works for all runtime callbacks (Python, JS, Rust, etc.)
                 format!(
                     "{fn_sig} {{
   return await callLocalTool<{output}>({tool}, input);
@@ -194,6 +173,6 @@ impl Tool {
 #[derive(Clone, Copy, Debug)]
 pub enum ToolVariant {
     Mcp,
-    JavaScript,
-    Python,
+    /// Unified local tool (works for Python, JavaScript, Rust, and any other runtime callbacks)
+    Local,
 }

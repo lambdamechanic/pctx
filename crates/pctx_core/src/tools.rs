@@ -80,11 +80,11 @@ impl PctxTools {
                 ))
             })?;
 
-        codegen::Tool::new_python(
+        codegen::Tool::new_local(
             &metadata.name,
             metadata.description.as_ref(),
             input_schema,
-            None, // Python tools don't have output schemas yet
+            None, // Local tools don't have output schemas yet
         )
         .map_err(Error::from)
     }
