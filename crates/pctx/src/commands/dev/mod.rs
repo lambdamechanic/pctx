@@ -499,192 +499,205 @@ fn spawn_server_task(
     (handle, shutdown_tx)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use std::collections::HashMap;
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
 
-//     use super::*;
-//     use crate::commands::dev::log_entry::{LogEntry, LogEntryFields};
-//     use chrono::Utc;
-//     use indexmap::IndexMap;
-//     use pctx_config::{logger::LogLevel, server::ServerConfig};
-//     use serde_json::json;
+    use super::*;
+    use crate::commands::dev::log_entry::{LogEntry, LogEntryFields};
+    use chrono::Utc;
+    use codegen::{Tool, ToolSet};
+    use pctx_config::{logger::LogLevel, server::ServerConfig};
+    use pctx_core::PctxTools;
+    use serde_json::json;
 
-//     fn create_test_server() -> UpstreamMcp {
-//         let mut tools = IndexMap::new();
+    fn create_pctx_tools() -> PctxTools {
+        let account_schema = json!({
+            "type": "object",
+            "required": ["account_id", "opened_at", "balance", "status"],
+            "properties": {
+                "account_id": {"type": "string"},
+                "opened_at": {"type": "string", "format": "date-time"},
+                "balance": {"type": "number"},
+                "status": {"type": "string", "enum": ["open", "frozen", "in_review"]}
+            }
+        });
+        let tools = vec![
+            Tool::new_mcp(
+                "get_account_balance",
+                Some("Retrieves the balance for an account".into()),
+                serde_json::from_value(json!({
+                    "type": "object",
+                    "required": ["account_id"],
+                    "properties": {
+                        "account_id": {"type": "string"}
+                    }
+                }))
+                .unwrap(),
+                Some(serde_json::from_value(account_schema.clone()).unwrap()),
+            )
+            .unwrap(),
+            Tool::new_mcp(
+                "freeze_account",
+                Some("Freezes an account".into()),
+                serde_json::from_value(json!({
+                    "type": "object",
+                    "required": ["account_id"],
+                    "properties": {
+                        "account_id": {"type": "string"}
+                    }
+                }))
+                .unwrap(),
+                Some(serde_json::from_value(account_schema.clone()).unwrap()),
+            )
+            .unwrap(),
+        ];
 
-//         tools.insert(
-//             "getAccountBalance".to_string(),
-//             UpstreamTool {
-//                 tool_name: "get_account_balance".to_string(),
-//                 title: Some("Get Account Balance".to_string()),
-//                 description: Some("Retrieves the balance for an account".to_string()),
-//                 fn_name: "getAccountBalance".to_string(),
-//                 input_type: "GetAccountBalanceInput".to_string(),
-//                 output_type: "GetAccountBalanceOutput".to_string(),
-//                 types: "interface GetAccountBalanceInput { account_id: string }".to_string(),
-//             },
-//         );
+        PctxTools {
+            tool_sets: vec![ToolSet::new("banking", "Banking MCP Server", tools)],
+            servers: vec![ServerConfig {
+                name: "banking".into(),
+                url: "http://localhost:8080/mcp".parse().unwrap(),
+                auth: None,
+            }],
+        }
+    }
 
-//         tools.insert(
-//             "freezeAccount".to_string(),
-//             UpstreamTool {
-//                 tool_name: "freeze_account".to_string(),
-//                 title: Some("Freeze Account".to_string()),
-//                 description: Some("Freezes an account".to_string()),
-//                 fn_name: "freezeAccount".to_string(),
-//                 input_type: "FreezeAccountInput".to_string(),
-//                 output_type: "FreezeAccountOutput".to_string(),
-//                 types: "interface FreezeAccountInput { account_id: string }".to_string(),
-//             },
-//         );
+    #[test]
+    fn test_track_tool_usage_with_banking_namespace() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
 
-//         UpstreamMcp {
-//             namespace: "Banking".to_string(), // PascalCase namespace
-//             description: "Banking MCP Server".to_string(),
-//             tools,
-//             registration: ServerConfig::new(
-//                 "banking".to_string(),
-//                 "http://localhost:3000".parse().unwrap(),
-//             ),
-//         }
-//     }
+        let mut app = App::new("localhost".to_string(), 8080, log_file);
 
-//     #[test]
-//     fn test_track_tool_usage_with_banking_namespace() {
-//         let temp_dir = tempfile::tempdir().unwrap();
-//         let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
+        // Add the test server
+        app.tools = create_pctx_tools();
 
-//         let mut app = App::new("localhost".to_string(), 8080, log_file);
+        // Create a log entry with code_from_llm field containing Banking.getAccountBalance
+        let log_entry = LogEntry {
+            timestamp: Utc::now(),
+            level: LogLevel::Info,
+            target: "pctx".to_string(),
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
+                    "code_from_llm".to_string(),
+                    json!(
+                        "const balance = await Banking.getAccountBalance({ account_id: \"ACC-123\" });"
+                    ),
+                )]),
+            },
+        };
 
-//         // Add the test server
-//         app.upstream_servers.push(create_test_server());
+        // Track the tool usage
+        app.track_tool_usage(&log_entry);
 
-//         // Create a log entry with code_from_llm field containing Banking.getAccountBalance
-//         let log_entry = LogEntry {
-//             timestamp: Utc::now(),
-//             level: LogLevel::Info,
-//             target: "pctx".to_string(),
-//             fields: LogEntryFields {
-//                 message: "Executing code".into(),
-//                 extra: HashMap::from_iter([(
-//                     "code_from_llm".to_string(),
-//                     json!(
-//                         "const balance = await Banking.getAccountBalance({ account_id: \"ACC-123\" });"
-//                     ),
-//                 )]),
-//             },
-//         };
+        // Verify that the tool was tracked
+        let key = "banking::get_account_balance";
+        assert!(
+            app.tool_usage.contains_key(key),
+            "Expected tool_usage to contain key '{}', but it doesn't. Keys present: {:?}",
+            key,
+            app.tool_usage.keys().collect::<Vec<_>>()
+        );
 
-//         // Track the tool usage
-//         app.track_tool_usage(&log_entry);
+        let usage = app.tool_usage.get(key).unwrap();
+        assert_eq!(usage.count, 1);
+        assert_eq!(usage.tool_name, "get_account_balance");
+        assert_eq!(usage.server_name, "banking");
+        assert!(!usage.code_snippets.is_empty());
+    }
 
-//         // Verify that the tool was tracked
-//         let key = "banking::get_account_balance";
-//         assert!(
-//             app.tool_usage.contains_key(key),
-//             "Expected tool_usage to contain key '{}', but it doesn't. Keys present: {:?}",
-//             key,
-//             app.tool_usage.keys().collect::<Vec<_>>()
-//         );
+    #[test]
+    fn test_track_tool_usage_with_freeze_account() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
 
-//         let usage = app.tool_usage.get(key).unwrap();
-//         assert_eq!(usage.count, 1);
-//         assert_eq!(usage.tool_name, "get_account_balance");
-//         assert_eq!(usage.server_name, "banking");
-//         assert!(!usage.code_snippets.is_empty());
-//     }
+        let mut app = App::new("localhost".to_string(), 8080, log_file);
 
-//     #[test]
-//     fn test_track_tool_usage_with_freeze_account() {
-//         let temp_dir = tempfile::tempdir().unwrap();
-//         let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
+        // Add the test server
+        app.tools = create_pctx_tools();
 
-//         let mut app = App::new("localhost".to_string(), 8080, log_file);
+        // Create a log entry with Banking.freezeAccount
+        let log_entry = LogEntry {
+            timestamp: Utc::now(),
+            level: LogLevel::Info,
+            target: "pctx".into(),
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
+                    "code_from_llm".to_string(),
+                    json!("await Banking.freezeAccount({ account_id: \"ACC-555\" });"),
+                )]),
+            },
+        };
 
-//         // Add the test server
-//         app.upstream_servers.push(create_test_server());
+        // Track the tool usage
+        app.track_tool_usage(&log_entry);
 
-//         // Create a log entry with Banking.freezeAccount
-//         let log_entry = LogEntry {
-//             timestamp: Utc::now(),
-//             level: LogLevel::Info,
-//             target: "pctx".into(),
-//             fields: LogEntryFields {
-//                 message: "Executing code".into(),
-//                 extra: HashMap::from_iter([(
-//                     "code_from_llm".to_string(),
-//                     json!("await Banking.freezeAccount({ account_id: \"ACC-555\" });"),
-//                 )]),
-//             },
-//         };
+        // Verify that the tool was tracked
+        let key = "banking::freeze_account";
+        assert!(
+            app.tool_usage.contains_key(key),
+            "Expected tool_usage to contain key '{}', but it doesn't. Keys present: {:?}",
+            key,
+            app.tool_usage.keys().collect::<Vec<_>>()
+        );
 
-//         // Track the tool usage
-//         app.track_tool_usage(&log_entry);
+        let usage = app.tool_usage.get(key).unwrap();
+        assert_eq!(usage.count, 1);
+        assert_eq!(usage.tool_name, "freeze_account");
+        assert_eq!(usage.server_name, "banking");
+    }
 
-//         // Verify that the tool was tracked
-//         let key = "banking::freeze_account";
-//         assert!(
-//             app.tool_usage.contains_key(key),
-//             "Expected tool_usage to contain key '{}', but it doesn't. Keys present: {:?}",
-//             key,
-//             app.tool_usage.keys().collect::<Vec<_>>()
-//         );
+    #[test]
+    fn test_track_multiple_calls() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
 
-//         let usage = app.tool_usage.get(key).unwrap();
-//         assert_eq!(usage.count, 1);
-//         assert_eq!(usage.tool_name, "freeze_account");
-//         assert_eq!(usage.server_name, "banking");
-//     }
+        let mut app = App::new("localhost".to_string(), 8080, log_file);
 
-//     #[test]
-//     fn test_track_multiple_calls() {
-//         let temp_dir = tempfile::tempdir().unwrap();
-//         let log_file = Utf8PathBuf::from_path_buf(temp_dir.path().join("test.jsonl")).unwrap();
+        // Add the test server
+        app.tools = create_pctx_tools();
 
-//         let mut app = App::new("localhost".to_string(), 8080, log_file);
+        // First call
+        let log_entry1 = LogEntry {
+            timestamp: Utc::now(),
+            level: LogLevel::Info,
+            target: "pctx".into(),
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
+                    "code_from_llm".to_string(),
+                    json!("await Banking.getAccountBalance({ account_id: \"ACC-1\" });"),
+                )]),
+            },
+        };
 
-//         // Add the test server
-//         app.upstream_servers.push(create_test_server());
+        // Second call
+        let log_entry2 = LogEntry {
+            timestamp: Utc::now(),
+            level: LogLevel::Info,
+            target: "pctx".into(),
+            fields: LogEntryFields {
+                message: "Executing code".into(),
+                extra: HashMap::from_iter([(
+                    "code_from_llm".to_string(),
+                    json!("await Banking.getAccountBalance({ account_id: \"ACC-2\" });"),
+                )]),
+            },
+        };
 
-//         // First call
-//         let log_entry1 = LogEntry {
-//             timestamp: Utc::now(),
-//             level: LogLevel::Info,
-//             target: "pctx".into(),
-//             fields: LogEntryFields {
-//                 message: "Executing code".into(),
-//                 extra: HashMap::from_iter([(
-//                     "code_from_llm".to_string(),
-//                     json!("await Banking.getAccountBalance({ account_id: \"ACC-1\" });"),
-//                 )]),
-//             },
-//         };
+        app.track_tool_usage(&log_entry1);
+        app.track_tool_usage(&log_entry2);
 
-//         // Second call
-//         let log_entry2 = LogEntry {
-//             timestamp: Utc::now(),
-//             level: LogLevel::Info,
-//             target: "pctx".into(),
-//             fields: LogEntryFields {
-//                 message: "Executing code".into(),
-//                 extra: HashMap::from_iter([(
-//                     "code_from_llm".to_string(),
-//                     json!("await Banking.getAccountBalance({ account_id: \"ACC-2\" });"),
-//                 )]),
-//             },
-//         };
-
-//         app.track_tool_usage(&log_entry1);
-//         app.track_tool_usage(&log_entry2);
-
-//         let key = "banking::get_account_balance";
-//         let usage = app.tool_usage.get(key).unwrap();
-//         assert_eq!(usage.count, 2, "Expected count to be 2 after two calls");
-//         assert_eq!(
-//             usage.code_snippets.len(),
-//             2,
-//             "Expected 2 unique code snippets"
-//         );
-//     }
-// }
+        let key = "banking::get_account_balance";
+        let usage = app.tool_usage.get(key).unwrap();
+        assert_eq!(usage.count, 2, "Expected count to be 2 after two calls");
+        assert_eq!(
+            usage.code_snippets.len(),
+            2,
+            "Expected 2 unique code snippets"
+        );
+    }
+}

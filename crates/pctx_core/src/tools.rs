@@ -196,7 +196,7 @@ impl PctxTools {
 
             codegen_tools.push(codegen::Tool::new_mcp(
                 &mcp_tool.name,
-                mcp_tool.description.map(String::from).as_ref(),
+                mcp_tool.description.map(String::from),
                 input_schema,
                 output_schema,
             )?);
