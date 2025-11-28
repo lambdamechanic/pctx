@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
-exclude = ["crates/pctx_nodejs_sdk", "crates/pctx_python_sdk"]
 
 [workspace.package]
 edition = "2024"

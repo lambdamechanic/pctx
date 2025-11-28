@@ -1,4 +1,4 @@
-use crate::{PctxTools, model::ExecuteInput, test_utils};
+use crate::{CodeMode, model::ExecuteInput, test_utils};
 use deno_executor::LocalToolMetadata;
 use pctx_code_execution_runtime::LocalToolRegistry;
 use serial_test::serial;
@@ -7,7 +7,7 @@ use std::sync::Arc;
 #[tokio::test]
 #[serial]
 async fn test_nodejs_callback_simulation() {
-    let mut tools = PctxTools::default();
+    let mut tools = CodeMode::default();
 
     // Register a simulated Node.js callback using the test helper
     let registry = LocalToolRegistry::new();
@@ -66,7 +66,7 @@ async fn test_nodejs_callback_simulation() {
 async fn test_python_local_tool() {
     use pyo3::{Python, ffi::c_str};
 
-    let mut tools = PctxTools::default();
+    let mut tools = CodeMode::default();
 
     // Register a Python tool directly in the local registry
     let registry = pctx_code_execution_runtime::LocalToolRegistry::new();
@@ -118,7 +118,7 @@ async fn test_python_local_tool() {
 #[tokio::test]
 #[serial]
 async fn test_js_code_can_use_dependencies() {
-    let tools = PctxTools::default();
+    let tools = CodeMode::default();
 
     // Test that user code can access built-in JavaScript dependencies
     // Using Math which is a lightweight built-in JavaScript global
@@ -158,7 +158,7 @@ async fn test_js_code_can_use_dependencies() {
 #[tokio::test]
 #[serial]
 async fn test_js_code_can_use_date_api() {
-    let tools = PctxTools::default();
+    let tools = CodeMode::default();
 
     // Test that user code can access the Date API
     let code = r#"
@@ -196,7 +196,7 @@ async fn test_js_code_can_use_date_api() {
 async fn test_python_callback_can_use_dependencies() {
     use pyo3::Python;
 
-    let mut tools = PctxTools::default();
+    let mut tools = CodeMode::default();
 
     // Test that Python callbacks can use standard library imports
     // Using json module which is a lightweight built-in dependency
@@ -281,7 +281,7 @@ def tool(args):
 async fn test_mixed_rust_and_python_callbacks() {
     use pyo3::{Python, ffi::c_str};
 
-    let mut tools = PctxTools::default();
+    let mut tools = CodeMode::default();
 
     // First, register a simulated Node.js callback
     let registry = LocalToolRegistry::new();

@@ -450,16 +450,16 @@ fn spawn_server_task(
             tracing::warn!(
                 "No MCP servers configured, add servers with 'pctx add <name> <url>' and PCTX Dev Mode will refresh"
             );
-            pctx_core::PctxTools::default()
+            pctx_core::CodeMode::default()
         } else {
-            let loaded = match StartCmd::load_tools(&cfg).await {
+            let loaded = match StartCmd::load_code_mode(&cfg).await {
                 Ok(t) => t,
                 Err(e) => {
                     tx.send(AppMessage::ServerFailed(format!(
                         "Failed loading upstream MCPs: {e:?}"
                     )))
                     .ok();
-                    pctx_core::PctxTools::default()
+                    pctx_core::CodeMode::default()
                 }
             };
 

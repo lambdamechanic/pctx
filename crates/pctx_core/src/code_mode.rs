@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct PctxTools {
+pub struct CodeMode {
     pub tool_sets: Vec<codegen::ToolSet>,
 
     // configurations
@@ -21,7 +21,7 @@ pub struct PctxTools {
     pub local_registry: Option<pctx_code_execution_runtime::LocalToolRegistry>,
 }
 
-impl PctxTools {
+impl CodeMode {
     /// Convert local tool callbacks into callable ToolSets
     fn local_tools_as_toolsets(&self) -> Vec<codegen::ToolSet> {
         let mut toolsets = Vec::new();

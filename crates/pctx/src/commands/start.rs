@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use pctx_config::Config;
-use pctx_core::PctxTools;
+use pctx_core::CodeMode;
 use tracing::{debug, info, warn};
 
 use crate::mcp::PctxMcpServer;
@@ -22,17 +22,17 @@ pub struct StartCmd {
 }
 
 impl StartCmd {
-    pub(crate) async fn load_tools(cfg: &Config) -> Result<PctxTools> {
+    pub(crate) async fn load_code_mode(cfg: &Config) -> Result<CodeMode> {
         // Connect to each MCP server and fetch their tool definitions
         info!(
             "Creating code mode interface for {} upstream MCP servers",
             cfg.servers.len()
         );
-        let mut tools = PctxTools::default();
+        let mut code_mode = CodeMode::default();
 
         for server in &cfg.servers {
             debug!("Creating code mode interface for {}", &server.name);
-            if let Err(e) = tools.add_server(server).await {
+            if let Err(e) = code_mode.add_server(server).await {
                 warn!(
                     err =? e,
                     server.name =? &server.name,
@@ -43,7 +43,7 @@ impl StartCmd {
             }
         }
 
-        Ok(tools)
+        Ok(code_mode)
     }
 
     pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
@@ -53,10 +53,10 @@ impl StartCmd {
             );
         }
 
-        let tools = StartCmd::load_tools(&cfg).await?;
+        let code_mode = StartCmd::load_code_mode(&cfg).await?;
 
         PctxMcpServer::new(&self.host, self.port, !self.no_banner)
-            .serve(&cfg, tools)
+            .serve(&cfg, code_mode)
             .await?;
 
         info!("Shutting down...");
