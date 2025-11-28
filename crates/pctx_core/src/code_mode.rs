@@ -82,7 +82,7 @@ impl CodeMode {
 
         codegen::Tool::new_local(
             &metadata.name,
-            metadata.description.as_ref(),
+            metadata.description.clone(),
             input_schema,
             None, // Local tools don't have output schemas yet
         )

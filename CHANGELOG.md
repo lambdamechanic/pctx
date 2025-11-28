@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `pctx_core` crate created as the primary code mode library via the `PctxTools` struct.
+- `pctx_core` crate created as the primary code mode library via the `CodeMode` struct.
 - `codegen` create extended to include generic `Tool` and `ToolSet` structs and all code generation functions migrated to be methods of these structs.
 
 ### Fixed
