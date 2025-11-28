@@ -1,9 +1,10 @@
 use anyhow::Result;
 use clap::Parser;
 use pctx_config::Config;
+use pctx_core::PctxTools;
 use tracing::{debug, info, warn};
 
-use crate::mcp::{PctxMcp, upstream::UpstreamMcp};
+use crate::mcp::PctxMcpServer;
 
 #[derive(Debug, Clone, Parser)]
 pub struct StartCmd {
@@ -21,32 +22,28 @@ pub struct StartCmd {
 }
 
 impl StartCmd {
-    pub(crate) async fn load_upstream(cfg: &Config) -> Result<Vec<UpstreamMcp>> {
+    pub(crate) async fn load_tools(cfg: &Config) -> Result<PctxTools> {
         // Connect to each MCP server and fetch their tool definitions
         info!(
             "Creating code mode interface for {} upstream MCP servers",
             cfg.servers.len()
         );
-        let mut upstream_servers = Vec::new();
+        let mut tools = PctxTools::default();
+
         for server in &cfg.servers {
             debug!("Creating code mode interface for {}", &server.name);
-            match UpstreamMcp::from_server(server).await {
-                Ok(upstream) => {
-                    upstream_servers.push(upstream);
-                }
-                Err(e) => {
-                    warn!(
-                        err =? e,
-                        server.name =? &server.name,
-                        server.url =? server.url.to_string(),
-                        "Failed creating creating code mode for `{}` MCP server",
-                        &server.name
-                    );
-                }
+            if let Err(e) = tools.add_server(server).await {
+                warn!(
+                    err =? e,
+                    server.name =? &server.name,
+                    server.url =? server.url.to_string(),
+                    "Failed creating creating code mode for `{}` MCP server",
+                    &server.name
+                );
             }
         }
 
-        Ok(upstream_servers)
+        Ok(tools)
     }
 
     pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
@@ -56,17 +53,11 @@ impl StartCmd {
             );
         }
 
-        let upstream_servers = StartCmd::load_upstream(&cfg).await?;
+        let tools = StartCmd::load_tools(&cfg).await?;
 
-        PctxMcp::new(
-            cfg.clone(),
-            upstream_servers,
-            &self.host,
-            self.port,
-            !self.no_banner,
-        )
-        .serve()
-        .await?;
+        PctxMcpServer::new(&self.host, self.port, !self.no_banner)
+            .serve(&cfg, tools)
+            .await?;
 
         info!("Shutting down...");
 

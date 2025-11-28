@@ -23,7 +23,7 @@ use pctx_config::Config;
 use ratatui::{Terminal, backend::CrosstermBackend, style::Color};
 use tokio::sync::mpsc;
 
-use crate::{commands::start::StartCmd, mcp::PctxMcp};
+use crate::{commands::start::StartCmd, mcp::PctxMcpServer};
 use app::{App, AppMessage, FocusPanel};
 
 #[allow(unused)]
@@ -446,24 +446,24 @@ fn spawn_server_task(
     let handle = tokio::spawn(async move {
         tx.send(AppMessage::ServerStarting).ok();
 
-        let upstream = if cfg.servers.is_empty() {
+        let tools = if cfg.servers.is_empty() {
             tracing::warn!(
                 "No MCP servers configured, add servers with 'pctx add <name> <url>' and PCTX Dev Mode will refresh"
             );
-            vec![]
+            pctx_core::PctxTools::default()
         } else {
-            let loaded = match StartCmd::load_upstream(&cfg).await {
-                Ok(u) => u,
+            let loaded = match StartCmd::load_tools(&cfg).await {
+                Ok(t) => t,
                 Err(e) => {
                     tx.send(AppMessage::ServerFailed(format!(
                         "Failed loading upstream MCPs: {e:?}"
                     )))
                     .ok();
-                    vec![]
+                    pctx_core::PctxTools::default()
                 }
             };
 
-            if loaded.is_empty() {
+            if loaded.tool_sets.is_empty() {
                 tracing::warn!(
                     "Failed loading all configured MCP servers, add servers with 'pctx add <name> <url>' or edit {} and PCTX Dev Mode will refresh",
                     cfg.path()
@@ -473,12 +473,12 @@ fn spawn_server_task(
         };
 
         // Run server with shutdown signal
-        let pctx_mcp = PctxMcp::new(cfg.clone(), upstream.clone(), &host, port, false);
+        let pctx_mcp = PctxMcpServer::new(&host, port, false);
 
-        tx.send(AppMessage::ServerReady(upstream)).ok();
+        tx.send(AppMessage::ServerReady(tools.clone())).ok();
 
         if let Err(e) = pctx_mcp
-            .serve_with_shutdown(async move {
+            .serve_with_shutdown(&cfg, tools, async move {
                 let _ = shutdown_rx.await;
             })
             .await
@@ -504,52 +504,62 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::{
-        commands::dev::log_entry::{LogEntry, LogEntryFields},
-        mcp::upstream::{UpstreamMcp, UpstreamTool},
-    };
+    use crate::commands::dev::log_entry::{LogEntry, LogEntryFields};
     use chrono::Utc;
-    use indexmap::IndexMap;
+    use codegen::{Tool, ToolSet};
     use pctx_config::{logger::LogLevel, server::ServerConfig};
+    use pctx_core::PctxTools;
     use serde_json::json;
 
-    fn create_test_server() -> UpstreamMcp {
-        let mut tools = IndexMap::new();
+    fn create_pctx_tools() -> PctxTools {
+        let account_schema = json!({
+            "type": "object",
+            "required": ["account_id", "opened_at", "balance", "status"],
+            "properties": {
+                "account_id": {"type": "string"},
+                "opened_at": {"type": "string", "format": "date-time"},
+                "balance": {"type": "number"},
+                "status": {"type": "string", "enum": ["open", "frozen", "in_review"]}
+            }
+        });
+        let tools = vec![
+            Tool::new_mcp(
+                "get_account_balance",
+                Some("Retrieves the balance for an account".into()),
+                serde_json::from_value(json!({
+                    "type": "object",
+                    "required": ["account_id"],
+                    "properties": {
+                        "account_id": {"type": "string"}
+                    }
+                }))
+                .unwrap(),
+                Some(serde_json::from_value(account_schema.clone()).unwrap()),
+            )
+            .unwrap(),
+            Tool::new_mcp(
+                "freeze_account",
+                Some("Freezes an account".into()),
+                serde_json::from_value(json!({
+                    "type": "object",
+                    "required": ["account_id"],
+                    "properties": {
+                        "account_id": {"type": "string"}
+                    }
+                }))
+                .unwrap(),
+                Some(serde_json::from_value(account_schema.clone()).unwrap()),
+            )
+            .unwrap(),
+        ];
 
-        tools.insert(
-            "getAccountBalance".to_string(),
-            UpstreamTool {
-                tool_name: "get_account_balance".to_string(),
-                title: Some("Get Account Balance".to_string()),
-                description: Some("Retrieves the balance for an account".to_string()),
-                fn_name: "getAccountBalance".to_string(),
-                input_type: "GetAccountBalanceInput".to_string(),
-                output_type: "GetAccountBalanceOutput".to_string(),
-                types: "interface GetAccountBalanceInput { account_id: string }".to_string(),
-            },
-        );
-
-        tools.insert(
-            "freezeAccount".to_string(),
-            UpstreamTool {
-                tool_name: "freeze_account".to_string(),
-                title: Some("Freeze Account".to_string()),
-                description: Some("Freezes an account".to_string()),
-                fn_name: "freezeAccount".to_string(),
-                input_type: "FreezeAccountInput".to_string(),
-                output_type: "FreezeAccountOutput".to_string(),
-                types: "interface FreezeAccountInput { account_id: string }".to_string(),
-            },
-        );
-
-        UpstreamMcp {
-            namespace: "Banking".to_string(), // PascalCase namespace
-            description: "Banking MCP Server".to_string(),
-            tools,
-            registration: ServerConfig::new(
-                "banking".to_string(),
-                "http://localhost:3000".parse().unwrap(),
-            ),
+        PctxTools {
+            tool_sets: vec![ToolSet::new("banking", "Banking MCP Server", tools)],
+            servers: vec![ServerConfig {
+                name: "banking".into(),
+                url: "http://localhost:8080/mcp".parse().unwrap(),
+                auth: None,
+            }],
         }
     }
 
@@ -561,7 +571,7 @@ mod tests {
         let mut app = App::new("localhost".to_string(), 8080, log_file);
 
         // Add the test server
-        app.upstream_servers.push(create_test_server());
+        app.tools = create_pctx_tools();
 
         // Create a log entry with code_from_llm field containing Banking.getAccountBalance
         let log_entry = LogEntry {
@@ -606,7 +616,7 @@ mod tests {
         let mut app = App::new("localhost".to_string(), 8080, log_file);
 
         // Add the test server
-        app.upstream_servers.push(create_test_server());
+        app.tools = create_pctx_tools();
 
         // Create a log entry with Banking.freezeAccount
         let log_entry = LogEntry {
@@ -648,7 +658,7 @@ mod tests {
         let mut app = App::new("localhost".to_string(), 8080, log_file);
 
         // Add the test server
-        app.upstream_servers.push(create_test_server());
+        app.tools = create_pctx_tools();
 
         // First call
         let log_entry1 = LogEntry {
