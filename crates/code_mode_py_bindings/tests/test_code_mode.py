@@ -3,13 +3,12 @@ Test suite for pctx_code_mode Python bindings.
 """
 
 import pytest
-import asyncio
-import json
 
 
 def test_import():
     """Test that the module can be imported."""
     import pctx_code_mode
+
     assert pctx_code_mode is not None
 
 
@@ -37,12 +36,9 @@ def test_code_mode_init_with_local_tools():
                 "callback": add_callback,
                 "input_schema": {
                     "type": "object",
-                    "properties": {
-                        "a": {"type": "number"},
-                        "b": {"type": "number"}
-                    },
-                    "required": ["a", "b"]
-                }
+                    "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+                    "required": ["a", "b"],
+                },
             }
         ]
     )
@@ -65,11 +61,15 @@ def test_register_local_tool():
         callback=multiply_callback,
         input_schema={
             "type": "object",
+            "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+        },
+        output_schema={
+            "type": "object",
             "properties": {
-                "a": {"type": "number"},
-                "b": {"type": "number"}
-            }
-        }
+                "result": {"type": "number", "description": "The product of a and b"}
+            },
+            "required": ["result"],
+        },
     )
 
 
@@ -83,7 +83,7 @@ def test_register_local_tool_optional_description():
         namespace="utils",
         name="helper",
         callback=lambda params: {"ok": True},
-        input_schema={"type": "object"}
+        input_schema={"type": "object"},
     )
 
 
@@ -97,7 +97,7 @@ def test_register_local_tool_optional_schema():
         namespace="utils",
         name="simple",
         description="A simple tool",
-        callback=lambda params: {"ok": True}
+        callback=lambda params: {"ok": True},
     )
 
 
@@ -108,8 +108,8 @@ def test_list_functions_empty():
     cm = CodeMode()
     result = cm.list_functions()
 
-    assert hasattr(result, 'functions')
-    assert hasattr(result, 'code')
+    assert hasattr(result, "functions")
+    assert hasattr(result, "code")
     assert isinstance(result.functions, list)
     assert len(result.functions) == 0
 
@@ -124,7 +124,7 @@ def test_list_functions_with_local_tools():
         name="add",
         description="Adds two numbers",
         callback=lambda params: {"result": params["a"] + params["b"]},
-        input_schema={"type": "object"}
+        input_schema={"type": "object"},
     )
 
     result = cm.list_functions()
@@ -195,8 +195,8 @@ def test_get_function_details_empty():
     cm = CodeMode()
     result = cm.get_function_details([])
 
-    assert hasattr(result, 'functions')
-    assert hasattr(result, 'code')
+    assert hasattr(result, "functions")
+    assert hasattr(result, "code")
     assert len(result.functions) == 0
 
 
@@ -212,11 +212,8 @@ def test_get_function_details_single():
         callback=lambda params: {"result": params["a"] + params["b"]},
         input_schema={
             "type": "object",
-            "properties": {
-                "a": {"type": "number"},
-                "b": {"type": "number"}
-            }
-        }
+            "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+        },
     )
 
     result = cm.get_function_details(["Math.add"])
@@ -268,10 +265,10 @@ async def test_execute_simple():
 
     result = await cm.execute(code)
 
-    assert hasattr(result, 'success')
-    assert hasattr(result, 'stdout')
-    assert hasattr(result, 'stderr')
-    assert hasattr(result, 'output')
+    assert hasattr(result, "success")
+    assert hasattr(result, "stdout")
+    assert hasattr(result, "stderr")
+    assert hasattr(result, "output")
     assert result.success is True
     assert result.output is not None
     assert result.output.get("message") == "hello"
@@ -290,11 +287,8 @@ async def test_execute_with_local_tool():
         callback=lambda params: {"result": params["a"] + params["b"]},
         input_schema={
             "type": "object",
-            "properties": {
-                "a": {"type": "number"},
-                "b": {"type": "number"}
-            }
-        }
+            "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+        },
     )
 
     code = """
@@ -339,10 +333,7 @@ async def test_add_mcp_server():
 
     # This will fail without a real server, but tests the API
     with pytest.raises(Exception):  # Connection error expected
-        await cm.add_mcp_server(
-            name="test_server",
-            url="http://localhost:9999"
-        )
+        await cm.add_mcp_server(name="test_server", url="http://localhost:9999")
 
 
 def test_duplicate_tool_name_in_namespace():
@@ -414,3 +405,57 @@ def test_callback_with_none_params():
         name="no_params",
         callback=no_params_callback,
     )
+
+
+def test_output_schema_generates_types():
+    """Test that output_schema generates proper TypeScript types."""
+    from pctx_code_mode import CodeMode
+
+    cm = CodeMode()
+    cm.register_local_tool(
+        namespace="calculator",
+        name="divide",
+        description="Divides two numbers",
+        callback=lambda params: {
+            "quotient": params["a"] / params["b"],
+            "remainder": params["a"] % params["b"],
+        },
+        input_schema={
+            "type": "object",
+            "properties": {
+                "a": {"type": "number", "description": "Dividend"},
+                "b": {"type": "number", "description": "Divisor"},
+            },
+            "required": ["a", "b"],
+        },
+        output_schema={
+            "type": "object",
+            "properties": {
+                "quotient": {"type": "number", "description": "Result of division"},
+                "remainder": {
+                    "type": "number",
+                    "description": "Remainder after division",
+                },
+            },
+            "required": ["quotient", "remainder"],
+        },
+    )
+
+    result = cm.get_function_details(["Calculator.divide"])
+
+    assert len(result.functions) == 1
+    func = result.functions[0]
+
+    assert func.output_type != "any"
+    assert "Output" in func.output_type
+
+    assert "quotient" in func.types
+    assert "remainder" in func.types
+    assert "number" in func.types  # Both fields are numbers
+
+    assert func.input_type != "any"
+    assert "Input" in func.input_type
+
+    assert "Calculator" in result.code
+    assert "divide" in result.code
+    assert "async function" in result.code or "export" in result.code

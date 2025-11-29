@@ -81,11 +81,23 @@ impl CodeMode {
                 ))
             })?;
 
+        let output_schema: Option<codegen::RootSchema> =
+            if let Some(schema) = &metadata.output_schema {
+                Some(serde_json::from_value(schema.clone()).map_err(|e| {
+                    Error::Message(format!(
+                        "Failed to parse output schema for '{}': {}",
+                        metadata.name, e
+                    ))
+                })?)
+            } else {
+                None
+            };
+
         codegen::Tool::new_callable(
             &metadata.name,
             metadata.description.clone(),
             input_schema,
-            None, // Callable tools don't have output schemas yet
+            output_schema,
         )
         .map_err(Error::from)
     }

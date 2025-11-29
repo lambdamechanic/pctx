@@ -96,3 +96,21 @@ jobs:
       - name: Run tests (Unix)
         # if: matrix.os != 'windows-latest'
         run: cargo test --workspace --locked
+
+  test-python-bindings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Add uv to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: false
+      - name: Build and test Python bindings
+        run: ./scripts/test-python-bindings.sh

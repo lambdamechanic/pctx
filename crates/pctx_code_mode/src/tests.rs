@@ -28,6 +28,10 @@ async fn test_nodejs_callback_simulation() {
                 name: "multiply".to_string(),
                 description: Some("Multiplies two numbers (Node.js)".to_string()),
                 input_schema: None,
+                output_schema: Some(serde_json::json!({
+                    "type": "number",
+                    "description": "The product of the two numbers"
+                })),
                 namespace: "NodeTools".to_string(),
             },
             callback,
@@ -136,4 +140,3 @@ async fn test_js_code_can_use_date_api() {
     assert_eq!(output["day"], 15);
     assert_eq!(output["isValidDate"], true);
 }
-

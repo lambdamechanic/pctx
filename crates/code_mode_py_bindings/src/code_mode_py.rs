@@ -88,7 +88,7 @@ impl PyCodeMode {
     }
 
     /// Register a local tool
-    #[pyo3(signature = (namespace, name, callback, description=None, input_schema=None))]
+    #[pyo3(signature = (namespace, name, callback, description=None, input_schema=None, output_schema=None))]
     fn register_local_tool(
         &self,
         namespace: String,
@@ -96,8 +96,9 @@ impl PyCodeMode {
         callback: PyObject,
         description: Option<String>,
         input_schema: Option<Bound<'_, PyDict>>,
+        output_schema: Option<Bound<'_, PyDict>>,
     ) -> PyResult<()> {
-        let schema_value = if let Some(schema_dict) = input_schema {
+        let input_schema_value = if let Some(schema_dict) = input_schema {
             Some(pythonize::depythonize(&schema_dict).map_err(|e| {
                 PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
                     "Failed to convert input_schema: {}",
@@ -108,10 +109,22 @@ impl PyCodeMode {
             None
         };
 
+        let output_schema_value = if let Some(schema_dict) = output_schema {
+            Some(pythonize::depythonize(&schema_dict).map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Failed to convert output_schema: {}",
+                    e
+                ))
+            })?)
+        } else {
+            None
+        };
+
         let metadata = CallableToolMetadata {
             name: name.clone(),
             description,
-            input_schema: schema_value,
+            input_schema: input_schema_value,
+            output_schema: output_schema_value,
             namespace,
         };
 
@@ -305,10 +318,22 @@ impl PyCodeMode {
                 ))
             })?;
 
+        let output_schema = tool_dict
+            .get_item("output_schema")?
+            .map(|schema| pythonize::depythonize(&schema))
+            .transpose()
+            .map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Failed to convert output_schema: {}",
+                    e
+                ))
+            })?;
+
         let metadata = CallableToolMetadata {
             name: name.clone(),
             description,
             input_schema,
+            output_schema,
             namespace,
         };
 

@@ -56,6 +56,8 @@ pub struct CallableToolMetadata {
     pub description: Option<String>,
     /// JSON Schema for tool input parameters
     pub input_schema: Option<serde_json::Value>,
+    /// JSON Schema for tool output
+    pub output_schema: Option<serde_json::Value>,
     /// Namespace for this tool (e.g., "math", "`db_connections`")
     pub namespace: String,
 }
@@ -140,6 +142,7 @@ impl CallableToolRegistry {
     ///         name: "add".to_string(),
     ///         description: Some("Adds two numbers".to_string()),
     ///         input_schema: None,
+    ///         output_schema: None,
     ///         namespace: "math".to_string(),
     ///     },
     ///     callback,
