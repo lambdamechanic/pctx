@@ -1,0 +1,101 @@
+   Compiling rustls v0.23.28
+   Compiling biome_rowan v0.3.1
+   Compiling tungstenite v0.28.0
+   Compiling pctx_type_check_runtime v0.1.0 (/Users/patrickkelly/repos/portofcontext/pctx/crates/pctx_type_check_runtime)
+   Compiling tokio-tungstenite v0.28.0
+   Compiling biome_diagnostics v0.3.1
+   Compiling biome_json_syntax v0.3.1
+   Compiling axum v0.8.7
+   Compiling biome_json_factory v0.3.1
+   Compiling biome_parser v0.3.1
+   Compiling biome_js_syntax v0.3.1
+   Compiling biome_json_parser v0.3.1
+   Compiling biome_deserialize v0.3.1
+   Compiling biome_formatter v0.3.1
+   Compiling tokio-rustls v0.26.4
+   Compiling rustls-tokio-stream v0.8.0
+   Compiling quinn-proto v0.11.13
+   Compiling hyper-rustls v0.27.7
+   Compiling deno_tls v0.208.0
+   Compiling reqwest v0.12.24
+   Compiling deno_fetch v0.245.0
+   Compiling tonic v0.14.2
+   Compiling pctx_websocket_server v0.1.0 (/Users/patrickkelly/repos/portofcontext/pctx/crates/pctx_websocket_server)
+warning: unused variable: `data`
+   --> crates/pctx_websocket_server/src/handler.rs:101:34
+    |
+101 |                 Ok(Message::Ping(data)) => {
+    |                                  ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> crates/pctx_websocket_server/src/handler.rs:59:13
+   |
+59 |         let mut send_task = tokio::spawn(async move {
+   |             ----^^^^^^^^^
+   |             |
+   |             help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling opentelemetry-http v0.31.0
+   Compiling rmcp v0.8.5
+   Compiling biome_js_factory v0.3.1
+   Compiling deno_kv v0.129.0
+   Compiling quinn v0.11.9
+   Compiling tonic-prost v0.14.2
+   Compiling opentelemetry-proto v0.31.0
+   Compiling deno_tunnel v0.8.0
+   Compiling biome_js_parser v0.3.1
+warning: `pctx_websocket_server` (lib) generated 2 warnings (run `cargo fix --lib -p pctx_websocket_server` to apply 1 suggestion)
+   Compiling opentelemetry-otlp v0.31.0
+   Compiling biome_js_formatter v0.3.1
+   Compiling deno_net v0.213.0
+warning: constant evaluation is taking a long time
+   --> /Users/patrickkelly/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/slice/ascii.rs:340:13
+    |
+340 |         if !last.is_ascii() {
+    |             ^^^^^^^^^^^^^^^ the const evaluator is currently interpreting this expression
+    |
+help: the constant being evaluated
+   --> crates/pctx_type_check_runtime/build.rs:43:1
+    |
+ 43 | / extension!(
+ 44 | |     pctx_type_check_snapshot,
+ 45 | |     esm_entry_point = "ext:pctx_type_check_snapshot/type_check_runtime_generated.js",
+ 46 | |     esm = [
+...   |
+ 50 | |     ],
+ 51 | | );
+    | |_^
+    = note: this warning originates in the macro `$crate::ascii_str_include` which comes from the expansion of the macro `extension` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+   Compiling deno_websocket v0.226.0
+   Compiling deno_telemetry v0.43.0
+   Compiling deno_node v0.159.0
+   Compiling pctx_config v0.1.0 (/Users/patrickkelly/repos/portofcontext/pctx/crates/pctx_config)
+   Compiling pctx_code_execution_runtime v0.1.0 (/Users/patrickkelly/repos/portofcontext/pctx/crates/pctx_code_execution_runtime)
+   Compiling codegen v0.1.0 (/Users/patrickkelly/repos/portofcontext/pctx/crates/codegen)
+   Compiling deno_http v0.219.0
+   Compiling deno_runtime v0.229.0
+warning: `pctx_type_check_runtime` (build script) generated 3 warnings (2 duplicates)
+warning: pctx_type_check_runtime@0.1.0: Generated type check runtime with embedded codes at: /Users/patrickkelly/repos/portofcontext/pctx/target/debug/build/pctx_type_check_runtime-a4c65983fdde418f/out/type_check_runtime_generated.js
+   Compiling pctx_executor v0.1.0 (/Users/patrickkelly/repos/portofcontext/pctx/crates/pctx_executor)
+   Compiling pctx_code_mode v0.1.0 (/Users/patrickkelly/repos/portofcontext/pctx/crates/pctx_code_mode)
+   Compiling pctx v0.2.1 (/Users/patrickkelly/repos/portofcontext/pctx/crates/pctx)
+warning: field `ws_port` is never read
+  --> crates/pctx/src/mcp/server.rs:38:5
+   |
+35 | pub(crate) struct PctxMcpServer {
+   |                   ------------- field in this struct
+...
+38 |     ws_port: u16,
+   |     ^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `pctx` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 35.12s
+     Running `/Users/patrickkelly/repos/portofcontext/pctx/target/debug/pctx start --port 8080 --no-banner`
+No upstream MCP servers configured. Add servers with 'pctx add <name> <url>'

@@ -25,6 +25,7 @@ path = "src/bin/generate-cli-docs.rs"
 # local crates
 pctx_code_mode = { path = "../pctx_code_mode" }
 pctx_executor = { path = "../pctx_executor" }
+pctx_websocket_server = { path = "../pctx_websocket_server" }
 codegen = { path = "../codegen" }
 pctx_config = { path = "../pctx_config" }
 

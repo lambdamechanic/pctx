@@ -323,4 +323,85 @@ impl CodeMode {
             })
             .collect()
     }
+
+    /// Create a CodeExecutorFn that wraps this CodeMode's execute method
+    ///
+    /// This allows the CodeMode to be used as a code executor in the WebSocket server.
+    ///
+    /// Note: Code execution happens in a separate tokio task with a LocalSet since
+    /// Deno's JsRuntime is not Send.
+    pub fn as_code_executor(self) -> pctx_websocket_server::CodeExecutorFn {
+        use std::sync::Arc;
+
+        // Extract the configuration we need (all cloneable/Send types)
+        let servers = self.servers.clone();
+        let callable_registry = self.callable_registry.clone();
+        let allowed_hosts: Vec<String> = self.allowed_hosts().into_iter().collect();
+
+        // Pre-compute the namespaces since tool_sets is not Send
+        let all_tool_sets = self.all_tool_sets();
+        let namespaces: Vec<String> = all_tool_sets
+            .iter()
+            .filter_map(|s| {
+                if s.tools.is_empty() {
+                    None
+                } else {
+                    Some(s.namespace())
+                }
+            })
+            .collect();
+
+        Arc::new(move |code: String| {
+            let servers_clone = servers.clone();
+            let callable_registry_clone = callable_registry.clone();
+            let allowed_hosts_clone = allowed_hosts.clone();
+            let namespaces_clone = namespaces.clone();
+
+            Box::pin(async move {
+                // For WebSocket code execution, the code should be a complete async function run()
+                // definition (unlike raw expressions). We just append the export and namespaces.
+                let to_execute = codegen::format::format_ts(&format!(
+                    "{namespaces}\n\n{code}\n\nexport default await run();\n",
+                    namespaces = namespaces_clone.join("\n\n"),
+                    code = &code
+                ));
+
+                // Spawn execution on a dedicated task since Deno runtime is not Send
+                // Use spawn_blocking to run in a separate thread with its own LocalSet
+                let handle = tokio::task::spawn_blocking(move || {
+                    // Create a new runtime for this thread
+                    let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+
+                    rt.block_on(async {
+                        let options = pctx_executor::ExecuteOptions::new()
+                            .with_allowed_hosts(allowed_hosts_clone)
+                            .with_mcp_configs(servers_clone);
+
+                        let options = if let Some(registry) = callable_registry_clone {
+                            options.with_callable_registry(registry)
+                        } else {
+                            options
+                        };
+
+                        pctx_executor::execute(&to_execute, options).await
+                    })
+                });
+
+                match handle.await {
+                    Ok(Ok(result)) => Ok(pctx_websocket_server::ExecuteCodeResult {
+                        success: result.success,
+                        value: result.output,
+                        stdout: result.stdout,
+                        stderr: result.stderr,
+                    }),
+                    Ok(Err(e)) => Err(pctx_websocket_server::ExecuteCodeError::ExecutionFailed(
+                        e.to_string(),
+                    )),
+                    Err(e) => Err(pctx_websocket_server::ExecuteCodeError::ExecutionFailed(
+                        format!("Task join error: {}", e),
+                    )),
+                }
+            })
+        })
+    }
 }

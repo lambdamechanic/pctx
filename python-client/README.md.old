@@ -1,0 +1,118 @@
+# PCTX Python Client
+
+Python WebSocket client for [Port of Context](https://github.com/portofcontext/pctx).
+
+## Installation
+
+```bash
+pip install pctx-client
+```
+
+## Usage
+
+```python
+import asyncio
+from pctx_client import PctxClient
+
+async def main():
+    # Connect to PCTX server
+    async with PctxClient("ws://localhost:8080/local-tools") as client:
+        # Register a tool
+        await client.register_tool(
+            namespace="math",
+            name="add",
+            callback=lambda params: {"result": params["a"] + params["b"]},
+            description="Adds two numbers",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "a": {"type": "number"},
+                    "b": {"type": "number"}
+                },
+                "required": ["a", "b"]
+            }
+        )
+
+        # Execute TypeScript code that uses the tool
+        result = await client.execute_code('''
+            async function run() {
+                const result = await Math.add({a: 5, b: 3});
+                return result;
+            }
+        ''')
+
+        print(result)  # {"value": {"result": 8}, "stdout": "", "stderr": ""}
+
+asyncio.run(main())
+```
+
+## Features
+
+- **Tool Registration**: Register Python functions as tools that can be called from TypeScript code
+- **Code Execution**: Execute TypeScript code with access to registered tools
+- **Async/Await**: Full async support for both client operations and tool callbacks
+- **Type Safety**: Optional JSON Schema validation for tool inputs and outputs
+
+## API Reference
+
+### PctxClient
+
+#### `__init__(url: str)`
+
+Create a new PCTX client.
+
+**Parameters:**
+- `url`: WebSocket server URL (e.g., `"ws://localhost:8080/local-tools"`)
+
+#### `async connect()`
+
+Connect to the WebSocket server.
+
+**Raises:**
+- `ConnectionError`: If connection fails
+
+#### `async disconnect()`
+
+Disconnect from the WebSocket server.
+
+#### `async register_tool(...)`
+
+Register a Python tool callback.
+
+**Parameters:**
+- `namespace` (str): Tool namespace
+- `name` (str): Tool name
+- `callback` (Callable): Python function to call when tool is invoked
+- `description` (Optional[str]): Tool description
+- `input_schema` (Optional[Dict]): JSON Schema for input validation
+- `output_schema` (Optional[Dict]): JSON Schema for output validation
+
+**Raises:**
+- `ToolError`: If registration fails
+
+#### `async execute_code(code: str) -> Dict[str, Any]`
+
+Execute TypeScript code.
+
+**Parameters:**
+- `code` (str): TypeScript code containing `async function run()`
+
+**Returns:**
+- Dict with `value`, `stdout`, and `stderr` fields
+
+**Raises:**
+- `ExecutionError`: If execution fails
+
+## Development
+
+```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+```
+
+## License
+
+MIT

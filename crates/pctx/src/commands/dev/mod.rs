@@ -51,6 +51,10 @@ pub struct DevCmd {
     #[arg(long, default_value = "127.0.0.1")]
     pub host: String,
 
+    /// WebSocket port for local tools (default: HTTP port + 1)
+    #[arg(long)]
+    pub ws_port: Option<u16>,
+
     /// Path to JSONL log file
     #[arg(long, default_value = "pctx-dev.jsonl")]
     pub log_file: Utf8PathBuf,
@@ -76,8 +80,14 @@ impl DevCmd {
         let (tx, mut rx) = mpsc::unbounded_channel::<AppMessage>();
 
         // Spawn initial server task
-        let (server_handle, shutdown_tx) =
-            spawn_server_task(cfg.clone(), tx.clone(), self.host.clone(), self.port);
+        let ws_port = self.ws_port.unwrap_or(self.port + 1);
+        let (server_handle, shutdown_tx) = spawn_server_task(
+            cfg.clone(),
+            tx.clone(),
+            self.host.clone(),
+            self.port,
+            ws_port,
+        );
 
         // Store server control in Arc<Mutex<>> so we can replace it on config reload
         let server_control: ServerControl =
@@ -145,6 +155,7 @@ impl DevCmd {
             &server_control,
             &self.host,
             self.port,
+            ws_port,
         );
 
         // Cleanup terminal
@@ -191,6 +202,7 @@ fn run_ui(
     server_control: &ServerControl,
     host: &str,
     port: u16,
+    ws_port: u16,
 ) -> Result<()> {
     let tick_rate = Duration::from_millis(100);
     let mut last_tick = Instant::now();
@@ -355,6 +367,7 @@ fn run_ui(
                 let server_control_clone = server_control.clone();
                 let host_clone = host.to_string();
                 let port_clone = port;
+                let ws_port_clone = ws_port;
 
                 let task_handle = tokio::spawn(async move {
                     // 1. Stop the existing server
@@ -387,6 +400,7 @@ fn run_ui(
                                 tx_reload.clone(),
                                 host_clone,
                                 port_clone,
+                                ws_port_clone,
                             );
 
                             // 4. Store new server control
@@ -437,6 +451,7 @@ fn spawn_server_task(
     tx: mpsc::UnboundedSender<AppMessage>,
     host: String,
     port: u16,
+    ws_port: u16,
 ) -> (
     tokio::task::JoinHandle<()>,
     tokio::sync::oneshot::Sender<()>,
@@ -473,7 +488,7 @@ fn spawn_server_task(
         };
 
         // Run server with shutdown signal
-        let pctx_mcp = PctxMcpServer::new(&host, port, false);
+        let pctx_mcp = PctxMcpServer::new(&host, port, ws_port, false);
 
         tx.send(AppMessage::ServerReady(tools.clone())).ok();
 

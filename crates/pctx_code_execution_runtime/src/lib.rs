@@ -100,6 +100,7 @@ pub use callable_tool_registry::{
     CallLocallyCallableToolArgs, CallableToolMetadata, CallableToolRegistry, LocalToolCallback,
 };
 pub use fetch::AllowedHosts;
+pub use pctx_websocket_server::SessionManager;
 pub use registry::MCPRegistry;
 
 /// Pre-compiled V8 snapshot containing the PCTX runtime
@@ -135,7 +136,7 @@ pub static RUNTIME_SNAPSHOT: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/PCTX_RUNTIME_SNAPSHOT.bin"));
 
 // Deno extension providing MCP client, local tools, and console capturing.
-// Initialize with MCPRegistry, CallableToolRegistry, and AllowedHosts configuration.
+// Initialize with MCPRegistry, CallableToolRegistry, SessionManager, and AllowedHosts configuration.
 // See README.md for complete documentation.
 deno_core::extension!(
     pctx_runtime_snapshot,
@@ -159,11 +160,13 @@ deno_core::extension!(
     options = {
         registry: MCPRegistry,
         local_tool_registry: CallableToolRegistry,
+        session_manager: std::sync::Arc<SessionManager>,
         allowed_hosts: AllowedHosts,
     },
     state = |state, options| {
         state.put(options.registry);
         state.put(options.local_tool_registry);
+        state.put(options.session_manager);
         state.put(options.allowed_hosts);
     },
 );

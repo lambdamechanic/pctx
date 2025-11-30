@@ -16,6 +16,10 @@ pub struct StartCmd {
     #[arg(long, default_value = "127.0.0.1")]
     pub host: String,
 
+    /// WebSocket port for local tools (default: HTTP port + 1)
+    #[arg(long)]
+    pub ws_port: Option<u16>,
+
     /// Don't show the server banner
     #[arg(long)]
     pub no_banner: bool,
@@ -54,8 +58,9 @@ impl StartCmd {
         }
 
         let code_mode = StartCmd::load_code_mode(&cfg).await?;
+        let ws_port = self.ws_port.unwrap_or(self.port + 1);
 
-        PctxMcpServer::new(&self.host, self.port, !self.no_banner)
+        PctxMcpServer::new(&self.host, self.port, ws_port, !self.no_banner)
             .serve(&cfg, code_mode)
             .await?;
 
