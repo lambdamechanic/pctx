@@ -9,3 +9,8 @@
 .claude
 pctx.json
 pctx-dev.jsonl
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class

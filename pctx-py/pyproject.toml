@@ -1,0 +1,23 @@
+[project]
+name = "pctx-py"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Elias Posen", email = "elias@posen.ch" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.12.5",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.7",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]
