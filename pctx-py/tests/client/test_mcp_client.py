@@ -6,8 +6,8 @@ These tests require a running PCTX server with MCP endpoint.
 
 import pytest  # type: ignore
 
-from pctx_client import McpClient
-from pctx_client.exceptions import ConnectionError
+from pctx.client import McpClient
+from pctx.client.exceptions import ConnectionError
 
 
 # Test configuration

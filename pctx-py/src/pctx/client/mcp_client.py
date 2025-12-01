@@ -8,7 +8,7 @@ get function details, and execute code.
 import json
 from typing import Any, Dict, List, Optional
 
-import httpx # type: ignore
+import httpx
 
 from .exceptions import ConnectionError, ExecutionError
 
@@ -51,7 +51,7 @@ class McpClient:
             base_url: MCP endpoint URL (e.g., "http://localhost:8080/mcp")
             timeout: Request timeout in seconds
         """
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.client: Optional[httpx.AsyncClient] = None
 
@@ -97,16 +97,13 @@ class McpClient:
                 json={
                     "jsonrpc": "2.0",
                     "method": "tools/call",
-                    "params": {
-                        "name": "list_functions",
-                        "arguments": {}
-                    },
-                    "id": 1
+                    "params": {"name": "list_functions", "arguments": {}},
+                    "id": 1,
                 },
                 headers={
                     "Content-Type": "application/json",
-                    "Accept": "application/json, text/event-stream"
-                }
+                    "Accept": "application/json, text/event-stream",
+                },
             )
             response.raise_for_status()
 
@@ -140,8 +137,7 @@ class McpClient:
             raise ConnectionError(f"Invalid JSON response: {e}") from e
 
     async def get_function_details(
-        self,
-        functions: List[str]
+        self, functions: List[str]
     ) -> Dict[str, Dict[str, Any]]:
         """
         Get detailed schemas for specific functions.
@@ -175,16 +171,14 @@ class McpClient:
                     "method": "tools/call",
                     "params": {
                         "name": "get_function_details",
-                        "arguments": {
-                            "functions": functions
-                        }
+                        "arguments": {"functions": functions},
                     },
-                    "id": 2
+                    "id": 2,
                 },
                 headers={
                     "Content-Type": "application/json",
-                    "Accept": "application/json, text/event-stream"
-                }
+                    "Accept": "application/json, text/event-stream",
+                },
             )
             response.raise_for_status()
 
@@ -242,18 +236,13 @@ class McpClient:
                 json={
                     "jsonrpc": "2.0",
                     "method": "tools/call",
-                    "params": {
-                        "name": "execute",
-                        "arguments": {
-                            "code": code
-                        }
-                    },
-                    "id": 3
+                    "params": {"name": "execute", "arguments": {"code": code}},
+                    "id": 3,
                 },
                 headers={
                     "Content-Type": "application/json",
-                    "Accept": "application/json, text/event-stream"
-                }
+                    "Accept": "application/json, text/event-stream",
+                },
             )
             response.raise_for_status()
 

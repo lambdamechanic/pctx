@@ -9,8 +9,8 @@ These tests verify that:
 
 import pytest  # type: ignore
 
-from pctx_client.websocket_client import WebSocketClient
-from pctx_client.exceptions import ToolError
+from pctx.client.websocket_client import WebSocketClient
+from pctx.client.exceptions import ToolError
 
 
 # Test configuration

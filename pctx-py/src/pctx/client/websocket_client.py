@@ -9,8 +9,8 @@ import asyncio
 import json
 from typing import Any, Callable, Dict, Optional
 
-import websockets  # type: ignore
-from websockets.asyncio.client import ClientConnection  # type: ignore
+import websockets
+from websockets.asyncio.client import ClientConnection
 
 from .exceptions import ConnectionError, ExecutionError, ToolError
 

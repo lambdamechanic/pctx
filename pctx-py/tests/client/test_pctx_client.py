@@ -7,7 +7,7 @@ These tests require a running PCTX server with both MCP and WebSocket endpoints.
 import asyncio
 import pytest  # type: ignore
 
-from pctx_client import PctxClient
+from pctx.client import PctxClient
 
 
 # Test configuration
