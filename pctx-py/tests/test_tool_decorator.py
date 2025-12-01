@@ -26,7 +26,7 @@ def test_registration_basic_sync_function() -> None:
     assert simple_function.description == "A simple test function"
     assert simple_function.func is not None
     assert simple_function.coroutine is None
-    assert len(simple_function.args_schema.model_json_schema()["properties"]) == 0
+    assert simple_function.input_schema is None
 
 
 def test_registration_basic_async_function() -> None:
@@ -42,7 +42,7 @@ def test_registration_basic_async_function() -> None:
     assert async_function.description == "An async test function"
     assert async_function.func is None
     assert async_function.coroutine is not None
-    assert len(async_function.args_schema.model_json_schema()["properties"]) == 0
+    assert async_function.input_schema is None
 
 
 def test_registration_custom_name() -> None:
@@ -78,7 +78,7 @@ def test_registration_with_parameters() -> None:
         return str(a + b)
 
     # Check args_schema includes parameters
-    assert add_numbers.args_schema.model_json_schema() == {
+    assert add_numbers.input_schema.model_json_schema() == {
         "title": "add_numbers",
         "type": "object",
         "required": ["a", "b"],

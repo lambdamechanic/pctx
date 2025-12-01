@@ -1,9 +1,9 @@
-from __future__ import annotations
+# from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 import inspect
 import textwrap
-from typing import Any, Annotated
+from typing import Any, Annotated, get_type_hints
 
 
 from pydantic import BaseModel, ConfigDict, SkipValidation, Field, create_model
@@ -20,8 +20,12 @@ class Tool(BaseModel):
     Longer-form text which instructs the model how/why/when to use the tool.
     """
 
-    args_schema: Annotated[BaseModel, SkipValidation] = Field(
+    input_schema: Annotated[BaseModel, SkipValidation] = Field(
         default=None, description="The tool schema."
+    )
+
+    output_schema: Annotated[BaseModel | None, SkipValidation] = Field(
+        default=None, description="The return type schema."
     )
 
     func: Callable[..., str] | None
@@ -36,7 +40,7 @@ class Tool(BaseModel):
         coroutine: Callable[..., Awaitable[Any]] | None = None,
         name: str | None = None,
         description: str | None = None,
-    ) -> Tool:
+    ) -> "Tool":
         """
         Creates a tool from a given function.
         """
@@ -55,21 +59,24 @@ class Tool(BaseModel):
             _desc = description
 
         name_ = name or source_function.__name__
-        args_schema = create_pydantic_model_from_func(name_, source_function)
+
+        input_schema = create_input_schema(f"{name_}_Input", source_function)
+        output_schema = create_output_schema(f"{name_}_Output", source_function)
 
         return cls(
             name=name_,
             description=_desc,
             func=func,
             coroutine=coroutine,
-            args_schema=args_schema,
+            input_schema=None if is_empty_schema(input_schema) else input_schema,
+            output_schema=None if is_empty_schema(output_schema) else output_schema,
         )
 
 
 _MODEL_CONFIG: ConfigDict = {"extra": "forbid", "arbitrary_types_allowed": True}
 
 
-def create_pydantic_model_from_func(
+def create_input_schema(
     model_name: str,
     func: Callable,
 ) -> type[BaseModel]:
@@ -110,3 +117,57 @@ def create_pydantic_model_from_func(
             fields[param_name] = (annotation, param.default)
 
     return create_model(model_name, __config__=_MODEL_CONFIG, **fields)
+
+
+def create_output_schema(
+    model_name: str,
+    func: Callable,
+) -> type[BaseModel]:
+    """
+    Creates pydantic model from function return type annotation.
+
+    Args:
+        model_name: Name for the generated Pydantic model
+        func: The function to extract return type from
+
+    Returns:
+        A dynamically created Pydantic BaseModel class
+
+    If the return type is already a BaseModel subclass, it's returned as-is.
+    Otherwise, a wrapper model with a single 'data' field is created.
+    """
+    # Use get_type_hints to resolve string annotations to actual types
+    # This handles cases where the calling code uses "from __future__ import annotations"
+    try:
+        type_hints = get_type_hints(func)
+        return_annotation = type_hints.get("return", Any)
+    except Exception:
+        # Fallback to inspect if get_type_hints fails
+        sig = inspect.signature(func)
+        return_annotation = (
+            sig.return_annotation if sig.return_annotation is not sig.empty else Any
+        )
+
+    # Check if return type is already a BaseModel subclass
+    try:
+        if isinstance(return_annotation, type) and issubclass(
+            return_annotation, BaseModel
+        ):
+            return return_annotation
+    except TypeError:
+        # Not a class or can't check subclass
+        pass
+
+    # Wrap the return type in a model with a 'data' field
+    fields: dict[str, Any] = {"data": (return_annotation, ...)}
+
+    return create_model(model_name, __config__=_MODEL_CONFIG, **fields)
+
+
+def is_empty_schema(schema: type[BaseModel]) -> bool:
+    json_schema = schema.model_json_schema()
+
+    return (
+        json_schema.get("type") == "object"
+        and len(json_schema.get("properties", {})) == 0
+    )
