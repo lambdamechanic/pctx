@@ -30,6 +30,8 @@ pub struct Session {
     pub sender: tokio_mpsc::UnboundedSender<OutgoingMessage>,
     /// Tools registered by this session
     pub registered_tools: HashSet<String>, // namespace.name format
+    /// MCP servers registered by this session
+    pub registered_mcp_servers: HashSet<String>, // server name
 }
 
 impl Session {
@@ -38,6 +40,7 @@ impl Session {
             id: Uuid::new_v4().to_string(),
             sender,
             registered_tools: HashSet::new(),
+            registered_mcp_servers: HashSet::new(),
         }
     }
 
@@ -46,6 +49,7 @@ impl Session {
             id,
             sender,
             registered_tools: HashSet::new(),
+            registered_mcp_servers: HashSet::new(),
         }
     }
 
@@ -62,6 +66,21 @@ impl Session {
     /// Check if a tool is registered by this session
     pub fn has_tool(&self, tool_name: &str) -> bool {
         self.registered_tools.contains(tool_name)
+    }
+
+    /// Register an MCP server for this session
+    pub fn register_mcp_server(&mut self, server_name: String) {
+        self.registered_mcp_servers.insert(server_name);
+    }
+
+    /// Unregister an MCP server from this session
+    pub fn unregister_mcp_server(&mut self, server_name: &str) -> bool {
+        self.registered_mcp_servers.remove(server_name)
+    }
+
+    /// Check if an MCP server is registered by this session
+    pub fn has_mcp_server(&self, server_name: &str) -> bool {
+        self.registered_mcp_servers.contains(server_name)
     }
 }
 
@@ -112,6 +131,18 @@ pub enum RegisterToolError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum RegisterMcpServerError {
+    #[error("MCP server already registered")]
+    AlreadyRegistered,
+    #[error("Session not found")]
+    SessionNotFound,
+    #[error("Invalid URL: {0}")]
+    InvalidUrl(String),
+    #[error("Invalid auth configuration: {0}")]
+    InvalidAuth(String),
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum SendError {
     #[error("Session not found")]
     SessionNotFound,
@@ -133,6 +164,15 @@ pub enum ExecuteToolError {
     Timeout,
 }
 
+/// MCP server configuration stored per session
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct McpServerConfig {
+    pub name: String,
+    pub url: String,
+    pub auth: Option<serde_json::Value>,
+    pub session_id: SessionId,
+}
+
 /// Manager for all WebSocket sessions
 ///
 /// This is the core session management type that coordinates between
@@ -142,6 +182,8 @@ pub struct SessionManager {
     sessions: Arc<RwLock<HashMap<SessionId, Session>>>,
     /// Tool name → session ID mapping
     tool_sessions: Arc<RwLock<HashMap<String, SessionId>>>,
+    /// MCP server name → configuration mapping
+    mcp_servers: Arc<RwLock<HashMap<String, McpServerConfig>>>,
     /// Request ID → pending execution mapping
     pending_executions: Arc<RwLock<HashMap<serde_json::Value, PendingExecution>>>,
     /// Code execution callback (optional) - uses std::sync::RwLock for synchronous setup
@@ -153,6 +195,7 @@ impl SessionManager {
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             tool_sessions: Arc::new(RwLock::new(HashMap::new())),
+            mcp_servers: Arc::new(RwLock::new(HashMap::new())),
             pending_executions: Arc::new(RwLock::new(HashMap::new())),
             code_executor: Arc::new(StdRwLock::new(None)),
         }
@@ -178,7 +221,7 @@ impl SessionManager {
         session_id
     }
 
-    /// Remove a session and clean up all its registered tools
+    /// Remove a session and clean up all its registered tools and MCP servers
     pub async fn remove_session(&self, session_id: &str) {
         let mut sessions = self.sessions.write().await;
         if let Some(session) = sessions.remove(session_id) {
@@ -186,6 +229,13 @@ impl SessionManager {
             let mut tool_sessions = self.tool_sessions.write().await;
             for tool_name in &session.registered_tools {
                 tool_sessions.remove(tool_name);
+            }
+            drop(tool_sessions);
+
+            // Clean up MCP server mappings
+            let mut mcp_servers = self.mcp_servers.write().await;
+            for server_name in &session.registered_mcp_servers {
+                mcp_servers.remove(server_name);
             }
         }
     }
@@ -219,9 +269,59 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Register an MCP server for a session
+    pub async fn register_mcp_server(
+        &self,
+        session_id: &str,
+        server_name: String,
+        url: String,
+        auth: Option<serde_json::Value>,
+    ) -> Result<(), RegisterMcpServerError> {
+        // Validate URL
+        url::Url::parse(&url)
+            .map_err(|e| RegisterMcpServerError::InvalidUrl(e.to_string()))?;
+
+        // Check if MCP server already exists
+        let mcp_servers = self.mcp_servers.read().await;
+        if mcp_servers.contains_key(&server_name) {
+            return Err(RegisterMcpServerError::AlreadyRegistered);
+        }
+        drop(mcp_servers);
+
+        // Add to session
+        let mut sessions = self.sessions.write().await;
+        let session = sessions
+            .get_mut(session_id)
+            .ok_or(RegisterMcpServerError::SessionNotFound)?;
+        session.register_mcp_server(server_name.clone());
+        drop(sessions);
+
+        // Add to MCP server mapping
+        let config = McpServerConfig {
+            name: server_name.clone(),
+            url,
+            auth,
+            session_id: session_id.to_string(),
+        };
+        let mut mcp_servers = self.mcp_servers.write().await;
+        mcp_servers.insert(server_name, config);
+
+        Ok(())
+    }
+
     /// Get the session ID for a tool
     pub async fn get_tool_session(&self, tool_name: &str) -> Option<SessionId> {
         self.tool_sessions.read().await.get(tool_name).cloned()
+    }
+
+    /// Get all registered MCP servers
+    pub async fn list_mcp_servers(&self) -> Vec<McpServerConfig> {
+        self.mcp_servers.read().await.values().cloned().collect()
+    }
+
+    /// Get an MCP server configuration by name
+    pub async fn get_mcp_server(&self, server_name: &str) -> Option<McpServerConfig> {
+        self.mcp_servers.read().await.get(server_name).cloned()
     }
 
     /// Send a message to a specific session

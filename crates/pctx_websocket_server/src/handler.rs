@@ -196,17 +196,33 @@ impl WebSocketHandler {
         let request: JsonRpcRequest = serde_json::from_value(value.clone())
             .map_err(|e| HandlerError::ParseError(e.to_string()))?;
 
-        let response_value = match request.method.as_str() {
-            "register_tool" => {
+        let response_value = match request.method {
+            crate::protocol::Method::RegisterTool => {
                 Self::handle_register_tool(&request, session_id, session_manager).await
             }
-            "execute" => Self::handle_execute_code(&request, session_id, session_manager).await,
-            _ => serde_json::to_value(JsonRpcErrorResponse::error(
-                error_codes::METHOD_NOT_FOUND,
-                format!("Method not found: {}", request.method),
-                request.id.clone(),
-            ))
-            .unwrap(),
+            crate::protocol::Method::RegisterMcp => {
+                Self::handle_register_mcp(&request, session_id, session_manager).await
+            }
+            crate::protocol::Method::Execute => {
+                Self::handle_execute_code(&request, session_id, session_manager).await
+            }
+            crate::protocol::Method::ExecuteTool => {
+                // ExecuteTool is a server-to-client method, not client-to-server
+                // If client sends this, it's an error
+                Self::error_response(
+                    error_codes::METHOD_NOT_FOUND,
+                    "execute_tool is a server-to-client method",
+                    request.id.clone(),
+                )
+            }
+            crate::protocol::Method::Unknown => {
+                // Create error response for unknown method
+                Self::error_response(
+                    error_codes::METHOD_NOT_FOUND,
+                    format!("Method not found: {}", request.method),
+                    request.id.clone(),
+                )
+            }
         };
 
         // Send response
@@ -232,6 +248,51 @@ impl WebSocketHandler {
         Ok(())
     }
 
+    /// Handle register_mcp request
+    async fn handle_register_mcp(
+        request: &JsonRpcRequest,
+        session_id: &str,
+        session_manager: &Arc<SessionManager>,
+    ) -> serde_json::Value {
+        let params: RegisterMcpParams = match request.params.as_ref() {
+            Some(params) => match serde_json::from_value(params.clone()) {
+                Ok(p) => p,
+                Err(e) => {
+                    return Self::error_response(
+                        error_codes::INVALID_PARAMS,
+                        format!("Invalid params: {}", e),
+                        request.id.clone(),
+                    );
+                }
+            },
+            None => {
+                return Self::error_response(
+                    error_codes::INVALID_PARAMS,
+                    "Missing params",
+                    request.id.clone(),
+                );
+            }
+        };
+
+        match session_manager
+            .register_mcp_server(session_id, params.name.clone(), params.url, params.auth)
+            .await
+        {
+            Ok(_) => {
+                info!("MCP server registered: {} (session: {})", params.name, session_id);
+                Self::success_response(json!({ "success": true }), request.id.clone())
+            }
+            Err(e) => {
+                warn!("Failed to register MCP server {}: {}", params.name, e);
+                Self::error_response(
+                    error_codes::TOOL_ALREADY_REGISTERED, // Reuse this code for MCP server conflicts
+                    e.to_string(),
+                    request.id.clone(),
+                )
+            }
+        }
+    }
+
     /// Handle register_tool request
     async fn handle_register_tool(
         request: &JsonRpcRequest,
@@ -242,21 +303,19 @@ impl WebSocketHandler {
             Some(params) => match serde_json::from_value(params.clone()) {
                 Ok(p) => p,
                 Err(e) => {
-                    return serde_json::to_value(JsonRpcErrorResponse::error(
+                    return Self::error_response(
                         error_codes::INVALID_PARAMS,
                         format!("Invalid params: {}", e),
                         request.id.clone(),
-                    ))
-                    .unwrap();
+                    );
                 }
             },
             None => {
-                return serde_json::to_value(JsonRpcErrorResponse::error(
+                return Self::error_response(
                     error_codes::INVALID_PARAMS,
                     "Missing params",
                     request.id.clone(),
-                ))
-                .unwrap();
+                );
             }
         };
 
@@ -268,20 +327,15 @@ impl WebSocketHandler {
         {
             Ok(_) => {
                 info!("Tool registered: {} (session: {})", tool_name, session_id);
-                serde_json::to_value(JsonRpcResponse::success(
-                    json!({ "success": true }),
-                    request.id.clone(),
-                ))
-                .unwrap()
+                Self::success_response(json!({ "success": true }), request.id.clone())
             }
             Err(e) => {
                 warn!("Failed to register tool {}: {}", tool_name, e);
-                serde_json::to_value(JsonRpcErrorResponse::error(
+                Self::error_response(
                     error_codes::TOOL_ALREADY_REGISTERED,
                     e.to_string(),
                     request.id.clone(),
-                ))
-                .unwrap()
+                )
             }
         }
     }
@@ -296,21 +350,19 @@ impl WebSocketHandler {
             Some(params) => match serde_json::from_value(params.clone()) {
                 Ok(p) => p,
                 Err(e) => {
-                    return serde_json::to_value(JsonRpcErrorResponse::error(
+                    return Self::error_response(
                         error_codes::INVALID_PARAMS,
                         format!("Invalid params: {}", e),
                         request.id.clone(),
-                    ))
-                    .unwrap();
+                    );
                 }
             },
             None => {
-                return serde_json::to_value(JsonRpcErrorResponse::error(
+                return Self::error_response(
                     error_codes::INVALID_PARAMS,
                     "Missing params",
                     request.id.clone(),
-                ))
-                .unwrap();
+                );
             }
         };
 
@@ -323,32 +375,29 @@ impl WebSocketHandler {
                 info!("Code execution completed (success: {})", result.success);
 
                 if result.success {
-                    serde_json::to_value(JsonRpcResponse::success(
+                    Self::success_response(
                         json!({
                             "value": result.value,
                             "stdout": result.stdout,
                             "stderr": result.stderr
                         }),
                         request.id.clone(),
-                    ))
-                    .unwrap()
+                    )
                 } else {
-                    serde_json::to_value(JsonRpcErrorResponse::error(
+                    Self::error_response(
                         error_codes::EXECUTION_FAILED,
                         result.stderr.clone(),
                         request.id.clone(),
-                    ))
-                    .unwrap()
+                    )
                 }
             }
             Err(e) => {
                 warn!("Code execution failed: {}", e);
-                serde_json::to_value(JsonRpcErrorResponse::error(
+                Self::error_response(
                     error_codes::EXECUTION_FAILED,
                     e.to_string(),
                     request.id.clone(),
-                ))
-                .unwrap()
+                )
             }
         }
     }
@@ -366,6 +415,44 @@ impl WebSocketHandler {
             warn!("Received response for unknown request: {:?}", request_id);
         }
     }
+
+    /// Helper to create a success response, with proper error handling
+    fn success_response(result: serde_json::Value, id: serde_json::Value) -> serde_json::Value {
+        serde_json::to_value(JsonRpcResponse::success(result, id)).unwrap_or_else(|e| {
+            error!("Critical: Failed to serialize success response: {}", e);
+            // Return a minimal error response as fallback
+            json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": error_codes::INTERNAL_ERROR,
+                    "message": "Internal serialization error"
+                },
+                "id": serde_json::Value::Null
+            })
+        })
+    }
+
+    /// Helper to create an error response, with proper error handling
+    fn error_response(
+        code: i32,
+        message: impl Into<String>,
+        id: serde_json::Value,
+    ) -> serde_json::Value {
+        serde_json::to_value(JsonRpcErrorResponse::error(code, message, id.clone())).unwrap_or_else(
+            |e| {
+                error!("Critical: Failed to serialize error response: {}", e);
+                // Return a minimal error response as fallback
+                json!({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": error_codes::INTERNAL_ERROR,
+                        "message": "Internal serialization error"
+                    },
+                    "id": id
+                })
+            },
+        )
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -374,4 +461,6 @@ pub enum HandlerError {
     ParseError(String),
     #[error("Send error: {0}")]
     SendError(String),
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
 }

@@ -4,11 +4,40 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Supported JSON-RPC methods
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Method {
+    /// Client-to-server: Register a new tool
+    RegisterTool,
+    /// Client-to-server: Register an MCP server
+    RegisterMcp,
+    /// Client-to-server: Execute code on the server
+    Execute,
+    /// Server-to-client: Execute a registered tool on the client
+    ExecuteTool,
+    /// Unknown method (catch-all for forward compatibility)
+    #[serde(other)]
+    Unknown,
+}
+
+impl std::fmt::Display for Method {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Method::RegisterTool => write!(f, "register_tool"),
+            Method::RegisterMcp => write!(f, "register_mcp"),
+            Method::Execute => write!(f, "execute"),
+            Method::ExecuteTool => write!(f, "execute_tool"),
+            Method::Unknown => write!(f, "unknown"),
+        }
+    }
+}
+
 /// JSON-RPC 2.0 Request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcRequest {
     pub jsonrpc: String,
-    pub method: String,
+    pub method: Method,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<Value>,
     pub id: Value,
@@ -61,6 +90,15 @@ pub struct RegisterToolParams {
     pub output_schema: Option<Value>,
 }
 
+/// Register MCP server request parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterMcpParams {
+    pub name: String,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<Value>,
+}
+
 /// Execute tool request parameters (server → client)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecuteToolParams {
@@ -97,10 +135,26 @@ pub mod error_codes {
 }
 
 impl JsonRpcRequest {
+    /// Create a new JSON-RPC request with a method name that will be parsed to Method enum
     pub fn new(method: impl Into<String>, params: Option<Value>, id: impl Into<Value>) -> Self {
+        let method_str = method.into();
+        // Parse string to Method enum - unknown methods become Method::Unknown
+        let method_enum =
+            serde_json::from_value(Value::String(method_str)).unwrap_or(Method::Unknown);
+
         Self {
             jsonrpc: "2.0".to_string(),
-            method: method.into(),
+            method: method_enum,
+            params,
+            id: id.into(),
+        }
+    }
+
+    /// Create a new JSON-RPC request with a Method enum directly
+    pub fn with_method(method: Method, params: Option<Value>, id: impl Into<Value>) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            method,
             params,
             id: id.into(),
         }

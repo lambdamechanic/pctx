@@ -31,9 +31,6 @@ async fn test_client_can_connect() {
     // Connect client
     let (ws_stream, _) = connect_async(&url).await.expect("Failed to connect");
     let (_write, _read) = ws_stream.split();
-
-    // Connection successful if we reach here
-    assert!(true, "Client connected successfully");
 }
 
 /// Test that server assigns a session ID on connection
