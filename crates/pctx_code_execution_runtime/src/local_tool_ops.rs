@@ -1,17 +1,21 @@
 //! Deno ops for local tool callback functionality
 //!
 //! Local tools allow users to define runtime callbacks (JavaScript, Python, etc.) that can be invoked
-//! from the sandbox.
+//! from the sandbox via WebSocket.
 //!
-//! ## Unified Callback Architecture
-//! - All callbacks (Python, JS, Rust) are stored as Rust closures in `CallableToolRegistry`
-//! - JavaScript calls `op_execute_local_tool` which executes the closure
-//! - No distinction between Python/JS at the op level - all are just callbacks!
+//! ## WebSocket Execution Architecture
+//! - Tool metadata stored in `CallableToolRegistry` (for listing/discovery)
+//! - Actual execution happens via WebSocket RPC to connected clients
+//! - JavaScript calls `op_execute_local_tool` which sends WebSocket message and awaits response
 
 use deno_core::{OpState, op2};
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::callable_tool_registry::{CallableToolMetadata, CallableToolRegistry};
 use crate::error::McpError;
+use pctx_session_types::SessionManager;
 
 /// Check if a local tool is registered
 #[op2(fast)]
@@ -56,32 +60,60 @@ pub(crate) fn op_local_tool_clear(state: &mut OpState) {
     registry.clear();
 }
 
-/// Execute a local tool callback (UNIFIED API - works for Python, JS, anything!)
+/// Execute a local tool via WebSocket RPC
 ///
-/// This op executes a callback stored in the `CallableToolRegistry`. The callback
-/// can be from any source language (Python, JavaScript, Rust native, etc.) -
-/// from this op's perspective, it's just a Rust closure.
+/// This op sends an execution request to the WebSocket client that registered the tool,
+/// then waits for the response. The execution happens asynchronously over WebSocket.
 ///
 /// # Arguments
-/// * `name` - Name of the tool to execute
-/// * `arguments` - Optional JSON arguments to pass to the callback
+/// * `name` - Name of the tool to execute (format: "namespace.toolName")
+/// * `arguments` - Optional JSON arguments to pass to the client
 ///
 /// # Returns
-/// The callback's result as JSON
+/// The tool's result as JSON (returned from the client)
 ///
 /// # Errors
-/// Returns error if the tool is not found or the callback fails
-#[op2]
+/// Returns error if:
+/// - Tool is not found
+/// - Client disconnected
+/// - Execution timeout (30s)
+/// - Client returns error
+#[op2(async)]
 #[serde]
 #[allow(clippy::needless_pass_by_value)]
-pub(crate) fn op_execute_local_tool(
-    state: &mut OpState,
+pub(crate) async fn op_execute_local_tool(
+    state: Rc<RefCell<OpState>>,
     #[string] name: String,
     #[serde] arguments: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, McpError> {
-    let registry = state.borrow::<CallableToolRegistry>();
+    // Get session manager
+    let session_manager = {
+        let state_borrow = state.borrow();
+        state_borrow.borrow::<Arc<SessionManager>>().clone()
+    };
 
-    registry
-        .execute(&name, arguments)
-        .map_err(McpError::ExecutionError)
+    // Generate unique request ID
+    let request_id = uuid::Uuid::new_v4().to_string();
+
+    // Build execution request message
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "execute_tool",
+        "params": {
+            "name": name,
+            "arguments": arguments
+        },
+        "id": request_id.clone()
+    });
+
+    // Execute tool via WebSocket
+    // The session manager will return ToolNotFound if the tool doesn't exist
+    session_manager
+        .execute_tool_raw(
+            &name,
+            pctx_session_types::OutgoingMessage::Response(request),
+            serde_json::Value::String(request_id),
+        )
+        .await
+        .map_err(|e| McpError::ExecutionError(e.to_string()))
 }

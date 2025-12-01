@@ -10,7 +10,16 @@
 pctx.json
 pctx-dev.jsonl
 
-# Byte-compiled / optimized / DLL files
+# Python
+*.pyc
 __pycache__/
-*.py[cod]
-*$py.class
+*.so
+*.pyd
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+*.lock
+uv.lock

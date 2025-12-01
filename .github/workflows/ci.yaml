@@ -6,11 +6,13 @@ on:
     paths:
       - 'Cargo.toml'
       - 'crates/**'
+      - 'python-client/**'
       - '.github/workflows/ci.yaml'
   pull_request:
     paths:
       - 'Cargo.toml'
       - 'crates/**'
+      - 'python-client/**'
       - '.github/workflows/ci.yaml'
   workflow_dispatch:
 
@@ -96,3 +98,65 @@ jobs:
       - name: Run tests (Unix)
         # if: matrix.os != 'windows-latest'
         run: cargo test --workspace --locked
+
+  test-python-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: false
+
+      # Install Python dependencies
+      - name: Install Python client dependencies
+        run: |
+          cd python-client
+          pip install -e ".[dev]"
+
+      # Build and start PCTX server in background
+      - name: Build PCTX server
+        run: cargo build --bin pctx --locked
+
+      - name: Start PCTX server
+        run: |
+          # Create a minimal config
+          echo '{"name": "test-server", "version": "0.1.0", "servers": []}' > pctx.json
+          # Start server in background
+          cargo run --bin pctx -- start --port 8080 --no-banner > pctx-server.log 2>&1 &
+          echo $! > pctx-server.pid
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/mcp > /dev/null 2>&1; then
+              echo "Server is ready"
+              break
+            fi
+            sleep 1
+          done
+
+      # Run Python client tests
+      - name: Run Python client tests
+        run: |
+          cd python-client
+          export PCTX_MCP_URL="http://localhost:8080/mcp"
+          export PCTX_WS_URL="ws://localhost:8080/local-tools"
+          pytest tests/ -v
+
+      # Cleanup
+      - name: Stop PCTX server
+        if: always()
+        run: |
+          if [ -f pctx-server.pid ]; then
+            kill $(cat pctx-server.pid) || true
+          fi
+
+      # Upload server logs on failure
+      - name: Upload server logs
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: pctx-server-logs
+          path: pctx-server.log

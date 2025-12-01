@@ -81,11 +81,23 @@ impl CodeMode {
                 ))
             })?;
 
+        let output_schema: Option<codegen::RootSchema> =
+            if let Some(schema) = &metadata.output_schema {
+                Some(serde_json::from_value(schema.clone()).map_err(|e| {
+                    Error::Message(format!(
+                        "Failed to parse output schema for '{}': {}",
+                        metadata.name, e
+                    ))
+                })?)
+            } else {
+                None
+            };
+
         codegen::Tool::new_callable(
             &metadata.name,
             metadata.description.clone(),
             input_schema,
-            None, // Callable tools don't have output schemas yet
+            output_schema,
         )
         .map_err(Error::from)
     }
@@ -184,7 +196,7 @@ impl CodeMode {
         );
 
         // generate the full script to be executed
-        let namespaces: Vec<String> = self
+        let mut namespaces: Vec<String> = self
             .all_tool_sets()
             .iter()
             .filter_map(|s| {
@@ -195,6 +207,50 @@ impl CodeMode {
                 }
             })
             .collect();
+
+        // Add namespace declarations for WebSocket-registered tools if session_manager is provided
+        if let Some(ref session_manager) = input.session_manager {
+            let registered_tools = session_manager.list_tools().await;
+            if !registered_tools.is_empty() {
+                debug!(
+                    "Found {} registered tools from session manager",
+                    registered_tools.len()
+                );
+
+                // Group tools by namespace
+                let mut ns_tools: std::collections::HashMap<String, Vec<String>> =
+                    std::collections::HashMap::new();
+                for tool in registered_tools {
+                    if let Some((namespace, tool_name)) = tool.split_once('.') {
+                        ns_tools
+                            .entry(namespace.to_string())
+                            .or_default()
+                            .push(tool_name.to_string());
+                    }
+                }
+
+                // Generate namespace declarations for session tools
+                for (namespace, tool_names) in ns_tools {
+                    let tool_decls: Vec<String> = tool_names.iter()
+                        .map(|tool_name| {
+                            let full_name = format!("{}.{}", namespace, tool_name);
+                            format!(
+                                "  export async function {}(params?: any): Promise<any> {{\n    return await callLocallyCallableTool('{}', params);\n  }}",
+                                tool_name, full_name
+                            )
+                        })
+                        .collect();
+
+                    let namespace_decl = format!(
+                        "export namespace {} {{\n{}\n}}",
+                        namespace,
+                        tool_decls.join("\n")
+                    );
+                    namespaces.push(namespace_decl);
+                }
+            }
+        }
+
         let to_execute = codegen::format::format_ts(&format!(
             "{namespaces}\n\n{code}\n\nexport default await run();\n",
             namespaces = namespaces.join("\n\n"),
@@ -206,12 +262,17 @@ impl CodeMode {
         // Use the unified CallableToolRegistry
         let unified_registry = self.callable_registry.clone().unwrap_or_default();
 
-        let options = deno_executor::ExecuteOptions::new()
+        let mut options = pctx_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
             .with_mcp_configs(self.servers.clone())
             .with_callable_registry(unified_registry);
 
-        let execution_res = deno_executor::execute(&to_execute, options).await?;
+        // Pass the session_manager if provided
+        if let Some(session_manager) = input.session_manager {
+            options = options.with_session_manager(session_manager);
+        }
+
+        let execution_res = pctx_executor::execute(&to_execute, options).await?;
 
         if execution_res.success {
             debug!("Sandbox execution completed successfully");
@@ -310,5 +371,107 @@ impl CodeMode {
                 Some(allowed)
             })
             .collect()
+    }
+
+    /// Create a CodeExecutorFn that wraps this CodeMode's execute method
+    ///
+    /// This allows the CodeMode to be used as a code executor in the WebSocket server.
+    ///
+    /// Note: Code execution happens in a separate tokio task with a LocalSet since
+    /// Deno's JsRuntime is not Send.
+    pub fn as_code_executor(self) -> pctx_websocket_server::CodeExecutorFn {
+        self.as_code_executor_with_session_manager(None)
+    }
+
+    /// Create a CodeExecutorFn with an optional session manager for WebSocket tool integration
+    ///
+    /// When a session manager is provided, JavaScript code can call local tools registered
+    /// via WebSocket using direct function calls like `namespace.toolName(params)` or the legacy
+    /// `CALLABLE_TOOLS.execute(toolName, params)` API.
+    ///
+    /// Note: Code execution happens in a separate tokio task with a LocalSet since
+    /// Deno's JsRuntime is not Send.
+    pub fn as_code_executor_with_session_manager(
+        self,
+        session_manager: Option<std::sync::Arc<pctx_session_types::SessionManager>>,
+    ) -> pctx_session_types::CodeExecutorFn {
+        use std::sync::Arc;
+
+        // Extract the configuration we need (all cloneable/Send types)
+        let servers = self.servers.clone();
+        let callable_registry = self.callable_registry.clone();
+        let allowed_hosts: Vec<String> = self.allowed_hosts().into_iter().collect();
+
+        // Pre-compute the namespaces since tool_sets is not Send
+        let all_tool_sets = self.all_tool_sets();
+        let namespaces: Vec<String> = all_tool_sets
+            .iter()
+            .filter_map(|s| {
+                if s.tools.is_empty() {
+                    None
+                } else {
+                    Some(s.namespace())
+                }
+            })
+            .collect();
+
+        Arc::new(move |code: String| {
+            let servers_clone = servers.clone();
+            let callable_registry_clone = callable_registry.clone();
+            let allowed_hosts_clone = allowed_hosts.clone();
+            let namespaces_clone = namespaces.clone();
+            let session_manager_clone = session_manager.clone();
+
+            Box::pin(async move {
+                // For WebSocket code execution, the code should be a complete async function run()
+                // definition (unlike raw expressions). We just append the export and namespaces.
+                let to_execute = codegen::format::format_ts(&format!(
+                    "{namespaces}\n\n{code}\n\nexport default await run();\n",
+                    namespaces = namespaces_clone.join("\n\n"),
+                    code = &code
+                ));
+
+                // Spawn execution on a dedicated task since Deno runtime is not Send
+                // Use spawn_blocking to run in a separate thread with a current_thread runtime
+                let handle = tokio::task::spawn_blocking(move || {
+                    // Create a current_thread runtime for Deno (it requires CurrentThread flavor)
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("Failed to create runtime");
+
+                    rt.block_on(async {
+                        let mut options = pctx_executor::ExecuteOptions::new()
+                            .with_allowed_hosts(allowed_hosts_clone)
+                            .with_mcp_configs(servers_clone);
+
+                        if let Some(registry) = callable_registry_clone {
+                            options = options.with_callable_registry(registry);
+                        }
+
+                        if let Some(session_mgr) = session_manager_clone {
+                            options = options.with_session_manager(session_mgr);
+                        }
+
+                        pctx_executor::execute(&to_execute, options).await
+                    })
+                });
+
+                match handle.await {
+                    Ok(Ok(result)) => Ok(pctx_websocket_server::ExecuteCodeResult {
+                        success: result.success,
+                        value: result.output,
+                        stdout: result.stdout,
+                        stderr: result.stderr,
+                    }),
+                    Ok(Err(e)) => Err(pctx_websocket_server::ExecuteCodeError::ExecutionFailed(
+                        e.to_string(),
+                    )),
+                    Err(e) => Err(pctx_websocket_server::ExecuteCodeError::ExecutionFailed(
+                        format!("Task join error: {}", e),
+                    )),
+                }
+            })
+        })
     }
 }

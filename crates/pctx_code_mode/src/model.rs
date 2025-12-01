@@ -103,13 +103,14 @@ pub struct FunctionDetails {
 // -------------- Execute --------------
 
 #[allow(clippy::doc_markdown)]
-#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(default)]
 pub struct ExecuteInput {
     /// Typescript code to execute.
     ///
     /// REQUIRED FORMAT:
     /// async function ``run()`` {
-    ///   // YOUR CODE GOES HERE e.g. const result = await ``Namespace.method();``
+    ///   // YOUR CODE GOES HERE e.g. const result await ``Namespace.method();``
     ///   // ALWAYS RETURN THE RESULT e.g. return result;
     /// }
     ///
@@ -117,6 +118,36 @@ pub struct ExecuteInput {
     /// The sandbox automatically calls run() and exports the result.
     ///
     pub code: String,
+
+    /// Optional session manager for WebSocket-based local tool execution
+    #[serde(skip)]
+    #[schemars(skip)]
+    #[allow(dead_code)] // Used when passed from server.rs
+    pub session_manager: Option<std::sync::Arc<pctx_session_types::SessionManager>>,
+}
+
+impl std::fmt::Debug for ExecuteInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExecuteInput")
+            .field("code", &self.code)
+            .field(
+                "session_manager",
+                &self
+                    .session_manager
+                    .as_ref()
+                    .map(|_| "SessionManager { .. }"),
+            )
+            .finish()
+    }
+}
+
+impl Default for ExecuteInput {
+    fn default() -> Self {
+        Self {
+            code: String::new(),
+            session_manager: None,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]

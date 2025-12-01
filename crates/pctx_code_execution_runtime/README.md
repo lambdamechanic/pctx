@@ -299,6 +299,6 @@ See the [examples/](examples/) directory:
 ## See Also
 
 - [`pctx_type_check`](../pctx_type_check) - TypeScript type checking runtime
-- [`deno_executor`](../deno_executor) - Complete TypeScript execution environment
+- [`pctx_executor`](../pctx_executor) - Complete TypeScript execution environment
 - [Model Context Protocol](https://modelcontextprotocol.io) - MCP specification
 - [JS_LOCAL_TOOLS.md](JS_LOCAL_TOOLS.md) - Detailed JS local tools documentation

@@ -21,7 +21,7 @@ keyring = { version = "3.6.1", features = [
 ] }
 tracing = { workspace = true }
 camino = { version = "1.2.1", features = ["serde1"] }
-rmcp = { version = "0.8.0", features = [
+rmcp = { workspace = true, features = [
     "client",
     "transport-streamable-http-client-reqwest",
     "reqwest",

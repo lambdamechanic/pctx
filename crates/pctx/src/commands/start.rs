@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
+use pctx_code_mode::CodeMode;
 use pctx_config::Config;
-use pctx_core::CodeMode;
 use tracing::{debug, info, warn};
 
 use crate::mcp::PctxMcpServer;

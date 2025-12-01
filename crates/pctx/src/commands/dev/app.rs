@@ -13,7 +13,7 @@ use pctx_config::logger::LogLevel;
 use ratatui::{layout::Rect, widgets::ListState};
 
 use super::log_entry::LogEntry;
-use pctx_core::CodeMode;
+use pctx_code_mode::CodeMode;
 
 // -------- APP STATE & CONTROLS ---------
 

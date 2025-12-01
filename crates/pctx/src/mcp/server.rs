@@ -1,9 +1,11 @@
 use anyhow::Result;
 use pctx_config::Config;
+use pctx_websocket_server::LocalToolsServer;
 use rmcp::transport::{
     StreamableHttpServerConfig,
     streamable_http_server::{StreamableHttpService, session::local::LocalSessionManager},
 };
+use std::sync::Arc;
 use tabled::{
     Table,
     builder::Builder,
@@ -15,11 +17,13 @@ use tabled::{
     },
 };
 use terminal_size::terminal_size;
+use tokio::sync::mpsc;
 use tower::ServiceBuilder;
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
     trace::TraceLayer,
 };
+
 use tracing::info;
 
 use crate::{
@@ -45,7 +49,11 @@ impl PctxMcpServer {
         }
     }
 
-    pub(crate) async fn serve(&self, cfg: &Config, code_mode: pctx_core::CodeMode) -> Result<()> {
+    pub(crate) async fn serve(
+        &self,
+        cfg: &Config,
+        code_mode: pctx_code_mode::CodeMode,
+    ) -> Result<()> {
         let shutdown_signal = async {
             tokio::signal::ctrl_c()
                 .await
@@ -58,7 +66,7 @@ impl PctxMcpServer {
     pub(crate) async fn serve_with_shutdown<F>(
         &self,
         cfg: &Config,
-        code_mode: pctx_core::CodeMode,
+        code_mode: pctx_code_mode::CodeMode,
         shutdown_signal: F,
     ) -> Result<()>
     where
@@ -66,7 +74,93 @@ impl PctxMcpServer {
     {
         self.banner(cfg, &code_mode);
 
-        let mcp_service = PctxMcpService::new(cfg, code_mode);
+        // Create WebSocket server first
+        let ws_server = LocalToolsServer::new();
+        let session_manager = ws_server.session_manager();
+
+        // Create code executor with access to CodeMode and SessionManager
+        // Use a channel-based approach to avoid Send issues with CodeMode
+        // CodeMode is !Send due to Deno runtime, so we run it on a dedicated thread
+
+        let (exec_tx, mut exec_rx) = mpsc::unbounded_channel::<(
+            String,
+            tokio::sync::oneshot::Sender<
+                Result<
+                    pctx_websocket_server::ExecuteCodeResult,
+                    pctx_websocket_server::ExecuteCodeError,
+                >,
+            >,
+        )>();
+
+        let code_mode_for_executor = code_mode.clone();
+        let session_manager_for_executor = session_manager.clone();
+
+        // Spawn a dedicated thread with its own LocalSet for !Send CodeMode
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to build runtime");
+
+            let local = tokio::task::LocalSet::new();
+
+            local.block_on(&rt, async move {
+                while let Some((code, response_tx)) = exec_rx.recv().await {
+                    let input = pctx_code_mode::model::ExecuteInput {
+                        code,
+                        session_manager: Some(session_manager_for_executor.clone()),
+                    };
+                    let result = code_mode_for_executor.execute(input).await;
+
+                    let response = match result {
+                        Ok(output) => Ok(pctx_websocket_server::ExecuteCodeResult {
+                            success: output.success,
+                            value: output.output,
+                            stdout: output.stdout,
+                            stderr: output.stderr,
+                        }),
+                        Err(e) => Err(pctx_websocket_server::ExecuteCodeError::ExecutionFailed(
+                            e.to_string(),
+                        )),
+                    };
+
+                    let _ = response_tx.send(response);
+                }
+            });
+        });
+
+        // Set the code executor on the session manager
+        let code_executor = Arc::new(move |code: String| {
+            let exec_tx = exec_tx.clone();
+            Box::pin(async move {
+                let (response_tx, response_rx) = tokio::sync::oneshot::channel();
+                exec_tx.send((code, response_tx)).map_err(|_| {
+                    pctx_websocket_server::ExecuteCodeError::ExecutionFailed(
+                        "Executor channel closed".to_string(),
+                    )
+                })?;
+
+                response_rx.await.map_err(|_| {
+                    pctx_websocket_server::ExecuteCodeError::ExecutionFailed(
+                        "Failed to receive execution result".to_string(),
+                    )
+                })?
+            })
+                as std::pin::Pin<
+                    Box<
+                        dyn std::future::Future<
+                                Output = Result<
+                                    pctx_websocket_server::ExecuteCodeResult,
+                                    pctx_websocket_server::ExecuteCodeError,
+                                >,
+                            > + Send,
+                    >,
+                >
+        });
+
+        session_manager.set_code_executor(code_executor);
+
+        let mcp_service = PctxMcpService::new(cfg, code_mode, Some(session_manager.clone()));
 
         let service = StreamableHttpService::new(
             move || Ok(mcp_service.clone()),
@@ -77,7 +171,8 @@ impl PctxMcpServer {
             },
         );
 
-        let router = axum::Router::new().nest_service("/mcp", service).layer(
+        // Apply layers only to MCP service, not to WebSocket
+        let mcp_with_layers = axum::Router::new().nest_service("/mcp", service).layer(
             ServiceBuilder::new()
                 // Generate UUID if x-request-id header doesn't exist
                 .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
@@ -103,6 +198,12 @@ impl PctxMcpServer {
                     },
                 )),
         );
+
+        // Merge WebSocket routes (without layers) with MCP routes (with layers)
+        // WebSocket must be first to avoid being shadowed by MCP catch-all routes
+        let router = axum::Router::new()
+            .merge(mcp_with_layers)
+            .merge(ws_server.router());
         let tcp_listener =
             tokio::net::TcpListener::bind(format!("{}:{}", &self.host, self.port)).await?;
 
@@ -113,8 +214,9 @@ impl PctxMcpServer {
         Ok(())
     }
 
-    fn banner(&self, cfg: &pctx_config::Config, code_mode: &pctx_core::CodeMode) {
+    fn banner(&self, cfg: &pctx_config::Config, code_mode: &pctx_code_mode::CodeMode) {
         let mcp_url = format!("http://{}:{}/mcp", self.host, self.port);
+        let ws_url = format!("ws://{}:{}/local-tools", self.host, self.port);
         let logo_max_length = LOGO
             .lines()
             .map(|line| line.chars().count())
@@ -128,7 +230,8 @@ impl PctxMcpServer {
 
             builder.push_record(["Server Name", &cfg.name]);
             builder.push_record(["Server Version", &cfg.version]);
-            builder.push_record(["Server URL", &mcp_url]);
+            builder.push_record(["MCP URL", &mcp_url]);
+            builder.push_record(["WebSocket URL", &ws_url]);
             builder.push_record([
                 "Tools",
                 &["list_functions", "get_function_details", "execute"].join(", "),
@@ -195,5 +298,6 @@ impl PctxMcpServer {
         }
 
         info!("PCTX listening at {mcp_url}...");
+        info!("WebSocket endpoint available at {ws_url}...");
     }
 }

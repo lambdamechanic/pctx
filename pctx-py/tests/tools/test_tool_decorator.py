@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from pctx_py.tools.convert import tool
-from pctx_py.tools.tool import Tool
+from pctx.tools.convert import tool
+from pctx.tools.tool import Tool
 
 
 # ============================================================================
@@ -79,7 +79,7 @@ def test_registration_with_parameters() -> None:
 
     # Check args_schema includes parameters
     assert add_numbers.input_schema.model_json_schema() == {
-        "title": "add_numbers",
+        "title": "add_numbers_Input",
         "type": "object",
         "required": ["a", "b"],
         "properties": {

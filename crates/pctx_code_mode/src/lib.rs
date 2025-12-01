@@ -3,12 +3,6 @@ pub mod model;
 pub use code_mode::CodeMode;
 use codegen::CodegenError;
 
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod test_utils;
-
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -19,7 +13,7 @@ pub enum Error {
     #[error("Codegen error: {0}")]
     Codegen(#[from] CodegenError),
     #[error("Execution error: {0:?}")]
-    Execution(#[from] deno_executor::DenoExecutorError),
+    Execution(#[from] pctx_executor::DenoExecutorError),
     #[error("Error: {0}")]
     Message(String),
 }
