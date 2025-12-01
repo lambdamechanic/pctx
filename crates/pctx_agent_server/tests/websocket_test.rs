@@ -145,7 +145,9 @@ async fn test_websocket_tool_execution_response() {
     });
 
     write
-        .send(Message::Text(serde_json::to_string(&response).unwrap().into()))
+        .send(Message::Text(
+            serde_json::to_string(&response).unwrap().into(),
+        ))
         .await
         .expect("Failed to send message");
 
@@ -176,7 +178,9 @@ async fn test_websocket_error_response() {
     });
 
     write
-        .send(Message::Text(serde_json::to_string(&response).unwrap().into()))
+        .send(Message::Text(
+            serde_json::to_string(&response).unwrap().into(),
+        ))
         .await
         .expect("Failed to send message");
 
@@ -263,7 +267,9 @@ async fn test_websocket_response_missing_id() {
     });
 
     write
-        .send(Message::Text(serde_json::to_string(&response).unwrap().into()))
+        .send(Message::Text(
+            serde_json::to_string(&response).unwrap().into(),
+        ))
         .await
         .expect("Failed to send message");
 
