@@ -37,18 +37,14 @@ use crate::{
 pub(crate) struct PctxMcpServer {
     host: String,
     port: u16,
-    /// WebSocket port - reserved for future WebSocket server integration
-    #[allow(dead_code)]
-    ws_port: u16,
     banner: bool,
 }
 
 impl PctxMcpServer {
-    pub(crate) fn new(host: &str, port: u16, ws_port: u16, banner: bool) -> Self {
+    pub(crate) fn new(host: &str, port: u16, banner: bool) -> Self {
         Self {
             host: host.into(),
             port,
-            ws_port,
             banner,
         }
     }

@@ -8,7 +8,7 @@ get function details, and execute code.
 import json
 from typing import Any, Dict, List, Optional
 
-import httpx
+import httpx # type: ignore
 
 from .exceptions import ConnectionError, ExecutionError
 
