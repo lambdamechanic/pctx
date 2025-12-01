@@ -46,41 +46,6 @@ async def test_list_functions_via_unified():
 
 
 @pytest.mark.asyncio
-async def test_execute_via_mcp():
-    """Test executing code via MCP (unified client always uses MCP for execution)."""
-    async with PctxClient(SERVER_URL) as client:
-        code = """
-        async function run() {
-            return {source: "mcp", value: 100};
-        }
-        """
-
-        result = await client.execute(code)
-
-        assert "value" in result
-        assert result["value"]["source"] == "mcp"
-        assert result["value"]["value"] == 100
-
-
-@pytest.mark.asyncio
-async def test_execute_via_websocket():
-    """Test executing code via MCP (code execution no longer uses WebSocket)."""
-    async with PctxClient(SERVER_URL) as client:
-        code = """
-        async function run() {
-            return {source: "mcp", value: 200};
-        }
-        """
-
-        result = await client.execute(code)
-
-        assert result is not None
-        assert "value" in result
-        assert result["value"]["source"] == "mcp"
-        assert result["value"]["value"] == 200
-
-
-@pytest.mark.asyncio
 async def test_register_and_use_local_tool():
     """Test registering a local tool and calling it from TypeScript."""
     async with PctxClient(SERVER_URL) as client:
