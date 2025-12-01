@@ -400,7 +400,7 @@ impl SessionManager {
     /// Execute a tool and wait for response
     ///
     /// This is a low-level method that sends a raw response message and waits for the result.
-    /// Higher-level wrappers in pctx_websocket_server may provide better ergonomics.
+    /// Higher-level wrappers in pctx_agent_server provide better ergonomics.
     pub async fn execute_tool_raw(
         &self,
         tool_name: &str,

@@ -532,7 +532,7 @@ fn render_tool_detail(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_documentation(f: &mut Frame, app: &App, area: Rect) {
     // Read and render the CLI.md documentation with nice markdown formatting
-    const CLI_DOCS: &str = include_str!("../../../../../docs/CLI.md");
+    const CLI_DOCS: &str = include_str!("../../../../../../docs/CLI.md");
 
     // Convert markdown to styled Text using tui-markdown
     let markdown_text = tui_markdown::from_str(CLI_DOCS);

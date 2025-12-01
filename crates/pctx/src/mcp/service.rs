@@ -29,23 +29,17 @@ pub(crate) struct PctxMcpService {
     version: String,
     description: Option<String>,
     code_mode: CodeMode,
-    session_manager: Option<std::sync::Arc<pctx_session_types::SessionManager>>,
     tool_router: ToolRouter<PctxMcpService>,
 }
 
 #[tool_router]
 impl PctxMcpService {
-    pub(crate) fn new(
-        cfg: &pctx_config::Config,
-        code_mode: CodeMode,
-        session_manager: Option<std::sync::Arc<pctx_session_types::SessionManager>>,
-    ) -> Self {
+    pub(crate) fn new(cfg: &pctx_config::Config, code_mode: CodeMode) -> Self {
         Self {
             name: cfg.name.clone(),
             version: cfg.version.clone(),
             description: cfg.description.clone(),
             code_mode,
-            session_manager,
             tool_router: Self::tool_router(),
         }
     }
@@ -135,13 +129,8 @@ impl PctxMcpService {
     )]
     async fn execute(
         &self,
-        Parameters(mut input): Parameters<ExecuteInput>,
+        Parameters(input): Parameters<ExecuteInput>,
     ) -> McpResult<CallToolResult> {
-        // Inject session_manager into input if available
-        if let Some(session_manager) = &self.session_manager {
-            input.session_manager = Some(session_manager.clone());
-        }
-
         // Capture current tracing context to propagate to spawned thread
         let current_span = tracing::Span::current();
 

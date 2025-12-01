@@ -5,12 +5,7 @@ pub mod utils;
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 
-use crate::{
-    commands::{
-        add::AddCmd, dev::DevCmd, init::InitCmd, list::ListCmd, remove::RemoveCmd, start::StartCmd,
-    },
-    utils::{logger::init_cli_logger, telemetry::init_telemetry},
-};
+use crate::utils::{logger::init_cli_logger, telemetry::init_telemetry};
 use pctx_config::Config;
 
 #[derive(Parser)]
@@ -22,9 +17,12 @@ use pctx_config::Config;
 for AI agents to call via code execution."
 )]
 #[command(after_help = "EXAMPLES:\n  \
-    pctx init \n  \
-    pctx add my-server https://mcp.example.com\n  \
-    pctx dev\n\
+    # MCP mode (with pctx.json configuration)\n  \
+    pctx mcp init \n  \
+    pctx mcp add my-server https://mcp.example.com\n  \
+    pctx mcp dev\n\n  \
+    # Agent mode (REST API + WebSocket, no config)\n  \
+    pctx agent dev\n\
 ")]
 pub struct Cli {
     #[command(subcommand)]
@@ -45,11 +43,14 @@ pub struct Cli {
 
 impl Cli {
     fn cli_logger(&self) -> bool {
-        !matches!(&self.command, Commands::Start(_) | Commands::Dev(_))
+        !matches!(
+            &self.command,
+            Commands::Mcp(McpCommands::Start(_)) | Commands::Mcp(McpCommands::Dev(_))
+        )
     }
 
     fn json_l(&self) -> Option<Utf8PathBuf> {
-        if let Commands::Dev(dev) = &self.command {
+        if let Commands::Mcp(McpCommands::Dev(dev)) = &self.command {
             Some(dev.log_file.clone())
         } else {
             None
@@ -58,6 +59,13 @@ impl Cli {
 
     #[allow(clippy::missing_errors_doc)]
     pub async fn handle(&self) -> anyhow::Result<()> {
+        match &self.command {
+            Commands::Mcp(mcp_cmd) => self.handle_mcp(mcp_cmd).await,
+            Commands::Agent(agent_cmd) => self.handle_agent(agent_cmd).await,
+        }
+    }
+
+    async fn handle_mcp(&self, cmd: &McpCommands) -> anyhow::Result<()> {
         let cfg = Config::load(&self.config);
 
         if self.cli_logger() {
@@ -66,14 +74,25 @@ impl Cli {
             init_telemetry(c, self.json_l()).await?;
         }
 
-        let _updated_cfg = match &self.command {
-            Commands::Init(cmd) => cmd.handle(&self.config).await?,
-            Commands::List(cmd) => cmd.handle(cfg?).await?,
-            Commands::Add(cmd) => cmd.handle(cfg?, true).await?,
-            Commands::Remove(cmd) => cmd.handle(cfg?)?,
-            Commands::Start(cmd) => cmd.handle(cfg?).await?,
-            Commands::Dev(cmd) => cmd.handle(cfg?).await?,
+        let _updated_cfg = match cmd {
+            McpCommands::Init(cmd) => cmd.handle(&self.config).await?,
+            McpCommands::List(cmd) => cmd.handle(cfg?).await?,
+            McpCommands::Add(cmd) => cmd.handle(cfg?, true).await?,
+            McpCommands::Remove(cmd) => cmd.handle(cfg?)?,
+            McpCommands::Start(cmd) => cmd.handle(cfg?).await?,
+            McpCommands::Dev(cmd) => cmd.handle(cfg?).await?,
         };
+
+        Ok(())
+    }
+
+    async fn handle_agent(&self, cmd: &AgentCommands) -> anyhow::Result<()> {
+        // Agent mode doesn't need config file
+        init_cli_logger(self.verbose, self.quiet);
+
+        match cmd {
+            AgentCommands::Dev(cmd) => cmd.handle().await?,
+        }
 
         Ok(())
     }
@@ -82,29 +101,49 @@ impl Cli {
 #[derive(Debug, Subcommand)]
 #[command(styles=utils::styles::get_styles())]
 pub enum Commands {
+    /// MCP server commands (with pctx.json configuration)
+    #[command(subcommand)]
+    Mcp(McpCommands),
+
+    /// Agent mode commands (REST API + WebSocket, no config file)
+    #[command(subcommand)]
+    Agent(AgentCommands),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum McpCommands {
+    /// Initialize pctx.json configuration file
+    #[command(long_about = "Initialize pctx.json configuration file.")]
+    Init(commands::mcp::InitCmd),
+
     /// List MCP servers and test connections
     #[command(long_about = "Lists configured MCP servers and tests the connection to each.")]
-    List(ListCmd),
+    List(commands::mcp::ListCmd),
 
     /// Add an MCP server to configuration
     #[command(long_about = "Add a new MCP server to the configuration.")]
-    Add(AddCmd),
+    Add(commands::mcp::AddCmd),
 
     /// Remove an MCP server from configuration
     #[command(long_about = "Remove an MCP server from the configuration.")]
-    Remove(RemoveCmd),
+    Remove(commands::mcp::RemoveCmd),
 
-    /// Start the PCTX server
-    #[command(long_about = "Start the PCTX server (exposes /mcp endpoint).")]
-    Start(StartCmd),
+    /// Start the PCTX MCP server
+    #[command(long_about = "Start the PCTX MCP server (exposes /mcp endpoint).")]
+    Start(commands::mcp::StartCmd),
 
-    /// Start the PCTX server with terminal UI
+    /// Start the PCTX MCP server with terminal UI
     #[command(
-        long_about = "Start the PCTX server in development mode with an interactive terminal UI with data and logging."
+        long_about = "Start the PCTX MCP server in development mode with an interactive terminal UI with data and logging."
     )]
-    Dev(DevCmd),
+    Dev(commands::mcp::DevCmd),
+}
 
-    /// Initialize configuration file
-    #[command(long_about = "Initialize pctx.json configuration file.")]
-    Init(InitCmd),
+#[derive(Debug, Subcommand)]
+pub enum AgentCommands {
+    /// Start agent mode (REST API + WebSocket)
+    #[command(
+        long_about = "Start agent mode with REST API and WebSocket server. No tools preloaded - use REST API to register tools and MCP servers dynamically."
+    )]
+    Dev(commands::agent::DevCmd),
 }

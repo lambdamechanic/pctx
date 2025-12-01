@@ -1,4 +1,4 @@
-/// WebSocket protocol definitions for PCTX local tools
+/// WebSocket protocol definitions for PCTX agent mode
 ///
 /// Uses JSON-RPC 2.0 style messaging for request/response communication
 use serde::{Deserialize, Serialize};
@@ -8,10 +8,8 @@ use serde_json::Value;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Method {
-    /// Client-to-server: Register a new tool
-    RegisterTool,
-    /// Client-to-server: Register an MCP server
-    RegisterMcp,
+    /// Client-to-server: Register tools
+    RegisterTools,
     /// Server-to-client: Execute a registered tool on the client
     ExecuteTool,
     /// Unknown method (catch-all for forward compatibility)
@@ -22,8 +20,7 @@ pub enum Method {
 impl std::fmt::Display for Method {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Method::RegisterTool => write!(f, "register_tool"),
-            Method::RegisterMcp => write!(f, "register_mcp"),
+            Method::RegisterTools => write!(f, "register_tools"),
             Method::ExecuteTool => write!(f, "execute_tool"),
             Method::Unknown => write!(f, "unknown"),
         }
@@ -74,34 +71,26 @@ pub struct JsonRpcNotification {
     pub params: Option<Value>,
 }
 
-/// Register tool request parameters
+/// Register tools request parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegisterToolParams {
-    pub namespace: String,
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_schema: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output_schema: Option<Value>,
+pub struct RegisterToolsParams {
+    pub tools: Vec<ToolDefinition>,
 }
 
-/// Register MCP server request parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegisterMcpParams {
+pub struct ToolDefinition {
+    pub namespace: String,
     pub name: String,
-    pub url: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth: Option<Value>,
+    pub description: String,
+    pub parameters: Value,
 }
 
 /// Execute tool request parameters (server → client)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecuteToolParams {
+    pub namespace: String,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub arguments: Option<Value>,
+    pub arguments: Value,
 }
 
 /// Session created notification parameters
@@ -126,23 +115,7 @@ pub mod error_codes {
 }
 
 impl JsonRpcRequest {
-    /// Create a new JSON-RPC request with a method name that will be parsed to Method enum
-    pub fn new(method: impl Into<String>, params: Option<Value>, id: impl Into<Value>) -> Self {
-        let method_str = method.into();
-        // Parse string to Method enum - unknown methods become Method::Unknown
-        let method_enum =
-            serde_json::from_value(Value::String(method_str)).unwrap_or(Method::Unknown);
-
-        Self {
-            jsonrpc: "2.0".to_string(),
-            method: method_enum,
-            params,
-            id: id.into(),
-        }
-    }
-
-    /// Create a new JSON-RPC request with a Method enum directly
-    pub fn with_method(method: Method, params: Option<Value>, id: impl Into<Value>) -> Self {
+    pub fn new(method: Method, params: Option<Value>, id: impl Into<Value>) -> Self {
         Self {
             jsonrpc: "2.0".to_string(),
             method,
@@ -170,18 +143,6 @@ impl JsonRpcErrorResponse {
                 code,
                 message: message.into(),
                 data: None,
-            },
-            id,
-        }
-    }
-
-    pub fn error_with_data(code: i32, message: impl Into<String>, data: Value, id: Value) -> Self {
-        Self {
-            jsonrpc: "2.0".to_string(),
-            error: JsonRpcError {
-                code,
-                message: message.into(),
-                data: Some(data),
             },
             id,
         }

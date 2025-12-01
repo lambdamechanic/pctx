@@ -25,8 +25,7 @@ path = "src/bin/generate-cli-docs.rs"
 # local crates
 pctx_code_mode = { path = "../pctx_code_mode" }
 pctx_executor = { path = "../pctx_executor" }
-pctx_websocket_server = { path = "../pctx_websocket_server" }
-pctx_session_types = { path = "../pctx_session_types" }
+pctx_agent_server = { path = "../pctx_agent_server" }
 codegen = { path = "../codegen" }
 pctx_config = { path = "../pctx_config" }
 
@@ -75,7 +74,7 @@ rmcp = { workspace = true, features = [
     "macros",
     "schemars",
 ] }
-axum = { version = "0.8", features = ["macros"] }
+axum = { workspace = true, features = ["macros"] }
 tower = "0.5.2"
 tower-http = { version = "^0.6.6", features = ["trace", "request-id"] }
 

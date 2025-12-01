@@ -23,7 +23,7 @@ use pctx_config::Config;
 use ratatui::{Terminal, backend::CrosstermBackend, style::Color};
 use tokio::sync::mpsc;
 
-use crate::{commands::start::StartCmd, mcp::PctxMcpServer};
+use crate::{commands::mcp::start::StartCmd, mcp::PctxMcpServer};
 use app::{App, AppMessage, FocusPanel};
 
 #[allow(unused)]
@@ -503,8 +503,10 @@ fn spawn_server_task(
 mod tests {
     use std::collections::HashMap;
 
+    use crate::commands::mcp::dev::log_entry::{LogEntry, LogEntryFields};
+
     use super::*;
-    use crate::commands::dev::log_entry::{LogEntry, LogEntryFields};
+    // use crate::commands::dev::log_entry::{LogEntry, LogEntryFields};
     use chrono::Utc;
     use codegen::{Tool, ToolSet};
     use pctx_code_mode::CodeMode;

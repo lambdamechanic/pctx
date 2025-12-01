@@ -1,0 +1,390 @@
+use std::sync::Arc;
+use std::time::Instant;
+
+use axum::{
+    Json,
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use pctx_code_mode::model::{ExecuteInput, FunctionId, GetFunctionDetailsInput};
+use serde_json::json;
+use tracing::{error, info};
+use utoipa;
+
+use crate::AppState;
+use crate::types::*;
+
+/// Health check endpoint
+#[utoipa::path(
+    get,
+    path = "/health",
+    tag = "health",
+    responses(
+        (status = 200, description = "Service is healthy", body = HealthResponse)
+    )
+)]
+pub async fn health() -> Json<HealthResponse> {
+    Json(HealthResponse {
+        status: "ok".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+    })
+}
+
+/// List all available tools from both local and MCP registrations
+#[utoipa::path(
+    post,
+    path = "/tools/list",
+    tag = "tools",
+    request_body = ListToolsRequest,
+    responses(
+        (status = 200, description = "List of all registered tools", body = ListToolsResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[axum::debug_handler]
+pub async fn list_tools(
+    State(state): State<AppState>,
+    Json(_request): Json<ListToolsRequest>,
+) -> Result<Json<ListToolsResponse>, (StatusCode, Json<ErrorResponse>)> {
+    info!("Listing tools");
+
+    // Convert MCP tools to ToolInfo
+    let mut tools: Vec<ToolInfo> = {
+        let code_mode = state.code_mode.lock().await;
+        let output = code_mode.list_functions();
+
+        output
+            .functions
+            .iter()
+            .map(|f| ToolInfo {
+                namespace: f.namespace.clone(),
+                name: f.name.clone(),
+                description: f.description.clone().unwrap_or_default(),
+                source: ToolSource::Mcp,
+            })
+            .collect()
+    }; // MutexGuard dropped here
+
+    // Add local tools registered via WebSocket/REST
+    let local_tools = state.session_manager.list_tools().await;
+    for tool_name in local_tools {
+        if let Some((namespace, name)) = tool_name.split_once('.') {
+            tools.push(ToolInfo {
+                namespace: namespace.to_string(),
+                name: name.to_string(),
+                description: String::new(), // We don't store descriptions in SessionManager yet
+                source: ToolSource::Local,
+            });
+        }
+    }
+
+    Ok(Json(ListToolsResponse { tools }))
+}
+
+/// Get detailed information about a specific function
+#[utoipa::path(
+    post,
+    path = "/tools/details",
+    tag = "tools",
+    request_body = GetFunctionDetailsRequest,
+    responses(
+        (status = 200, description = "Function details", body = GetFunctionDetailsResponse),
+        (status = 404, description = "Function not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+pub async fn get_function_details(
+    State(state): State<AppState>,
+    Json(request): Json<GetFunctionDetailsRequest>,
+) -> Result<Json<GetFunctionDetailsResponse>, (StatusCode, Json<ErrorResponse>)> {
+    info!(
+        "Getting function details for {}.{}",
+        request.namespace, request.name
+    );
+
+    let code_mode = state.code_mode.lock().await;
+    let input = GetFunctionDetailsInput {
+        functions: vec![FunctionId {
+            mod_name: request.namespace.clone(),
+            fn_name: request.name.clone(),
+        }],
+    };
+    let output = code_mode.get_function_details(input);
+
+    // Get the first function details (we only requested one)
+    let details = output.functions.first().ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: ErrorInfo {
+                    code: "NOT_FOUND".to_string(),
+                    message: format!("Function not found: {}.{}", request.namespace, request.name),
+                    details: None,
+                },
+            }),
+        )
+    })?;
+
+    Ok(Json(GetFunctionDetailsResponse {
+        namespace: details.listed.namespace.clone(),
+        name: details.listed.name.clone(),
+        description: details.listed.description.clone().unwrap_or_default(),
+        parameters: json!({}), // TODO: Parse from input_type
+        return_type: details.output_type.clone(),
+    }))
+}
+
+/// Execute TypeScript code with access to registered tools
+#[utoipa::path(
+    post,
+    path = "/tools/execute",
+    tag = "tools",
+    request_body = ExecuteCodeRequest,
+    responses(
+        (status = 200, description = "Code executed successfully", body = ExecuteCodeResponse),
+        (status = 400, description = "Code execution failed", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[axum::debug_handler]
+pub async fn execute_code(
+    State(state): State<AppState>,
+    Json(request): Json<ExecuteCodeRequest>,
+) -> Result<Json<ExecuteCodeResponse>, (StatusCode, Json<ErrorResponse>)> {
+    info!("Executing code (timeout: {}ms)", request.timeout_ms);
+
+    let start = Instant::now();
+    let current_span = tracing::Span::current();
+
+    // Clone the session_manager Arc to pass to the executor
+    let session_manager = Arc::clone(&state.session_manager);
+
+    let input = ExecuteInput {
+        code: request.code,
+        session_manager: Some(session_manager),
+    };
+
+    // Clone the CodeMode Arc to move into spawn_blocking
+    let code_mode = Arc::clone(&state.code_mode);
+
+    // Use spawn_blocking with current-thread runtime for Deno's unsync operations
+    let output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
+        let _guard = current_span.enter();
+
+        // Create new current-thread runtime for Deno ops
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
+
+        rt.block_on(async {
+            let code_mode_guard = code_mode.lock().await;
+            code_mode_guard
+                .execute(input)
+                .await
+                .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
+        })
+    })
+    .await
+    .map_err(|e| {
+        error!("Task join failed: {e}");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: ErrorInfo {
+                    code: "INTERNAL_ERROR".to_string(),
+                    message: format!("Task join failed: {e}"),
+                    details: None,
+                },
+            }),
+        )
+    })?
+    .map_err(|e| {
+        error!("Sandbox execution error: {e}");
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: ErrorInfo {
+                    code: "EXECUTION_ERROR".to_string(),
+                    message: format!("Execution failed: {e}"),
+                    details: None,
+                },
+            }),
+        )
+    })?;
+
+    let execution_time_ms = start.elapsed().as_millis() as u64;
+
+    if !output.success {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: ErrorInfo {
+                    code: "EXECUTION_ERROR".to_string(),
+                    message: format!("Code execution failed: {}", output.stderr),
+                    details: None,
+                },
+            }),
+        ));
+    }
+
+    Ok(Json(ExecuteCodeResponse {
+        result: output.output.unwrap_or(serde_json::Value::Null),
+        execution_time_ms,
+    }))
+}
+
+/// Register local tools that will be called via WebSocket callbacks
+#[utoipa::path(
+    post,
+    path = "/tools/local/register",
+    tag = "tools",
+    request_body = RegisterLocalToolsRequest,
+    responses(
+        (status = 200, description = "Tools registered successfully", body = RegisterLocalToolsResponse),
+        (status = 404, description = "Session not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+pub async fn register_local_tools(
+    State(state): State<AppState>,
+    Json(request): Json<RegisterLocalToolsRequest>,
+) -> Result<Json<RegisterLocalToolsResponse>, (StatusCode, Json<ErrorResponse>)> {
+    info!(
+        "Registering {} local tools for session {}",
+        request.tools.len(),
+        request.session_id
+    );
+
+    // Register each tool with the session manager
+    let mut registered = 0;
+    for tool in &request.tools {
+        let tool_name = format!("{}.{}", tool.namespace, tool.name);
+        state
+            .session_manager
+            .register_tool(
+                &request.session_id,
+                tool_name,
+                Some(tool.description.clone()),
+            )
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: ErrorInfo {
+                            code: "INTERNAL_ERROR".to_string(),
+                            message: format!("Failed to register tool: {}", e),
+                            details: None,
+                        },
+                    }),
+                )
+            })?;
+        registered += 1;
+    }
+
+    Ok(Json(RegisterLocalToolsResponse { registered }))
+}
+
+/// Register MCP servers dynamically at runtime
+#[utoipa::path(
+    post,
+    path = "/tools/mcp/register",
+    tag = "tools",
+    request_body = RegisterMcpServersRequest,
+    responses(
+        (status = 200, description = "MCP servers registration result", body = RegisterMcpServersResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[axum::debug_handler]
+pub async fn register_mcp_servers(
+    State(state): State<AppState>,
+    Json(request): Json<RegisterMcpServersRequest>,
+) -> Json<RegisterMcpServersResponse> {
+    info!("Registering {} MCP servers", request.servers.len());
+
+    let mut registered = 0;
+    let mut failed = Vec::new();
+
+    for server in &request.servers {
+        match register_mcp_server(&state, server).await {
+            Ok(_) => {
+                registered += 1;
+                info!("Successfully registered MCP server: {}", server.name);
+            }
+            Err(e) => {
+                error!("Failed to register MCP server {}: {}", server.name, e);
+                failed.push(server.name.clone());
+            }
+        }
+    }
+
+    Json(RegisterMcpServersResponse { registered, failed })
+}
+
+async fn register_mcp_server(state: &AppState, server: &McpServerConfig) -> Result<(), String> {
+    // Parse and validate URL
+    let url = url::Url::parse(&server.url).map_err(|e| format!("Invalid URL: {}", e))?;
+
+    // Create ServerConfig
+    let mut server_config = pctx_config::server::ServerConfig::new(server.name.clone(), url);
+
+    // Add auth if provided
+    if let Some(auth) = &server.auth {
+        server_config.auth = serde_json::from_value(auth.clone())
+            .map_err(|e| format!("Invalid auth config: {}", e))?;
+    }
+
+    // Connect to MCP server and register tools
+    let mut code_mode = state.code_mode.lock().await;
+
+    code_mode
+        .add_server(&server_config)
+        .await
+        .map_err(|e| format!("Failed to add MCP server: {}", e))?;
+
+    info!(
+        "Successfully registered MCP server '{}' with {} tools",
+        server.name,
+        code_mode
+            .tool_sets
+            .iter()
+            .find(|ts| ts.name == server.name)
+            .map(|ts| ts.tools.len())
+            .unwrap_or(0)
+    );
+
+    Ok(())
+}
+
+/// API error type
+#[derive(Debug)]
+pub enum ApiError {
+    NotFound(String),
+    Internal(String),
+    ExecutionError(String),
+    BadRequest(String),
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        let (status, code, message) = match self {
+            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, "NOT_FOUND", msg),
+            ApiError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", msg),
+            ApiError::ExecutionError(msg) => (StatusCode::BAD_REQUEST, "EXECUTION_ERROR", msg),
+            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg),
+        };
+
+        let body = Json(ErrorResponse {
+            error: ErrorInfo {
+                code: code.to_string(),
+                message,
+                details: None,
+            },
+        });
+
+        (status, body).into_response()
+    }
+}

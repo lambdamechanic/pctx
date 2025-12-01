@@ -12,7 +12,6 @@ codegen = { path = "../codegen" }
 pctx_executor = { path = "../pctx_executor" }
 pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
 pctx_session_types = { path = "../pctx_session_types" }
-pctx_websocket_server = { path = "../pctx_websocket_server" }
 
 # general
 thiserror = { workspace = true }
