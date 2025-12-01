@@ -11,7 +11,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     protocol::*,
-    session::{OutgoingMessage, Session, SessionManager, SessionManagerExt},
+    session::{OutgoingMessage, Session, SessionManager},
 };
 
 pub struct WebSocketHandler {
@@ -203,9 +203,6 @@ impl WebSocketHandler {
             crate::protocol::Method::RegisterMcp => {
                 Self::handle_register_mcp(&request, session_id, session_manager).await
             }
-            crate::protocol::Method::Execute => {
-                Self::handle_execute_code(&request, session_id, session_manager).await
-            }
             crate::protocol::Method::ExecuteTool => {
                 // ExecuteTool is a server-to-client method, not client-to-server
                 // If client sends this, it's an error
@@ -279,7 +276,10 @@ impl WebSocketHandler {
             .await
         {
             Ok(_) => {
-                info!("MCP server registered: {} (session: {})", params.name, session_id);
+                info!(
+                    "MCP server registered: {} (session: {})",
+                    params.name, session_id
+                );
                 Self::success_response(json!({ "success": true }), request.id.clone())
             }
             Err(e) => {
@@ -333,68 +333,6 @@ impl WebSocketHandler {
                 warn!("Failed to register tool {}: {}", tool_name, e);
                 Self::error_response(
                     error_codes::TOOL_ALREADY_REGISTERED,
-                    e.to_string(),
-                    request.id.clone(),
-                )
-            }
-        }
-    }
-
-    /// Handle execute code request
-    async fn handle_execute_code(
-        request: &JsonRpcRequest,
-        session_id: &str,
-        session_manager: &Arc<SessionManager>,
-    ) -> serde_json::Value {
-        let params: ExecuteCodeParams = match request.params.as_ref() {
-            Some(params) => match serde_json::from_value(params.clone()) {
-                Ok(p) => p,
-                Err(e) => {
-                    return Self::error_response(
-                        error_codes::INVALID_PARAMS,
-                        format!("Invalid params: {}", e),
-                        request.id.clone(),
-                    );
-                }
-            },
-            None => {
-                return Self::error_response(
-                    error_codes::INVALID_PARAMS,
-                    "Missing params",
-                    request.id.clone(),
-                );
-            }
-        };
-
-        info!("Executing code for session: {}", session_id);
-        debug!("Code to execute: {}", params.code);
-
-        // Execute code using SessionManager
-        match session_manager.execute_code(&params.code).await {
-            Ok(result) => {
-                info!("Code execution completed (success: {})", result.success);
-
-                if result.success {
-                    Self::success_response(
-                        json!({
-                            "value": result.value,
-                            "stdout": result.stdout,
-                            "stderr": result.stderr
-                        }),
-                        request.id.clone(),
-                    )
-                } else {
-                    Self::error_response(
-                        error_codes::EXECUTION_FAILED,
-                        result.stderr.clone(),
-                        request.id.clone(),
-                    )
-                }
-            }
-            Err(e) => {
-                warn!("Code execution failed: {}", e);
-                Self::error_response(
-                    error_codes::EXECUTION_FAILED,
                     e.to_string(),
                     request.id.clone(),
                 )

@@ -12,8 +12,6 @@ pub enum Method {
     RegisterTool,
     /// Client-to-server: Register an MCP server
     RegisterMcp,
-    /// Client-to-server: Execute code on the server
-    Execute,
     /// Server-to-client: Execute a registered tool on the client
     ExecuteTool,
     /// Unknown method (catch-all for forward compatibility)
@@ -26,7 +24,6 @@ impl std::fmt::Display for Method {
         match self {
             Method::RegisterTool => write!(f, "register_tool"),
             Method::RegisterMcp => write!(f, "register_mcp"),
-            Method::Execute => write!(f, "execute"),
             Method::ExecuteTool => write!(f, "execute_tool"),
             Method::Unknown => write!(f, "unknown"),
         }
@@ -105,12 +102,6 @@ pub struct ExecuteToolParams {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<Value>,
-}
-
-/// Execute code request parameters (client → server)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExecuteCodeParams {
-    pub code: String,
 }
 
 /// Session created notification parameters

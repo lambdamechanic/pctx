@@ -278,8 +278,7 @@ impl SessionManager {
         auth: Option<serde_json::Value>,
     ) -> Result<(), RegisterMcpServerError> {
         // Validate URL
-        url::Url::parse(&url)
-            .map_err(|e| RegisterMcpServerError::InvalidUrl(e.to_string()))?;
+        url::Url::parse(&url).map_err(|e| RegisterMcpServerError::InvalidUrl(e.to_string()))?;
 
         // Check if MCP server already exists
         let mcp_servers = self.mcp_servers.read().await;

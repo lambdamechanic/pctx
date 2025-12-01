@@ -164,7 +164,7 @@ impl PctxMcpServer {
 
         session_manager.set_code_executor(code_executor);
 
-        let mcp_service = PctxMcpService::new(cfg, code_mode);
+        let mcp_service = PctxMcpService::new(cfg, code_mode, Some(session_manager.clone()));
 
         let service = StreamableHttpService::new(
             move || Ok(mcp_service.clone()),

@@ -20,7 +20,7 @@ thiserror = { workspace = true }
 anyhow = "1.0"
 deno_error = "0.7"
 url = "2.5"
-rmcp = "0.8.0"
+rmcp = { workspace = true }
 uuid = { version = "1.11", features = ["v4"] }
 
 [build-dependencies]
@@ -30,7 +30,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 deno_error = "0.7"
-rmcp = "0.8.0"
+rmcp = { workspace = true }
 
 
 [dev-dependencies]

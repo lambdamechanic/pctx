@@ -9,24 +9,27 @@ import asyncio
 import json
 from typing import Any, Callable, Dict, Optional
 
-import websockets
-from websockets.client import WebSocketClientProtocol
+import websockets  # type: ignore
+from websockets.asyncio.client import ClientConnection  # type: ignore
 
 from .exceptions import ConnectionError, ExecutionError, ToolError
 
 
-class PctxClient:
+class WebSocketClient:
     """
     PCTX WebSocket Client
 
     Connects to a PCTX WebSocket server, allowing you to:
     - Register local Python tool callbacks
-    - Execute TypeScript code with access to registered tools
+    - Register MCP servers for code execution
     - Receive and handle tool execution requests from the server
+
+    Note: Code execution is done via MCP, not through WebSocket.
+    Use the PctxClient (unified client) for code execution.
 
     Example:
         ```python
-        async with PctxClient("ws://localhost:8080/local-tools") as client:
+        async with WebSocketClient("ws://localhost:8080/local-tools") as client:
             # Register a tool
             await client.register_tool(
                 namespace="math",
@@ -35,14 +38,11 @@ class PctxClient:
                 description="Adds two numbers"
             )
 
-            # Execute code
-            result = await client.execute_code('''
-                async function run() {
-                    const result = await Math.add({a: 5, b: 3});
-                    return result;
-                }
-            ''')
-            print(result)  # {"result": 8}
+            # Register an MCP server
+            await client.register_mcp(
+                name="my_mcp",
+                url="http://localhost:8080/mcp"
+            )
         ```
     """
 
@@ -54,7 +54,7 @@ class PctxClient:
             url: WebSocket server URL (e.g., "ws://localhost:8080/local-tools")
         """
         self.url = url
-        self.ws: Optional[WebSocketClientProtocol] = None
+        self.ws: Optional[ClientConnection] = None
         self.session_id: Optional[str] = None
         self.tools: Dict[str, Callable] = {}  # tool_name -> callback
         self.pending_requests: Dict[Any, asyncio.Future] = {}  # request_id -> Future
@@ -164,39 +164,65 @@ class PctxClient:
         if "error" in response:
             raise ToolError(f"Failed to register tool: {response['error']['message']}")
 
-    async def execute_code(self, code: str) -> Dict[str, Any]:
+    async def register_mcp(
+        self,
+        name: str,
+        url: str,
+        auth: Optional[Dict[str, Any]] = None,
+    ):
         """
-        Execute TypeScript/JavaScript code on the server.
+        Register an MCP (Model Context Protocol) server.
+
+        The registered MCP server will be available in the Deno sandbox for
+        code execution via registerMCP() and callMCPTool().
 
         Args:
-            code: TypeScript code to execute (should contain `async function run()`)
-
-        Returns:
-            Execution result containing:
-            - value: The return value from the code
-            - stdout: Captured console output
-            - stderr: Captured error output
+            name: Unique name for the MCP server
+            url: URL of the MCP server (e.g., "http://localhost:3000")
+            auth: Optional authentication configuration (e.g., {"bearer": {"token": "..."}})
 
         Raises:
-            ExecutionError: If execution fails
+            ToolError: If registration fails
+
+        Example:
+            ```python
+            # Register a public MCP server
+            await client.register_mcp(
+                name="weather",
+                url="https://weather-mcp-server.example.com"
+            )
+
+            # Register with authentication
+            await client.register_mcp(
+                name="private-api",
+                url="https://api.example.com",
+                auth={"bearer": {"token": "secret-token"}}
+            )
+            ```
         """
         if not self.ws:
-            raise ExecutionError("Not connected to server")
+            raise ToolError("Not connected to server")
 
         request_id = self._next_request_id()
         request = {
             "jsonrpc": "2.0",
-            "method": "execute",
-            "params": {"code": code},
+            "method": "register_mcp",
+            "params": {
+                "name": name,
+                "url": url,
+            },
             "id": request_id,
         }
+
+        if auth:
+            request["params"]["auth"] = auth
 
         response = await self._send_request(request)
 
         if "error" in response:
-            raise ExecutionError(f"Execution failed: {response['error']['message']}")
-
-        return response.get("result", {})
+            raise ToolError(
+                f"Failed to register MCP server: {response['error']['message']}"
+            )
 
     async def _send_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """

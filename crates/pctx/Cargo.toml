@@ -26,6 +26,7 @@ path = "src/bin/generate-cli-docs.rs"
 pctx_code_mode = { path = "../pctx_code_mode" }
 pctx_executor = { path = "../pctx_executor" }
 pctx_websocket_server = { path = "../pctx_websocket_server" }
+pctx_session_types = { path = "../pctx_session_types" }
 codegen = { path = "../codegen" }
 pctx_config = { path = "../pctx_config" }
 
@@ -68,7 +69,7 @@ opentelemetry-otlp = { version = "0.31", features = [
 tracing-opentelemetry = "0.32.0"
 
 # MCP server
-rmcp = { version = "0.8.0", features = [
+rmcp = { workspace = true, features = [
     "server",
     "transport-streamable-http-server",
     "macros",

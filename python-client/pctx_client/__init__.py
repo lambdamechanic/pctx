@@ -12,8 +12,8 @@ Low-level clients (for advanced use):
 - McpClient: Direct HTTP client for MCP operations
 """
 
-from .unified_client import PctxClient
-from .client import PctxClient as WebSocketClient
+from .pctx_client import PctxClient
+from .websocket_client import WebSocketClient
 from .mcp_client import McpClient
 from .exceptions import PctxError, ConnectionError, ExecutionError, ToolError
 

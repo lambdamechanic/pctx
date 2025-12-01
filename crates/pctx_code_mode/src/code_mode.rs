@@ -196,7 +196,7 @@ impl CodeMode {
         );
 
         // generate the full script to be executed
-        let namespaces: Vec<String> = self
+        let mut namespaces: Vec<String> = self
             .all_tool_sets()
             .iter()
             .filter_map(|s| {
@@ -207,6 +207,50 @@ impl CodeMode {
                 }
             })
             .collect();
+
+        // Add namespace declarations for WebSocket-registered tools if session_manager is provided
+        if let Some(ref session_manager) = input.session_manager {
+            let registered_tools = session_manager.list_tools().await;
+            if !registered_tools.is_empty() {
+                debug!(
+                    "Found {} registered tools from session manager",
+                    registered_tools.len()
+                );
+
+                // Group tools by namespace
+                let mut ns_tools: std::collections::HashMap<String, Vec<String>> =
+                    std::collections::HashMap::new();
+                for tool in registered_tools {
+                    if let Some((namespace, tool_name)) = tool.split_once('.') {
+                        ns_tools
+                            .entry(namespace.to_string())
+                            .or_default()
+                            .push(tool_name.to_string());
+                    }
+                }
+
+                // Generate namespace declarations for session tools
+                for (namespace, tool_names) in ns_tools {
+                    let tool_decls: Vec<String> = tool_names.iter()
+                        .map(|tool_name| {
+                            let full_name = format!("{}.{}", namespace, tool_name);
+                            format!(
+                                "  export async function {}(params?: any): Promise<any> {{\n    return await callLocallyCallableTool('{}', params);\n  }}",
+                                tool_name, full_name
+                            )
+                        })
+                        .collect();
+
+                    let namespace_decl = format!(
+                        "export namespace {} {{\n{}\n}}",
+                        namespace,
+                        tool_decls.join("\n")
+                    );
+                    namespaces.push(namespace_decl);
+                }
+            }
+        }
+
         let to_execute = codegen::format::format_ts(&format!(
             "{namespaces}\n\n{code}\n\nexport default await run();\n",
             namespaces = namespaces.join("\n\n"),

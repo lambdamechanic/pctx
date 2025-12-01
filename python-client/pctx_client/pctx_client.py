@@ -6,7 +6,7 @@ Main client for executing code with both MCP tools and local Python tools.
 
 from typing import Any, Callable, Dict, List, Optional
 
-from .client import PctxClient as WebSocketClient
+from .websocket_client import WebSocketClient
 from .mcp_client import McpClient
 from .exceptions import ConnectionError
 
@@ -65,16 +65,19 @@ class PctxClient:
 
     def __init__(
         self,
-        ws_url: str,
+        url: str,
         local_tools: Optional[List[Dict[str, Any]]] = None,
-        mcps: Optional[List[str]] = None,
-        timeout: float = 30.0
+        mcp_servers: Optional[List[Dict[str, Any]]] = None,
+        timeout: float = 5.0,
     ):
         """
         Initialize the PCTX client.
 
         Args:
-            ws_url: WebSocket URL (e.g., "ws://localhost:8080/local-tools")
+            url: Base server URL (e.g., "http://localhost:8080" or "ws://localhost:8080")
+                 The client will automatically derive:
+                 - WebSocket URL: ws://host/local-tools
+                 - MCP URL: http://host/mcp (automatically registered)
             local_tools: Optional list of local tool definitions. Each dict should have:
                 - namespace: str - Tool namespace (e.g., "MyTools")
                 - name: str - Tool name (e.g., "getData")
@@ -82,13 +85,40 @@ class PctxClient:
                 - description: Optional[str] - Tool description
                 - input_schema: Optional[Dict] - JSON schema for validation
                 - output_schema: Optional[Dict] - JSON schema for validation
-            mcps: Optional list of MCP server URLs for accessing MCP tools
+            mcp_servers: Optional list of additional MCP servers to register. Each dict should have:
+                - name: str - Unique name for the MCP server
+                - url: str - MCP server URL
+                - auth: Optional[Dict] - Authentication config (e.g., {"bearer": {"token": "..."}})
             timeout: Request timeout in seconds
         """
-        self.ws_url = ws_url
+        # Parse and normalize the URL
+        from urllib.parse import urlparse
+
+        parsed = urlparse(url)
+
+        # Determine the base host and port
+        if parsed.scheme in ["ws", "wss"]:
+            # WebSocket URL provided - derive HTTP from it
+            http_scheme = "https" if parsed.scheme == "wss" else "http"
+            host = parsed.netloc
+        elif parsed.scheme in ["http", "https"]:
+            # HTTP URL provided - derive WebSocket from it
+            http_scheme = parsed.scheme
+            host = parsed.netloc
+        else:
+            raise ValueError(
+                f"Invalid URL scheme: {parsed.scheme}. Expected http, https, ws, or wss"
+            )
+
+        ws_scheme = "wss" if http_scheme == "https" else "ws"
+
+        # Build the endpoint URLs
+        self.ws_url = f"{ws_scheme}://{host}/local-tools"
+        self.mcp_url = f"{http_scheme}://{host}/mcp"
+
         self.timeout = timeout
         self.local_tools_config = local_tools or []
-        self.mcp_urls = mcps or []
+        self.mcp_servers_config = mcp_servers or []
 
         self.ws_client: Optional[WebSocketClient] = None
         self.mcp_clients: List[McpClient] = []
@@ -103,7 +133,7 @@ class PctxClient:
         await self.disconnect()
 
     async def connect(self):
-        """Connect to WebSocket and register local tools."""
+        """Connect to WebSocket, register local tools, and register MCP servers."""
         # Connect WebSocket client
         self.ws_client = WebSocketClient(self.ws_url)
         await self.ws_client.connect()
@@ -116,14 +146,21 @@ class PctxClient:
                 callback=tool_config["callback"],
                 description=tool_config.get("description"),
                 input_schema=tool_config.get("input_schema"),
-                output_schema=tool_config.get("output_schema")
+                output_schema=tool_config.get("output_schema"),
             )
 
-        # Connect to MCP servers if configured
-        for mcp_url in self.mcp_urls:
-            mcp_client = McpClient(mcp_url, self.timeout)
-            await mcp_client.connect()
-            self.mcp_clients.append(mcp_client)
+        # Register additional MCP servers via WebSocket
+        for mcp_config in self.mcp_servers_config:
+            await self.ws_client.register_mcp(
+                name=mcp_config["name"],
+                url=mcp_config["url"],
+                auth=mcp_config.get("auth"),
+            )
+
+        # Connect to the main MCP endpoint for direct HTTP calls
+        mcp_client = McpClient(self.mcp_url, self.timeout)
+        await mcp_client.connect()
+        self.mcp_clients.append(mcp_client)
 
     async def disconnect(self):
         """Disconnect from all endpoints."""
@@ -154,7 +191,7 @@ class PctxClient:
             Execution result dict with structure:
             {
                 "success": bool,
-                "value": any,  # The return value from run()
+                "output": any,  # The return value from run()
                 "stdout": str,
                 "stderr": str
             }
@@ -163,10 +200,19 @@ class PctxClient:
             ExecutionError: If execution fails
             ConnectionError: If not connected
         """
-        if not self.ws_client:
-            raise ConnectionError("Client not connected. Use async with or call connect()")
+        if not self.mcp_clients:
+            raise ConnectionError(
+                "Client not connected. Use async with or call connect()"
+            )
 
-        return await self.ws_client.execute_code(code)
+        # Execute via the main MCP client
+        result = await self.mcp_clients[0].execute(code)
+
+        # Normalize the result to have 'value' key for backward compatibility
+        if "output" in result and "value" not in result:
+            result["value"] = result["output"]
+
+        return result
 
     # ========== Optional tool registration after initialization ==========
 
@@ -205,7 +251,7 @@ class PctxClient:
             callback=callback,
             description=description,
             input_schema=input_schema,
-            output_schema=output_schema
+            output_schema=output_schema,
         )
 
     # ========== Utility methods ==========

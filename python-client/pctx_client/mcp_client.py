@@ -103,18 +103,31 @@ class McpClient:
                     },
                     "id": 1
                 },
-                headers={"Content-Type": "application/json"}
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream"
+                }
             )
             response.raise_for_status()
-            data = response.json()
+
+            # Parse SSE response (format: "data: {json}\n\n")
+            response_text = response.text.strip()
+            if response_text.startswith("data: "):
+                data = json.loads(response_text[6:])  # Remove "data: " prefix
+            else:
+                data = response.json()
 
             if "error" in data:
                 raise ConnectionError(f"MCP error: {data['error']}")
 
-            # Extract functions from result
+            # Extract functions from structuredContent if available
             result = data.get("result", {})
-            content = result.get("content", [])
+            structured_content = result.get("structuredContent", {})
+            if "functions" in structured_content:
+                return structured_content["functions"]
 
+            # Fallback to parsing from text content
+            content = result.get("content", [])
             if content and len(content) > 0:
                 text = content[0].get("text", "{}")
                 return json.loads(text).get("functions", [])
@@ -168,18 +181,30 @@ class McpClient:
                     },
                     "id": 2
                 },
-                headers={"Content-Type": "application/json"}
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream"
+                }
             )
             response.raise_for_status()
-            data = response.json()
+
+            # Parse SSE response (format: "data: {json}\n\n")
+            response_text = response.text.strip()
+            if response_text.startswith("data: "):
+                data = json.loads(response_text[6:])  # Remove "data: " prefix
+            else:
+                data = response.json()
 
             if "error" in data:
                 raise ConnectionError(f"MCP error: {data['error']}")
 
-            # Extract function details from result
+            # Extract function details from structuredContent or text content
             result = data.get("result", {})
-            content = result.get("content", [])
+            structured_content = result.get("structuredContent", {})
+            if structured_content:
+                return structured_content
 
+            content = result.get("content", [])
             if content and len(content) > 0:
                 text = content[0].get("text", "{}")
                 return json.loads(text)
@@ -225,30 +250,42 @@ class McpClient:
                     },
                     "id": 3
                 },
-                headers={"Content-Type": "application/json"}
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream"
+                }
             )
             response.raise_for_status()
-            data = response.json()
+
+            # Parse SSE response (format: "data: {json}\n\n")
+            response_text = response.text.strip()
+            if response_text.startswith("data: "):
+                data = json.loads(response_text[6:])  # Remove "data: " prefix
+            else:
+                data = response.json()
 
             if "error" in data:
                 raise ExecutionError(f"Execution error: {data['error']}")
 
-            # Extract execution result
+            # Extract execution result from structuredContent or text content
             result = data.get("result", {})
-            content = result.get("content", [])
+            structured_content = result.get("structuredContent", {})
+            if structured_content:
+                exec_result = structured_content
+            else:
+                content = result.get("content", [])
+                if content and len(content) > 0:
+                    text = content[0].get("text", "{}")
+                    exec_result = json.loads(text)
+                else:
+                    raise ExecutionError("Empty response from server")
 
-            if content and len(content) > 0:
-                text = content[0].get("text", "{}")
-                exec_result = json.loads(text)
+            # Check if execution succeeded
+            if not exec_result.get("success", False):
+                stderr = exec_result.get("stderr", "Unknown error")
+                raise ExecutionError(f"Code execution failed: {stderr}")
 
-                # Check if execution succeeded
-                if not exec_result.get("success", False):
-                    stderr = exec_result.get("stderr", "Unknown error")
-                    raise ExecutionError(f"Code execution failed: {stderr}")
-
-                return exec_result
-
-            raise ExecutionError("Empty response from server")
+            return exec_result
 
         except httpx.HTTPError as e:
             raise ExecutionError(f"HTTP error: {e}") from e
