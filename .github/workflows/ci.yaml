@@ -156,7 +156,7 @@ jobs:
       # Upload server logs on failure
       - name: Upload server logs
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v5
         with:
           name: pctx-server-logs
           path: pctx-server.log
