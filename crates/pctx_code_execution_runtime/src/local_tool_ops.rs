@@ -112,7 +112,7 @@ pub(crate) async fn op_execute_local_tool(
         .execute_tool_raw(
             &name,
             pctx_session_types::OutgoingMessage::Response(request),
-            serde_json::Value::String(request_id)
+            serde_json::Value::String(request_id),
         )
         .await
         .map_err(|e| McpError::ExecutionError(e.to_string()))

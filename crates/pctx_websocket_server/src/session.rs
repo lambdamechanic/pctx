@@ -1,5 +1,4 @@
 /// WebSocket session management for PCTX local tools
-
 // Re-export all types from pctx_session_types
 pub use pctx_session_types::{
     CodeExecutorFn, ExecuteCodeError, ExecuteCodeResult, ExecuteToolError, OutgoingMessage,
@@ -49,12 +48,18 @@ impl SessionManagerExt for SessionManager {
             tool_name: tool_name.to_string(),
             response_tx,
         };
-        eprintln!("[SessionManager] Adding pending execution for request_id: {:?}", request_id);
+        eprintln!(
+            "[SessionManager] Adding pending execution for request_id: {:?}",
+            request_id
+        );
         self.pending_executions()
             .write()
             .await
             .insert(request_id.clone(), pending);
-        eprintln!("[SessionManager] Pending execution added, count: {}", self.pending_executions().read().await.len());
+        eprintln!(
+            "[SessionManager] Pending execution added, count: {}",
+            self.pending_executions().read().await.len()
+        );
 
         // Send execution request to client
         let request = JsonRpcRequest::new(
@@ -80,12 +85,19 @@ impl SessionManagerExt for SessionManager {
         eprintln!("[SessionManager] Waiting for tool execution response (30s timeout)...");
         let result = tokio::time::timeout(
             tokio::time::Duration::from_secs(30),
-            tokio::task::spawn_blocking(move || response_rx.recv())
-        ).await;
-        eprintln!("[SessionManager] Tool execution wait completed: {:?}", result.as_ref().map(|_| "received").map_err(|_| "timeout"));
+            tokio::task::spawn_blocking(move || response_rx.recv()),
+        )
+        .await;
+        eprintln!(
+            "[SessionManager] Tool execution wait completed: {:?}",
+            result.as_ref().map(|_| "received").map_err(|_| "timeout")
+        );
 
         // Clean up pending execution
-        eprintln!("[SessionManager] Cleaning up pending execution for request_id: {:?}", request_id);
+        eprintln!(
+            "[SessionManager] Cleaning up pending execution for request_id: {:?}",
+            request_id
+        );
         self.pending_executions().write().await.remove(&request_id);
 
         match result {
@@ -123,10 +135,12 @@ impl SessionManagerExt for SessionManager {
         // Tools are formatted as "namespace.toolName"
 
         // Build a map of namespaces to tool names
-        let mut namespaces: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut namespaces: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
         for tool in tools {
             if let Some((namespace, tool_name)) = tool.split_once('.') {
-                namespaces.entry(namespace.to_string())
+                namespaces
+                    .entry(namespace.to_string())
                     .or_default()
                     .push(tool_name.to_string());
             }
@@ -134,9 +148,9 @@ impl SessionManagerExt for SessionManager {
 
         // JavaScript built-in globals that we shouldn't shadow
         let js_builtins = [
-            "Math", "Date", "JSON", "Array", "Object", "String", "Number",
-            "Boolean", "Function", "RegExp", "Error", "Promise", "Map", "Set",
-            "WeakMap", "WeakSet", "Symbol", "Proxy", "Reflect", "console"
+            "Math", "Date", "JSON", "Array", "Object", "String", "Number", "Boolean", "Function",
+            "RegExp", "Error", "Promise", "Map", "Set", "WeakMap", "WeakSet", "Symbol", "Proxy",
+            "Reflect", "console",
         ];
 
         // Generate JavaScript proxy objects for each namespace
@@ -214,8 +228,7 @@ const CALLABLE_TOOLS = {{
 // User code
 {}
 "#,
-            namespace_setup,
-            user_code
+            namespace_setup, user_code
         );
 
         wrapped

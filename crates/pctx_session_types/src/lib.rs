@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::RwLock as StdRwLock;
-use tokio::sync::{mpsc as tokio_mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc as tokio_mpsc};
 use uuid::Uuid;
 
 /// Unique identifier for a WebSocket session
@@ -245,16 +245,25 @@ impl SessionManager {
         request_id: &serde_json::Value,
         result: Result<serde_json::Value, String>,
     ) -> Result<(), ()> {
-        eprintln!("[SessionManager] Handling execution response for request_id: {:?}", request_id);
+        eprintln!(
+            "[SessionManager] Handling execution response for request_id: {:?}",
+            request_id
+        );
         let mut pending = self.pending_executions.write().await;
-        eprintln!("[SessionManager] Pending executions count: {}", pending.len());
+        eprintln!(
+            "[SessionManager] Pending executions count: {}",
+            pending.len()
+        );
         if let Some(execution) = pending.remove(request_id) {
             eprintln!("[SessionManager] Found pending execution, sending result");
             let send_result = execution.response_tx.send(result);
             eprintln!("[SessionManager] mpsc send result: {:?}", send_result);
             Ok(())
         } else {
-            eprintln!("[SessionManager] No pending execution found for request_id: {:?}", request_id);
+            eprintln!(
+                "[SessionManager] No pending execution found for request_id: {:?}",
+                request_id
+            );
             Err(())
         }
     }
@@ -326,8 +335,9 @@ impl SessionManager {
         // Wait for response with timeout
         let result = tokio::time::timeout(
             tokio::time::Duration::from_secs(30),
-            tokio::task::spawn_blocking(move || response_rx.recv())
-        ).await;
+            tokio::task::spawn_blocking(move || response_rx.recv()),
+        )
+        .await;
 
         // Clean up pending execution
         self.pending_executions.write().await.remove(&request_id);

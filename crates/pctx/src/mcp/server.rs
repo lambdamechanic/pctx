@@ -37,6 +37,7 @@ use crate::{
 pub(crate) struct PctxMcpServer {
     host: String,
     port: u16,
+    /// WebSocket port - reserved for future WebSocket server integration
     #[allow(dead_code)]
     ws_port: u16,
     banner: bool,
