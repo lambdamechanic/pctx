@@ -134,7 +134,7 @@ async def test_tool_callback_execution():
 
         code = """
         async function run() {
-            const result = await CALLABLE_TOOLS.execute('math.multiply', {a: 5, b: 3});
+            const result = await math.multiply({a: 5, b: 3});
             return result;
         }
         """
@@ -165,7 +165,7 @@ async def test_async_tool_callback():
 
         code = """
         async function run() {
-            const result = await CALLABLE_TOOLS.execute('async.double', {value: 21});
+            const result = await async.double({value: 21});
             return result;
         }
         """
@@ -213,7 +213,7 @@ async def test_tool_with_complex_return():
 
         code = """
         async function run() {
-            const result = await CALLABLE_TOOLS.execute('test.complex', {});
+            const result = await test.complex({});
             return result;
         }
         """
@@ -242,7 +242,7 @@ async def test_tool_callback_exception():
         code = """
         async function run() {
             try {
-                const result = await CALLABLE_TOOLS.execute('test.failing', {});
+                const result = await test.failing({});
                 return {success: true, result};
             } catch (error) {
                 return {success: false, error: error.message};

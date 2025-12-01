@@ -9,6 +9,7 @@ pub mod session;
 pub use handler::WebSocketHandler;
 pub use session::{
     CodeExecutorFn, ExecuteCodeError, ExecuteCodeResult, OutgoingMessage, Session, SessionManager,
+    SessionManagerExt,
 };
 
 use axum::{
@@ -41,6 +42,15 @@ impl LocalToolsServer {
         Self {
             session_manager: Arc::new(SessionManager::new().with_code_executor(code_executor)),
         }
+    }
+
+    /// Create a new server with a pre-created session manager
+    ///
+    /// This is useful when you need to wire up the session manager manually,
+    /// such as when integrating with code execution that needs to call back
+    /// to WebSocket-registered tools.
+    pub fn with_session_manager(session_manager: Arc<SessionManager>) -> Self {
+        Self { session_manager }
     }
 
     /// Create an Axum router with the WebSocket endpoint

@@ -17,11 +17,13 @@ use tabled::{
     },
 };
 use terminal_size::terminal_size;
+use tokio::sync::mpsc;
 use tower::ServiceBuilder;
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
     trace::TraceLayer,
 };
+
 use tracing::info;
 
 use crate::{
@@ -35,6 +37,7 @@ use crate::{
 pub(crate) struct PctxMcpServer {
     host: String,
     port: u16,
+    #[allow(dead_code)]
     ws_port: u16,
     banner: bool,
 }
@@ -74,19 +77,26 @@ impl PctxMcpServer {
     {
         self.banner(cfg, &code_mode);
 
-        // Create WebSocket server with code executor from CodeMode
+        // Create WebSocket server first
+        let ws_server = LocalToolsServer::new();
+        let session_manager = ws_server.session_manager();
+
+        // Create code executor with access to CodeMode and SessionManager
         // Use a channel-based approach to avoid Send issues with CodeMode
         // CodeMode is !Send due to Deno runtime, so we run it on a dedicated thread
-        use tokio::sync::mpsc;
 
         let (exec_tx, mut exec_rx) = mpsc::unbounded_channel::<(
             String,
             tokio::sync::oneshot::Sender<
-                Result<pctx_websocket_server::ExecuteCodeResult, pctx_websocket_server::ExecuteCodeError>,
+                Result<
+                    pctx_websocket_server::ExecuteCodeResult,
+                    pctx_websocket_server::ExecuteCodeError,
+                >,
             >,
         )>();
 
         let code_mode_for_executor = code_mode.clone();
+        let session_manager_for_executor = session_manager.clone();
 
         // Spawn a dedicated thread with its own LocalSet for !Send CodeMode
         std::thread::spawn(move || {
@@ -99,7 +109,10 @@ impl PctxMcpServer {
 
             local.block_on(&rt, async move {
                 while let Some((code, response_tx)) = exec_rx.recv().await {
-                    let input = pctx_code_mode::model::ExecuteInput { code };
+                    let input = pctx_code_mode::model::ExecuteInput {
+                        code,
+                        session_manager: Some(session_manager_for_executor.clone()),
+                    };
                     let result = code_mode_for_executor.execute(input).await;
 
                     let response = match result {
@@ -119,17 +132,16 @@ impl PctxMcpServer {
             });
         });
 
-        let ws_server = LocalToolsServer::with_code_executor(Arc::new(move |code| {
+        // Set the code executor on the session manager
+        let code_executor = Arc::new(move |code: String| {
             let exec_tx = exec_tx.clone();
             Box::pin(async move {
                 let (response_tx, response_rx) = tokio::sync::oneshot::channel();
-                exec_tx
-                    .send((code, response_tx))
-                    .map_err(|_| {
-                        pctx_websocket_server::ExecuteCodeError::ExecutionFailed(
-                            "Executor channel closed".to_string(),
-                        )
-                    })?;
+                exec_tx.send((code, response_tx)).map_err(|_| {
+                    pctx_websocket_server::ExecuteCodeError::ExecutionFailed(
+                        "Executor channel closed".to_string(),
+                    )
+                })?;
 
                 response_rx.await.map_err(|_| {
                     pctx_websocket_server::ExecuteCodeError::ExecutionFailed(
@@ -137,7 +149,19 @@ impl PctxMcpServer {
                     )
                 })?
             })
-        }));
+                as std::pin::Pin<
+                    Box<
+                        dyn std::future::Future<
+                                Output = Result<
+                                    pctx_websocket_server::ExecuteCodeResult,
+                                    pctx_websocket_server::ExecuteCodeError,
+                                >,
+                            > + Send,
+                    >,
+                >
+        });
+
+        session_manager.set_code_executor(code_executor);
 
         let mcp_service = PctxMcpService::new(cfg, code_mode);
 
@@ -151,39 +175,38 @@ impl PctxMcpServer {
         );
 
         // Apply layers only to MCP service, not to WebSocket
-        let mcp_with_layers = axum::Router::new()
-            .nest_service("/mcp", service)
-            .layer(
-                ServiceBuilder::new()
-                    // Generate UUID if x-request-id header doesn't exist
-                    .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
-                    // Propagate x-request-id to response headers
-                    .layer(PropagateRequestIdLayer::x_request_id())
-                    // Add tracing layer that includes request_id in spans
-                    .layer(TraceLayer::new_for_http().make_span_with(
-                        |request: &axum::http::Request<_>| {
-                            let request_id = request
-                                .extensions()
-                                .get::<RequestId>()
-                                .map_or("unknown".to_string(), |id| {
-                                    id.header_value().to_str().unwrap_or("invalid").to_string()
-                                });
+        let mcp_with_layers = axum::Router::new().nest_service("/mcp", service).layer(
+            ServiceBuilder::new()
+                // Generate UUID if x-request-id header doesn't exist
+                .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+                // Propagate x-request-id to response headers
+                .layer(PropagateRequestIdLayer::x_request_id())
+                // Add tracing layer that includes request_id in spans
+                .layer(TraceLayer::new_for_http().make_span_with(
+                    |request: &axum::http::Request<_>| {
+                        let request_id = request
+                            .extensions()
+                            .get::<RequestId>()
+                            .map_or("unknown".to_string(), |id| {
+                                id.header_value().to_str().unwrap_or("invalid").to_string()
+                            });
 
-                            tracing::error_span!(
-                                "request",
-                                method = %request.method(),
-                                uri = %request.uri(),
-                                version = ?request.version(),
-                                request_id = %request_id,
-                            )
-                        },
-                    )),
-            );
+                        tracing::error_span!(
+                            "request",
+                            method = %request.method(),
+                            uri = %request.uri(),
+                            version = ?request.version(),
+                            request_id = %request_id,
+                        )
+                    },
+                )),
+        );
 
         // Merge WebSocket routes (without layers) with MCP routes (with layers)
+        // WebSocket must be first to avoid being shadowed by MCP catch-all routes
         let router = axum::Router::new()
-            .merge(ws_server.router())
-            .merge(mcp_with_layers);
+            .merge(mcp_with_layers)
+            .merge(ws_server.router());
         let tcp_listener =
             tokio::net::TcpListener::bind(format!("{}:{}", &self.host, self.port)).await?;
 

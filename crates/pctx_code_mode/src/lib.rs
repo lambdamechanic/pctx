@@ -3,9 +3,6 @@ pub mod model;
 pub use code_mode::CodeMode;
 use codegen::CodegenError;
 
-#[cfg(test)]
-mod tests;
-
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

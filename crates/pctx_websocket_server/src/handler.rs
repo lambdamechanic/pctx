@@ -11,7 +11,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     protocol::*,
-    session::{OutgoingMessage, Session, SessionManager},
+    session::{OutgoingMessage, Session, SessionManager, SessionManagerExt},
 };
 
 pub struct WebSocketHandler {
@@ -56,7 +56,7 @@ impl WebSocketHandler {
         }
 
         // Spawn task to handle outgoing messages
-        let mut send_task = tokio::spawn(async move {
+        let send_task = tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 let text = match msg {
                     OutgoingMessage::Response(value) | OutgoingMessage::Notification(value) => {
@@ -98,7 +98,7 @@ impl WebSocketHandler {
                     info!("Client closed connection: {}", session_id);
                     break;
                 }
-                Ok(Message::Ping(data)) => {
+                Ok(Message::Ping(_data)) => {
                     // Respond to ping with pong
                     if let Err(e) = session_manager
                         .send_to_session(
@@ -165,12 +165,14 @@ impl WebSocketHandler {
         value: serde_json::Value,
         session_manager: &Arc<SessionManager>,
     ) -> Result<(), HandlerError> {
+        debug!("Handling client response: {:?}", value);
         let id = value
             .get("id")
             .ok_or_else(|| HandlerError::ParseError("Response missing id".to_string()))?
             .clone();
 
         if let Some(result) = value.get("result") {
+            debug!("Client response has result: {:?}", result);
             Self::handle_execution_response(&id, Ok(result.clone()), session_manager).await;
         } else if let Some(error) = value.get("error") {
             let error_msg = error
@@ -178,6 +180,7 @@ impl WebSocketHandler {
                 .and_then(|m| m.as_str())
                 .unwrap_or("Unknown error")
                 .to_string();
+            debug!("Client response has error: {}", error_msg);
             Self::handle_execution_response(&id, Err(error_msg), session_manager).await;
         }
 
@@ -260,7 +263,7 @@ impl WebSocketHandler {
         let tool_name = format!("{}.{}", params.namespace, params.name);
 
         match session_manager
-            .register_tool(session_id, tool_name.clone())
+            .register_tool(session_id, tool_name.clone(), params.description)
             .await
         {
             Ok(_) => {

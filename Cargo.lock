@@ -6766,7 +6766,7 @@ dependencies = [
  "deno_core",
  "deno_error",
  "pctx_config",
- "pctx_websocket_server",
+ "pctx_session_types",
  "reqwest",
  "rmcp",
  "rustls",
@@ -6786,6 +6786,7 @@ dependencies = [
  "pctx_code_execution_runtime",
  "pctx_config",
  "pctx_executor",
+ "pctx_session_types",
  "pctx_websocket_server",
  "schemars 1.1.0",
  "serde",
@@ -6848,6 +6849,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pctx_session_types"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "pctx_type_check_runtime"
 version = "0.1.0"
 dependencies = [
@@ -6869,15 +6881,16 @@ dependencies = [
  "axum 0.8.7",
  "futures-util",
  "pctx_code_mode",
+ "pctx_session_types",
  "serde",
  "serde_json",
+ "serial_test",
  "tempfile",
  "thiserror 2.0.17",
  "tokio",
  "tokio-test",
  "tokio-tungstenite",
  "tracing",
- "uuid",
 ]
 
 [[package]]

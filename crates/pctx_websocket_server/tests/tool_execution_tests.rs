@@ -2,7 +2,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-use pctx_websocket_server::LocalToolsServer;
+use pctx_websocket_server::{LocalToolsServer, SessionManagerExt};
 
 /// Test that server can execute a tool on the client
 #[tokio::test]

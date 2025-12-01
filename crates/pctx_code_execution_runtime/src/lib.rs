@@ -24,18 +24,20 @@
 //!
 //! ```rust,no_run
 //! use deno_core::{JsRuntime, RuntimeOptions};
-//! use pctx_code_execution_runtime::{pctx_runtime_snapshot, MCPRegistry, CallableToolRegistry, AllowedHosts, RUNTIME_SNAPSHOT};
+//! use pctx_code_execution_runtime::{pctx_runtime_snapshot, MCPRegistry, CallableToolRegistry, AllowedHosts, SessionManager, RUNTIME_SNAPSHOT};
 //! use std::rc::Rc;
+//! use std::sync::Arc;
 //!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create registries
 //! let mcp_registry = MCPRegistry::new();
 //! let local_tool_registry = CallableToolRegistry::new();
+//! let session_manager = Arc::new(SessionManager::new());
 //! let allowed_hosts = AllowedHosts::new(Some(vec!["example.com".to_string()]));
 //!
 //! let mut runtime = JsRuntime::new(RuntimeOptions {
 //!     startup_snapshot: Some(RUNTIME_SNAPSHOT),
-//!     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, allowed_hosts)],
+//!     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, session_manager, allowed_hosts)],
 //!     ..Default::default()
 //! });
 //!
@@ -100,8 +102,10 @@ pub use callable_tool_registry::{
     CallLocallyCallableToolArgs, CallableToolMetadata, CallableToolRegistry, LocalToolCallback,
 };
 pub use fetch::AllowedHosts;
-pub use pctx_websocket_server::SessionManager;
 pub use registry::MCPRegistry;
+
+// Re-export SessionManager from pctx_session_types for convenience
+pub use pctx_session_types::SessionManager;
 
 /// Pre-compiled V8 snapshot containing the PCTX runtime
 ///
@@ -117,16 +121,18 @@ pub use registry::MCPRegistry;
 ///
 /// ```rust,no_run
 /// use deno_core::{JsRuntime, RuntimeOptions};
-/// use pctx_code_execution_runtime::{RUNTIME_SNAPSHOT, pctx_runtime_snapshot, MCPRegistry, CallableToolRegistry, AllowedHosts};
+/// use pctx_code_execution_runtime::{RUNTIME_SNAPSHOT, pctx_runtime_snapshot, MCPRegistry, CallableToolRegistry, AllowedHosts, SessionManager};
+/// use std::sync::Arc;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let mcp_registry = MCPRegistry::new();
 /// let local_tool_registry = CallableToolRegistry::new();
+/// let session_manager = Arc::new(SessionManager::new());
 /// let allowed_hosts = AllowedHosts::new(None);
 ///
 /// let mut runtime = JsRuntime::new(RuntimeOptions {
 ///     startup_snapshot: Some(RUNTIME_SNAPSHOT),
-///     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, allowed_hosts)],
+///     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, session_manager, allowed_hosts)],
 ///     ..Default::default()
 /// });
 /// # Ok(())

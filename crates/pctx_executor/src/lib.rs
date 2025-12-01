@@ -29,7 +29,13 @@ impl std::fmt::Debug for ExecuteOptions {
             .field("allowed_hosts", &self.allowed_hosts)
             .field("mcp_configs", &self.mcp_configs)
             .field("callable_registry", &self.callable_registry)
-            .field("session_manager", &self.session_manager.as_ref().map(|_| "SessionManager { .. }"))
+            .field(
+                "session_manager",
+                &self
+                    .session_manager
+                    .as_ref()
+                    .map(|_| "SessionManager { .. }"),
+            )
             .finish()
     }
 }

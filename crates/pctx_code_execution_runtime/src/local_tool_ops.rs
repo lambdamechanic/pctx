@@ -8,14 +8,14 @@
 //! - Actual execution happens via WebSocket RPC to connected clients
 //! - JavaScript calls `op_execute_local_tool` which sends WebSocket message and awaits response
 
-use deno_core::{op2, OpState};
+use deno_core::{OpState, op2};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::callable_tool_registry::{CallableToolMetadata, CallableToolRegistry};
 use crate::error::McpError;
-use pctx_websocket_server::SessionManager;
+use pctx_session_types::SessionManager;
 
 /// Check if a local tool is registered
 #[op2(fast)]
@@ -86,20 +86,7 @@ pub(crate) async fn op_execute_local_tool(
     #[string] name: String,
     #[serde] arguments: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, McpError> {
-    // Check if tool exists in registry (metadata only)
-    let has_tool = {
-        let state_borrow = state.borrow();
-        let registry = state_borrow.borrow::<CallableToolRegistry>();
-        registry.has(&name)
-    };
-
-    if !has_tool {
-        return Err(McpError::ExecutionError(format!(
-            "Tool '{name}' not found"
-        )));
-    }
-
-    // Get session manager and execute via WebSocket
+    // Get session manager
     let session_manager = {
         let state_borrow = state.borrow();
         state_borrow.borrow::<Arc<SessionManager>>().clone()
@@ -108,9 +95,25 @@ pub(crate) async fn op_execute_local_tool(
     // Generate unique request ID
     let request_id = uuid::Uuid::new_v4().to_string();
 
+    // Build execution request message
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "execute_tool",
+        "params": {
+            "name": name,
+            "arguments": arguments
+        },
+        "id": request_id.clone()
+    });
+
     // Execute tool via WebSocket
+    // The session manager will return ToolNotFound if the tool doesn't exist
     session_manager
-        .execute_tool(&name, arguments, serde_json::Value::String(request_id))
+        .execute_tool_raw(
+            &name,
+            pctx_session_types::OutgoingMessage::Response(request),
+            serde_json::Value::String(request_id)
+        )
         .await
         .map_err(|e| McpError::ExecutionError(e.to_string()))
 }

@@ -1,12 +1,11 @@
 # PCTX Python Client
 
-Complete Python client for [Port of Context (PCTX)](https://github.com/portofcontext/pctx) with support for both MCP operations and local tool registration.
+Python client for [Port of Context (PCTX)](https://github.com/portofcontext/pctx) - execute TypeScript/JavaScript code with access to both MCP tools and local Python callbacks.
 
 ## Features
 
-- **MCP Client**: HTTP client for MCP operations (list_functions, get_function_details, execute)
-- **WebSocket Client**: Register local Python tools and execute code with access to them
-- **Unified Client**: Combined interface for both MCP and local tools
+- **Execute code with mixed tooling**: Write TypeScript/JS code that seamlessly calls both MCP tools and Python functions
+- **Simple API**: Register local tools and MCPs at initialization, then just call `execute()`
 - **Full async/await support**
 - **Type-safe with proper error handling**
 
@@ -31,127 +30,134 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
-### Using MCP Client Only
+### Basic Usage
 
 ```python
 import asyncio
-from pctx_client import McpClient
+from pctx_client import PctxClient
+
+# Define local Python tools
+def get_user_data(params):
+    user_id = params.get("user_id")
+    return {
+        "id": user_id,
+        "name": "John Doe",
+        "email": "john@example.com"
+    }
+
+def process_data(params):
+    data = params.get("data", [])
+    return {"processed": [x * 2 for x in data]}
+
+# Configure local tools
+local_tools = [
+    {
+        "namespace": "UserService",
+        "name": "getUserData",
+        "callback": get_user_data,
+        "description": "Fetches user data by ID"
+    },
+    {
+        "namespace": "DataProcessor",
+        "name": "processData",
+        "callback": process_data
+    }
+]
 
 async def main():
-    async with McpClient("http://localhost:8080/mcp") as client:
-        # List all available MCP functions
-        functions = await client.list_functions()
-        print(f"Available functions: {len(functions)}")
-
-        # Get details for specific functions
-        details = await client.get_function_details(["Notion.apiPostSearch"])
-        print(details)
-
-        # Execute TypeScript code
+    # Initialize client with local tools and MCP servers
+    async with PctxClient(
+        ws_url="ws://localhost:8080/local-tools",
+        local_tools=local_tools,
+        mcps=["http://localhost:8080/mcp"]  # Optional
+    ) as client:
+        # Execute code that uses both MCP and local tools
         result = await client.execute('''
             async function run() {
-                const results = await Notion.apiPostSearch({
+                // Use MCP tool
+                const notionResults = await Notion.apiPostSearch({
                     query: "test"
                 });
-                return results;
+
+                // Use local Python tools
+                const user = await UserService.getUserData({user_id: 123});
+                const processed = await DataProcessor.processData({
+                    data: [1, 2, 3, 4, 5]
+                });
+
+                return {
+                    notion: notionResults,
+                    user: user,
+                    processed: processed.processed
+                };
             }
         ''')
-        print(result)
+
+        print(result["value"])
 
 asyncio.run(main())
 ```
 
-### Using WebSocket Client for Local Tools
+### Simple Example Without MCP
 
 ```python
 import asyncio
 from pctx_client import PctxClient
 
 async def main():
-    async with PctxClient("ws://localhost:8080/local-tools") as client:
-        # Register a Python tool
-        def get_user_data(params):
-            user_id = params.get("user_id")
-            return {
-                "id": user_id,
-                "name": "John Doe",
-                "email": "john@example.com"
-            }
+    # Define a simple local tool
+    def add(params):
+        return params["a"] + params["b"]
 
-        await client.register_tool(
-            namespace="UserService",
-            name="getUserData",
-            callback=get_user_data,
-            description="Fetches user data by ID",
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "user_id": {"type": "number"}
-                },
-                "required": ["user_id"]
-            }
-        )
+    local_tools = [
+        {"namespace": "Math", "name": "add", "callback": add}
+    ]
 
-        # Execute code that uses the local tool (low-level API)
-        result = await client.execute_code('''
+    async with PctxClient(
+        ws_url="ws://localhost:8080/local-tools",
+        local_tools=local_tools
+    ) as client:
+        result = await client.execute('''
             async function run() {
-                const user = await CALLABLE_TOOLS.execute('UserService.getUserData', {
-                    user_id: 123
-                });
-                return user;
+                const sum = await Math.add({a: 10, b: 20});
+                return {sum};
             }
         ''')
 
-        print(result)
+        print(result["value"]["sum"])  # Output: 30
 
 asyncio.run(main())
 ```
 
-**Note**: For a cleaner Python API, use the `PctxUnifiedClient` instead (see below).
+### Dynamic Tool Registration
 
-### Using Unified Client (Recommended)
-
-The unified client provides the best of both worlds with a clean Pythonic API:
+You can also register tools after initialization:
 
 ```python
-import asyncio
-from pctx_client import PctxUnifiedClient
+async with PctxClient(ws_url="ws://localhost:8080/local-tools") as client:
+    # Register tool dynamically
+    await client.register_local_tool(
+        namespace="MyTools",
+        name="getData",
+        callback=lambda params: {"data": [1, 2, 3]}
+    )
 
-async def main():
-    async with PctxUnifiedClient(
-        mcp_url="http://localhost:8080/mcp",
-        ws_url="ws://localhost:8080/local-tools"
-    ) as client:
-        # List all MCP functions
-        mcp_functions = await client.list_functions()
-        print(f"MCP functions: {len(mcp_functions)}")
-
-        # Register local Python tools
-        def process_data(params):
-            data = params.get("data", [])
-            return {"processed": [x * 2 for x in data]}
-
-        await client.register_local_tool(
-            namespace="DataProcessor",
-            name="processData",
-            callback=process_data
-        )
-
-        # Use clean Python API - call tools like regular Python functions!
-        result = await client.DataProcessor.processData(data=[1, 2, 3, 4, 5])
-
-        print(f"Processed: {result['processed']}")
-        # Output: Processed: [2, 4, 6, 8, 10]
-
-asyncio.run(main())
+    result = await client.execute('''
+        async function run() {
+            return await MyTools.getData({});
+        }
+    ''')
 ```
 
-The unified client automatically creates namespace proxies, so you can call tools like:
-- `await client.AsyncTools.triple(7)` instead of writing TypeScript code
-- `await client.Math.add(a=5, b=3)` for natural Python syntax
-- `await client.UserService.getUserData(user_id=123)` with keyword arguments
+## Why This Design?
 
-This completely abstracts away the internal `CALLABLE_TOOLS.execute()` mechanism!
+The whole point of PCTX is to **execute code** that uses tools, not to call tools directly from Python. You write Python scripts that:
+
+1. Define local Python callbacks (tools)
+2. Execute TypeScript/JavaScript code via `client.execute()`
+3. That code can call both MCP tools and your local Python tools seamlessly
+
+This is much more powerful than just calling `client.Math.add(a=10, b=20)` from Python!
 
 ## Running Tests
 

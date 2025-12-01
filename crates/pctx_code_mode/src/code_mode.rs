@@ -218,10 +218,15 @@ impl CodeMode {
         // Use the unified CallableToolRegistry
         let unified_registry = self.callable_registry.clone().unwrap_or_default();
 
-        let options = pctx_executor::ExecuteOptions::new()
+        let mut options = pctx_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
             .with_mcp_configs(self.servers.clone())
             .with_callable_registry(unified_registry);
+
+        // Pass the session_manager if provided
+        if let Some(session_manager) = input.session_manager {
+            options = options.with_session_manager(session_manager);
+        }
 
         let execution_res = pctx_executor::execute(&to_execute, options).await?;
 
@@ -331,6 +336,21 @@ impl CodeMode {
     /// Note: Code execution happens in a separate tokio task with a LocalSet since
     /// Deno's JsRuntime is not Send.
     pub fn as_code_executor(self) -> pctx_websocket_server::CodeExecutorFn {
+        self.as_code_executor_with_session_manager(None)
+    }
+
+    /// Create a CodeExecutorFn with an optional session manager for WebSocket tool integration
+    ///
+    /// When a session manager is provided, JavaScript code can call local tools registered
+    /// via WebSocket using direct function calls like `namespace.toolName(params)` or the legacy
+    /// `CALLABLE_TOOLS.execute(toolName, params)` API.
+    ///
+    /// Note: Code execution happens in a separate tokio task with a LocalSet since
+    /// Deno's JsRuntime is not Send.
+    pub fn as_code_executor_with_session_manager(
+        self,
+        session_manager: Option<std::sync::Arc<pctx_session_types::SessionManager>>,
+    ) -> pctx_session_types::CodeExecutorFn {
         use std::sync::Arc;
 
         // Extract the configuration we need (all cloneable/Send types)
@@ -356,6 +376,7 @@ impl CodeMode {
             let callable_registry_clone = callable_registry.clone();
             let allowed_hosts_clone = allowed_hosts.clone();
             let namespaces_clone = namespaces.clone();
+            let session_manager_clone = session_manager.clone();
 
             Box::pin(async move {
                 // For WebSocket code execution, the code should be a complete async function run()
@@ -367,21 +388,26 @@ impl CodeMode {
                 ));
 
                 // Spawn execution on a dedicated task since Deno runtime is not Send
-                // Use spawn_blocking to run in a separate thread with its own LocalSet
+                // Use spawn_blocking to run in a separate thread with a current_thread runtime
                 let handle = tokio::task::spawn_blocking(move || {
-                    // Create a new runtime for this thread
-                    let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+                    // Create a current_thread runtime for Deno (it requires CurrentThread flavor)
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("Failed to create runtime");
 
                     rt.block_on(async {
-                        let options = pctx_executor::ExecuteOptions::new()
+                        let mut options = pctx_executor::ExecuteOptions::new()
                             .with_allowed_hosts(allowed_hosts_clone)
                             .with_mcp_configs(servers_clone);
 
-                        let options = if let Some(registry) = callable_registry_clone {
-                            options.with_callable_registry(registry)
-                        } else {
-                            options
-                        };
+                        if let Some(registry) = callable_registry_clone {
+                            options = options.with_callable_registry(registry);
+                        }
+
+                        if let Some(session_mgr) = session_manager_clone {
+                            options = options.with_session_manager(session_mgr);
+                        }
 
                         pctx_executor::execute(&to_execute, options).await
                     })
