@@ -386,9 +386,13 @@
       "GetFunctionDetailsOutput": {
         "type": "object",
         "required": [
-          "functions"
+          "functions",
+          "code"
         ],
         "properties": {
+          "code": {
+            "type": "string"
+          },
           "functions": {
             "type": "array",
             "items": {

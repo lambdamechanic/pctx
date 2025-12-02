@@ -8,13 +8,19 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use pctx_code_execution_runtime::CallbackFn;
 use pctx_code_mode::model::{FunctionId, GetFunctionDetailsInput, GetFunctionDetailsOutput};
 use tracing::{error, info};
 use utoipa;
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::types::*;
+use crate::types::{
+    ErrorInfo, ErrorResponse, ExecuteCodeRequest, ExecuteCodeResponse, GetFunctionDetailsRequest,
+    HealthResponse, ListToolsRequest, ListToolsResponse, McpServerConfig,
+    RegisterLocalToolsRequest, RegisterLocalToolsResponse, RegisterMcpServersRequest,
+    RegisterMcpServersResponse, ToolInfo, ToolSource,
+};
 
 /// Health check endpoint
 #[utoipa::path(
@@ -247,8 +253,6 @@ pub async fn register_local_tools(
         let session_id_clone = request.session_id.clone();
         let tool_name_clone = tool_name.clone();
 
-        use pctx_code_execution_runtime::CallbackFn;
-
         let callback: CallbackFn = Arc::new(move |args: Option<serde_json::Value>| {
             let session_manager_clone = session_manager_clone.clone();
             let session_storage_clone = session_storage_clone.clone();
@@ -314,12 +318,35 @@ pub async fn register_local_tools(
                     Json(ErrorResponse {
                         error: ErrorInfo {
                             code: "INTERNAL_ERROR".to_string(),
-                            message: format!("Failed to register callback: {}", e),
+                            message: format!("Failed to register callback: {e}"),
                             details: None,
                         },
                     }),
                 )
             })?;
+
+        let callback_config = pctx_config::callback::CallbackConfig {
+            name: tool.name.clone(),
+            namespace: tool.namespace.clone(),
+            description: Some(tool.description.clone()),
+            input_schema: Some(tool.parameters.clone()),
+            output_schema: None,
+        };
+
+        let mut code_mode = state.code_mode.lock().await;
+        code_mode.add_callback(&callback_config).map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: ErrorInfo {
+                        code: "INTERNAL_ERROR".to_string(),
+                        message: format!("Failed to register callback in CodeMode: {e}"),
+                        details: None,
+                    },
+                }),
+            )
+        })?;
+        // drop(code_mode);
 
         // Register with session_manager for tracking
         state

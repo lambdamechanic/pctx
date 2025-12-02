@@ -87,8 +87,6 @@ impl<'de> Deserialize<'de> for FunctionId {
 pub struct GetFunctionDetailsOutput {
     pub functions: Vec<FunctionDetails>,
 
-    #[serde(skip)]
-    #[schema(ignore = true)]
     pub code: String,
 }
 #[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
