@@ -176,7 +176,7 @@ impl App {
             // Parse the code to find upstream tool calls like "Banking.getAccountBalance"
             // Pattern: namespace.methodName(
             for tool_set in &self.tools.tool_sets {
-                let namespace_pattern = format!("{}.", &tool_set.mod_name);
+                let namespace_pattern = format!("{}.", &tool_set.namespace);
                 tracing::trace!(
                     "Checking for server '{}' with namespace pattern '{namespace_pattern}' in code",
                     &tool_set.name
@@ -185,14 +185,14 @@ impl App {
                 if code_from_llm.contains(&namespace_pattern) {
                     tracing::trace!(
                         "✓ Found {} namespace in code_from_llm, checking {} tools",
-                        &tool_set.mod_name,
+                        &tool_set.namespace,
                         tool_set.tools.len()
                     );
 
                     // Find all method calls for this server
                     for tool in &tool_set.tools {
                         // Check if this function is called in the code
-                        let method_pattern = format!("{}.{}(", &tool_set.mod_name, &tool.fn_name);
+                        let method_pattern = format!("{}.{}(", &tool_set.namespace, &tool.fn_name);
                         tracing::trace!(
                             "Checking for method pattern '{}' for tool '{}'",
                             method_pattern,
@@ -202,7 +202,7 @@ impl App {
                         if code_from_llm.contains(&method_pattern) {
                             tracing::trace!(
                                 "✓ Found tool usage: {}.{} (tool_name={})",
-                                &tool_set.mod_name,
+                                &tool_set.namespace,
                                 &tool.fn_name,
                                 &tool.name
                             );

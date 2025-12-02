@@ -8,9 +8,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use pctx_code_execution_runtime::{CallableToolMetadata, LocalToolCallback};
-use pctx_code_mode::model::{ExecuteInput, FunctionId, GetFunctionDetailsInput};
-use serde_json::json;
+use pctx_code_mode::model::{FunctionId, GetFunctionDetailsInput, GetFunctionDetailsOutput};
 use tracing::{error, info};
 use utoipa;
 use uuid::Uuid;
@@ -92,7 +90,7 @@ pub async fn list_tools(
     tag = "tools",
     request_body = GetFunctionDetailsRequest,
     responses(
-        (status = 200, description = "Function details", body = GetFunctionDetailsResponse),
+        (status = 200, description = "Function details", body = GetFunctionDetailsOutput),
         (status = 404, description = "Function not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
@@ -100,7 +98,7 @@ pub async fn list_tools(
 pub async fn get_function_details(
     State(state): State<AppState>,
     Json(request): Json<GetFunctionDetailsRequest>,
-) -> Result<Json<GetFunctionDetailsResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<GetFunctionDetailsOutput>, (StatusCode, Json<ErrorResponse>)> {
     info!(
         "Getting function details for {}.{}",
         request.namespace, request.name
@@ -115,9 +113,9 @@ pub async fn get_function_details(
     };
     let output = code_mode.get_function_details(input);
 
-    // Get the first function details (we only requested one)
-    let details = output.functions.first().ok_or_else(|| {
-        (
+    // Check if we got the function
+    if output.functions.is_empty() {
+        return Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 error: ErrorInfo {
@@ -126,16 +124,10 @@ pub async fn get_function_details(
                     details: None,
                 },
             }),
-        )
-    })?;
+        ));
+    }
 
-    Ok(Json(GetFunctionDetailsResponse {
-        namespace: details.listed.namespace.clone(),
-        name: details.listed.name.clone(),
-        description: details.listed.description.clone().unwrap_or_default(),
-        parameters: json!({}), // TODO: Parse from input_type
-        return_type: details.output_type.clone(),
-    }))
+    Ok(Json(output))
 }
 
 /// Execute TypeScript code with access to registered tools
@@ -160,10 +152,10 @@ pub async fn execute_code(
     let start = Instant::now();
     let current_span = tracing::Span::current();
 
-    let input = ExecuteInput { code: request.code };
-
     // Clone the CodeMode Arc to move into spawn_blocking
     let code_mode = Arc::clone(&state.code_mode);
+    let callback_registry = state.callback_registry.clone();
+    let code = request.code;
 
     // Use spawn_blocking with current-thread runtime for Deno's unsync operations
     let output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
@@ -178,7 +170,7 @@ pub async fn execute_code(
         rt.block_on(async {
             let code_mode_guard = code_mode.lock().await;
             code_mode_guard
-                .execute(input)
+                .execute(&code, callback_registry)
                 .await
                 .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
         })
@@ -213,21 +205,12 @@ pub async fn execute_code(
 
     let execution_time_ms = start.elapsed().as_millis() as u64;
 
-    if !output.success {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: ErrorInfo {
-                    code: "EXECUTION_ERROR".to_string(),
-                    message: format!("Code execution failed: {}", output.stderr),
-                    details: None,
-                },
-            }),
-        ));
-    }
-
+    // Return full execution output including stdout/stderr
     Ok(Json(ExecuteCodeResponse {
-        result: output.output.unwrap_or(serde_json::Value::Null),
+        success: output.success,
+        stdout: output.stdout,
+        stderr: output.stderr,
+        output: output.output,
         execution_time_ms,
     }))
 }
@@ -264,70 +247,67 @@ pub async fn register_local_tools(
         let session_id_clone = request.session_id.clone();
         let tool_name_clone = tool_name.clone();
 
-        let callback: LocalToolCallback = Arc::new(move |args: Option<serde_json::Value>| {
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    let start_time = chrono::Utc::now().timestamp_millis();
-                    let request_id = Uuid::new_v4().to_string();
+        use pctx_code_execution_runtime::CallbackFn;
 
-                    let request = serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "method": "execute_tool",
-                        "params": {
-                            "name": tool_name_clone,
-                            "arguments": args
-                        },
-                        "id": request_id.clone()
-                    });
+        let callback: CallbackFn = Arc::new(move |args: Option<serde_json::Value>| {
+            let session_manager_clone = session_manager_clone.clone();
+            let session_storage_clone = session_storage_clone.clone();
+            let session_id_clone = session_id_clone.clone();
+            let tool_name_clone = tool_name_clone.clone();
 
-                    let result = session_manager_clone
-                        .execute_tool_raw(
-                            &tool_name_clone,
-                            OutgoingMessage::Response(request),
-                            serde_json::Value::String(request_id),
-                        )
-                        .await
-                        .map_err(|e| e.to_string());
+            Box::pin(async move {
+                let start_time = chrono::Utc::now().timestamp_millis();
+                let request_id = Uuid::new_v4().to_string();
 
-                    // Record tool call in session storage
-                    if let Some(storage) = &session_storage_clone {
-                        let (namespace, tool_name_part) = tool_name_clone
-                            .split_once('.')
-                            .unwrap_or(("", &tool_name_clone));
-                        let tool_call_record = ToolCallRecord {
-                            session_id: session_id_clone.clone(),
-                            timestamp: start_time,
-                            tool_name: tool_name_part.to_string(),
-                            namespace: namespace.to_string(),
-                            arguments: args.clone().unwrap_or(serde_json::Value::Null),
-                            result: result.as_ref().ok().cloned(),
-                            error: result.as_ref().err().cloned(),
-                            code_snippet: None,
-                        };
+                let request = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "method": "execute_tool",
+                    "params": {
+                        "name": tool_name_clone,
+                        "arguments": args
+                    },
+                    "id": request_id.clone()
+                });
 
-                        if let Ok(mut history) = storage.load_session(&session_id_clone) {
-                            history.add_tool_call(tool_call_record);
-                            let _ = storage.save_session(&history);
-                        }
+                let result = session_manager_clone
+                    .execute_tool_raw(
+                        &tool_name_clone,
+                        OutgoingMessage::Response(request),
+                        serde_json::Value::String(request_id),
+                    )
+                    .await
+                    .map_err(|e| e.to_string());
+
+                // Record tool call in session storage
+                if let Some(storage) = &session_storage_clone {
+                    let (namespace, tool_name_part) = tool_name_clone
+                        .split_once('.')
+                        .unwrap_or(("", &tool_name_clone));
+                    let tool_call_record = ToolCallRecord {
+                        session_id: session_id_clone.clone(),
+                        timestamp: start_time,
+                        tool_name: tool_name_part.to_string(),
+                        namespace: namespace.to_string(),
+                        arguments: args.clone().unwrap_or(serde_json::Value::Null),
+                        result: result.as_ref().ok().cloned(),
+                        error: result.as_ref().err().cloned(),
+                        code_snippet: None,
+                    };
+
+                    if let Ok(mut history) = storage.load_session(&session_id_clone) {
+                        history.add_tool_call(tool_call_record);
+                        let _ = storage.save_session(&history);
                     }
+                }
 
-                    result
-                })
+                result
             })
         });
 
-        // Register callback in CallableToolRegistry
-        let metadata = CallableToolMetadata {
-            name: tool_name.clone(),
-            description: Some(tool.description.clone()),
-            input_schema: Some(tool.parameters.clone()),
-            output_schema: None,
-            namespace: tool.namespace.clone(),
-        };
-
+        // Register callback in CallbackRegistry
         state
-            .callable_registry
-            .register_callback(metadata, callback)
+            .callback_registry
+            .add(&tool_name, callback)
             .map_err(|e| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,

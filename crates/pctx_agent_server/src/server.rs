@@ -9,6 +9,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{AppState, rest, types::*, websocket};
+use pctx_code_mode::model::{FunctionDetails, GetFunctionDetailsOutput, ListedFunction};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -28,7 +29,9 @@ use crate::{AppState, rest, types::*, websocket};
             ToolInfo,
             ToolSource,
             GetFunctionDetailsRequest,
-            GetFunctionDetailsResponse,
+            GetFunctionDetailsOutput,
+            FunctionDetails,
+            ListedFunction,
             ExecuteCodeRequest,
             ExecuteCodeResponse,
             RegisterLocalToolsRequest,

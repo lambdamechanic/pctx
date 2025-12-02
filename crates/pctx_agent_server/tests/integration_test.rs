@@ -141,7 +141,7 @@ async fn test_rest_only_code_execution() {
 
     assert_eq!(execute_response.status(), StatusCode::OK);
     let execute_body: ExecuteCodeResponse = execute_response.json().await.unwrap();
-    assert_eq!(execute_body.result, json!(2));
+    assert_eq!(execute_body.output, Some(json!(2)));
     assert!(execute_body.execution_time_ms > 0);
 }
 
@@ -219,7 +219,7 @@ async fn test_execute_code_with_async_operations() {
 
     assert_eq!(execute_response.status(), StatusCode::OK);
     let execute_body: ExecuteCodeResponse = execute_response.json().await.unwrap();
-    assert_eq!(execute_body.result, json!({ "completed": true }));
+    assert_eq!(execute_body.output, Some(json!({ "completed": true })));
 }
 
 #[tokio::test]
@@ -247,7 +247,7 @@ async fn test_execute_code_with_console_output() {
 
     assert_eq!(execute_response.status(), StatusCode::OK);
     let execute_body: ExecuteCodeResponse = execute_response.json().await.unwrap();
-    assert_eq!(execute_body.result, json!("done"));
+    assert_eq!(execute_body.output, Some(json!("done")));
 }
 
 #[tokio::test]

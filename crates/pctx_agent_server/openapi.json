@@ -54,7 +54,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetFunctionDetailsResponse"
+                  "$ref": "#/components/schemas/GetFunctionDetailsOutput"
                 }
               }
             }
@@ -323,17 +323,77 @@
         "type": "object",
         "description": "Successful code execution response",
         "required": [
-          "result",
+          "success",
+          "stdout",
+          "stderr",
+          "output",
           "execution_time_ms"
         ],
         "properties": {
           "execution_time_ms": {
             "type": "integer",
             "format": "int64",
+            "description": "Execution time in milliseconds",
             "minimum": 0
           },
-          "result": {
-            "type": "object"
+          "output": {
+            "type": "object",
+            "description": "Value returned by executed function"
+          },
+          "stderr": {
+            "type": "string",
+            "description": "Standard error of executed code"
+          },
+          "stdout": {
+            "type": "string",
+            "description": "Standard output of executed code"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Success of executed code"
+          }
+        }
+      },
+      "FunctionDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ListedFunction"
+          },
+          {
+            "type": "object",
+            "required": [
+              "input_type",
+              "output_type",
+              "types"
+            ],
+            "properties": {
+              "input_type": {
+                "type": "string",
+                "description": "typescript input type for the function"
+              },
+              "output_type": {
+                "type": "string",
+                "description": "typescript output type for the function"
+              },
+              "types": {
+                "type": "string",
+                "description": "full typescript type definitions for input/output types"
+              }
+            }
+          }
+        ]
+      },
+      "GetFunctionDetailsOutput": {
+        "type": "object",
+        "required": [
+          "functions"
+        ],
+        "properties": {
+          "functions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FunctionDetails"
+            }
           }
         }
       },
@@ -349,34 +409,6 @@
             "type": "string"
           },
           "namespace": {
-            "type": "string"
-          }
-        }
-      },
-      "GetFunctionDetailsResponse": {
-        "type": "object",
-        "description": "Response with function details",
-        "required": [
-          "namespace",
-          "name",
-          "description",
-          "parameters",
-          "return_type"
-        ],
-        "properties": {
-          "description": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "namespace": {
-            "type": "string"
-          },
-          "parameters": {
-            "type": "object"
-          },
-          "return_type": {
             "type": "string"
           }
         }
@@ -413,6 +445,30 @@
             "items": {
               "$ref": "#/components/schemas/ToolInfo"
             }
+          }
+        }
+      },
+      "ListedFunction": {
+        "type": "object",
+        "required": [
+          "namespace",
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Function description"
+          },
+          "name": {
+            "type": "string",
+            "description": "Function name"
+          },
+          "namespace": {
+            "type": "string",
+            "description": "Namespace the function belongs in"
           }
         }
       },

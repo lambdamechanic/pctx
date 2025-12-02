@@ -563,7 +563,7 @@ mod tests {
                 url: "http://localhost:8080/mcp".parse().unwrap(),
                 auth: None,
             }],
-            callable_registry: None,
+            callbacks: vec![],
         }
     }
 

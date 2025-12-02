@@ -63,6 +63,16 @@ impl CallbackRegistry {
         Ok(())
     }
 
+    /// Remove a callback from the registry by id
+    ///
+    /// # Panics
+    ///
+    /// Panics if cannot obtain lock
+    pub fn remove(&self, id: &str) -> Option<CallbackFn> {
+        let mut callbacks = self.callbacks.write().unwrap();
+        callbacks.remove(id)
+    }
+
     /// Get a Callback from the registry by id
     ///
     /// # Panics
