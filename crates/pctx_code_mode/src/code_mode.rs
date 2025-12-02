@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use codegen::{Tool, ToolSet};
 use pctx_code_execution_runtime::CallbackRegistry;
 use pctx_config::{callback::CallbackConfig, server::ServerConfig};
 use serde_json::json;
@@ -223,9 +224,66 @@ impl CodeMode {
 
     // Generates a Tool and add it to the correct Toolset from the given callback config
     pub fn add_callback(&mut self, callback: &CallbackConfig) -> Result<()> {
-        todo!(
-            "Codegen to create tool and add to relevant self.tool_set, then store callback to self.callbacks"
-        )
+        // find the correct toolset & check for clashes
+        let tool_set = if let Some(exists) = self
+            .tool_sets
+            .iter_mut()
+            .find(|s| s.name == callback.namespace)
+        {
+            exists
+        } else {
+            self.tool_sets
+                .push(ToolSet::new(&callback.namespace, "", vec![]));
+            self.tool_sets
+                .iter_mut()
+                .find(|s| s.name == callback.namespace)
+                .unwrap()
+        };
+
+        if tool_set.tools.iter().any(|t| t.name == callback.name) {
+            return Err(Error::Message(format!(
+                "ToolSet `{}` already has a tool with name `{}`. Tool names must be unique within tool sets",
+                &tool_set.name, &callback.name
+            )));
+        }
+
+        // convert callback config into tool
+        let input_schema = if let Some(i) = &callback.input_schema {
+            Some(
+                serde_json::from_value::<codegen::RootSchema>(json!(i)).map_err(|e| {
+                    Error::Message(format!(
+                        "Failed parsing inputSchema as json schema for tool `{}`: {e}",
+                        &callback.name
+                    ))
+                })?,
+            )
+        } else {
+            None
+        };
+        let output_schema = if let Some(o) = &callback.output_schema {
+            Some(
+                serde_json::from_value::<codegen::RootSchema>(json!(o)).map_err(|e| {
+                    Error::Message(format!(
+                        "Failed parsing outputSchema as json schema for tool `{}`: {e}",
+                        &callback.name
+                    ))
+                })?,
+            )
+        } else {
+            None
+        };
+        let tool = Tool::new_callback(
+            &callback.name,
+            callback.description.clone(),
+            input_schema.unwrap(), // TODO: optional input schemas
+            output_schema,
+        )?;
+
+        // add tool & it's configuration
+        tool_set.tools.push(tool);
+        self.callbacks.push(callback.clone());
+
+        Ok(())
     }
 
     pub fn allowed_hosts(&self) -> HashSet<String> {
