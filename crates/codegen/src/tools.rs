@@ -74,13 +74,13 @@ impl Tool {
         Self::_new(name, description, input, output, ToolVariant::Mcp)
     }
 
-    pub fn new_callable(
+    pub fn new_callback(
         name: &str,
         description: Option<String>,
         input: RootSchema,
         output: Option<RootSchema>,
     ) -> CodegenResult<Self> {
-        Self::_new(name, description, input, output, ToolVariant::Callable)
+        Self::_new(name, description, input, output, ToolVariant::Callback)
     }
 
     fn _new(
@@ -155,10 +155,10 @@ impl Tool {
                     output = &self.output_signature,
                 )
             }
-            ToolVariant::Callable => {
+            ToolVariant::Callback => {
                 format!(
                     "{fn_sig} {{
-  return await invokeCallable<{output}>({{
+  return await invokeCallback<{output}>({{
      id: {id},
      arguments: input,
   }});
@@ -175,5 +175,5 @@ impl Tool {
 #[derive(Clone, Copy, Debug)]
 pub enum ToolVariant {
     Mcp,
-    Callable,
+    Callback,
 }
