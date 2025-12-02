@@ -1,11 +1,6 @@
-//! # PCTX Session Types
-//!
-//! Core types for WebSocket session management and code execution.
-//!
-//! This crate provides the foundational types used by both the WebSocket server
-//! and the code execution runtime, preventing circular dependencies.
+//! Core types for WebSocket session management for ws callbacks.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock as StdRwLock;
 use tokio::sync::{RwLock, mpsc as tokio_mpsc};
@@ -13,6 +8,13 @@ use uuid::Uuid;
 
 /// Unique identifier for a WebSocket session
 pub type SessionId = String;
+
+/// Information about a registered callback
+#[derive(Debug, Clone)]
+pub struct CallbackInfo {
+    pub name: String,
+    pub description: String,
+}
 
 /// Messages that can be sent to a WebSocket client
 #[derive(Debug, Clone)]
@@ -28,10 +30,8 @@ pub struct Session {
     pub id: SessionId,
     /// Channel to send messages to the client
     pub sender: tokio_mpsc::UnboundedSender<OutgoingMessage>,
-    /// Tools registered by this session
-    pub registered_tools: HashSet<String>, // namespace.name format
-    /// MCP servers registered by this session
-    pub registered_mcp_servers: HashSet<String>, // server name
+    /// callbacks registered by this session (name -> info)
+    pub registered_callbacks: HashMap<String, CallbackInfo>,
 }
 
 impl Session {
@@ -39,8 +39,7 @@ impl Session {
         Self {
             id: Uuid::new_v4().to_string(),
             sender,
-            registered_tools: HashSet::new(),
-            registered_mcp_servers: HashSet::new(),
+            registered_callbacks: HashMap::new(),
         }
     }
 
@@ -48,45 +47,36 @@ impl Session {
         Self {
             id,
             sender,
-            registered_tools: HashSet::new(),
-            registered_mcp_servers: HashSet::new(),
+            registered_callbacks: HashMap::new(),
         }
     }
 
-    /// Register a tool for this session
-    pub fn register_tool(&mut self, tool_name: String) {
-        self.registered_tools.insert(tool_name);
+    pub fn register_callback(&mut self, callback_name: String, description: String) {
+        self.registered_callbacks.insert(
+            callback_name.clone(),
+            CallbackInfo {
+                name: callback_name,
+                description,
+            },
+        );
     }
 
-    /// Unregister a tool from this session
-    pub fn unregister_tool(&mut self, tool_name: &str) -> bool {
-        self.registered_tools.remove(tool_name)
+    pub fn unregister_callback(&mut self, callback_name: &str) -> bool {
+        self.registered_callbacks.remove(callback_name).is_some()
     }
 
-    /// Check if a tool is registered by this session
-    pub fn has_tool(&self, tool_name: &str) -> bool {
-        self.registered_tools.contains(tool_name)
+    pub fn has_callback(&self, callback_name: &str) -> bool {
+        self.registered_callbacks.contains_key(callback_name)
     }
 
-    /// Register an MCP server for this session
-    pub fn register_mcp_server(&mut self, server_name: String) {
-        self.registered_mcp_servers.insert(server_name);
-    }
-
-    /// Unregister an MCP server from this session
-    pub fn unregister_mcp_server(&mut self, server_name: &str) -> bool {
-        self.registered_mcp_servers.remove(server_name)
-    }
-
-    /// Check if an MCP server is registered by this session
-    pub fn has_mcp_server(&self, server_name: &str) -> bool {
-        self.registered_mcp_servers.contains(server_name)
+    pub fn get_callback_info(&self, callback_name: &str) -> Option<&CallbackInfo> {
+        self.registered_callbacks.get(callback_name)
     }
 }
 
 /// Pending execution request waiting for response from client
 pub struct PendingExecution {
-    pub tool_name: String,
+    pub callback_name: String,
     pub response_tx: std::sync::mpsc::Sender<Result<serde_json::Value, String>>,
 }
 
@@ -123,23 +113,11 @@ pub type CodeExecutorFn = Arc<
 
 /// Error types for session operations
 #[derive(Debug, thiserror::Error)]
-pub enum RegisterToolError {
-    #[error("Tool already registered")]
+pub enum RegistercallbackError {
+    #[error("callback already registered")]
     AlreadyRegistered,
     #[error("Session not found")]
     SessionNotFound,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum RegisterMcpServerError {
-    #[error("MCP server already registered")]
-    AlreadyRegistered,
-    #[error("Session not found")]
-    SessionNotFound,
-    #[error("Invalid URL: {0}")]
-    InvalidUrl(String),
-    #[error("Invalid auth configuration: {0}")]
-    InvalidAuth(String),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -151,9 +129,9 @@ pub enum SendError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ExecuteToolError {
-    #[error("Tool not found")]
-    ToolNotFound,
+pub enum ExecutecallbackError {
+    #[error("callback not found")]
+    CallbackNotFound,
     #[error("Failed to send execution request")]
     SendFailed,
     #[error("Execution failed: {0}")]
@@ -164,15 +142,6 @@ pub enum ExecuteToolError {
     Timeout,
 }
 
-/// MCP server configuration stored per session
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct McpServerConfig {
-    pub name: String,
-    pub url: String,
-    pub auth: Option<serde_json::Value>,
-    pub session_id: SessionId,
-}
-
 /// Manager for all WebSocket sessions
 ///
 /// This is the core session management type that coordinates between
@@ -180,10 +149,8 @@ pub struct McpServerConfig {
 pub struct SessionManager {
     /// Active sessions by ID
     sessions: Arc<RwLock<HashMap<SessionId, Session>>>,
-    /// Tool name → session ID mapping
-    tool_sessions: Arc<RwLock<HashMap<String, SessionId>>>,
-    /// MCP server name → configuration mapping
-    mcp_servers: Arc<RwLock<HashMap<String, McpServerConfig>>>,
+    /// callback name → session ID mapping
+    callback_sessions: Arc<RwLock<HashMap<String, SessionId>>>,
     /// Request ID → pending execution mapping
     pending_executions: Arc<RwLock<HashMap<serde_json::Value, PendingExecution>>>,
     /// Code execution callback (optional) - uses std::sync::RwLock for synchronous setup
@@ -194,8 +161,7 @@ impl SessionManager {
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
-            tool_sessions: Arc::new(RwLock::new(HashMap::new())),
-            mcp_servers: Arc::new(RwLock::new(HashMap::new())),
+            callback_sessions: Arc::new(RwLock::new(HashMap::new())),
             pending_executions: Arc::new(RwLock::new(HashMap::new())),
             code_executor: Arc::new(StdRwLock::new(None)),
         }
@@ -221,108 +187,56 @@ impl SessionManager {
         session_id
     }
 
-    /// Remove a session and clean up all its registered tools and MCP servers
+    /// Remove a session and clean up all its registered callbacks
     pub async fn remove_session(&self, session_id: &str) {
         let mut sessions = self.sessions.write().await;
         if let Some(session) = sessions.remove(session_id) {
-            // Clean up tool mappings
-            let mut tool_sessions = self.tool_sessions.write().await;
-            for tool_name in &session.registered_tools {
-                tool_sessions.remove(tool_name);
+            // Clean up callback mappings
+            let mut callback_sessions = self.callback_sessions.write().await;
+            for (callback_name, _info) in &session.registered_callbacks {
+                callback_sessions.remove(callback_name);
             }
-            drop(tool_sessions);
-
-            // Clean up MCP server mappings
-            let mut mcp_servers = self.mcp_servers.write().await;
-            for server_name in &session.registered_mcp_servers {
-                mcp_servers.remove(server_name);
-            }
+            drop(callback_sessions);
         }
     }
 
-    /// Register a tool for a session
-    pub async fn register_tool(
+    /// Register a callback for a session
+    pub async fn register_callback(
         &self,
         session_id: &str,
-        tool_name: String,
-        _description: Option<String>,
-    ) -> Result<(), RegisterToolError> {
-        // Check if tool already exists
-        let tool_sessions = self.tool_sessions.read().await;
-        if tool_sessions.contains_key(&tool_name) {
-            return Err(RegisterToolError::AlreadyRegistered);
+        callback_name: String,
+        description: Option<String>,
+    ) -> Result<(), RegistercallbackError> {
+        // Check if callback already exists
+        let callback_sessions = self.callback_sessions.read().await;
+        if callback_sessions.contains_key(&callback_name) {
+            return Err(RegistercallbackError::AlreadyRegistered);
         }
-        drop(tool_sessions);
+        drop(callback_sessions);
 
         // Add to session
         let mut sessions = self.sessions.write().await;
         let session = sessions
             .get_mut(session_id)
-            .ok_or(RegisterToolError::SessionNotFound)?;
-        session.register_tool(tool_name.clone());
+            .ok_or(RegistercallbackError::SessionNotFound)?;
+        session.register_callback(callback_name.clone(), description.unwrap_or_default());
         drop(sessions);
 
-        // Add to tool mapping
-        let mut tool_sessions = self.tool_sessions.write().await;
-        tool_sessions.insert(tool_name, session_id.to_string());
+        // Add to callback mapping
+        let mut callback_sessions = self.callback_sessions.write().await;
+        callback_sessions.insert(callback_name, session_id.to_string());
 
         Ok(())
     }
 
-    /// Register an MCP server for a session
-    pub async fn register_mcp_server(
-        &self,
-        session_id: &str,
-        server_name: String,
-        url: String,
-        auth: Option<serde_json::Value>,
-    ) -> Result<(), RegisterMcpServerError> {
-        // Validate URL
-        url::Url::parse(&url).map_err(|e| RegisterMcpServerError::InvalidUrl(e.to_string()))?;
-
-        // Check if MCP server already exists
-        let mcp_servers = self.mcp_servers.read().await;
-        if mcp_servers.contains_key(&server_name) {
-            return Err(RegisterMcpServerError::AlreadyRegistered);
-        }
-        drop(mcp_servers);
-
-        // Add to session
-        let mut sessions = self.sessions.write().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or(RegisterMcpServerError::SessionNotFound)?;
-        session.register_mcp_server(server_name.clone());
-        drop(sessions);
-
-        // Add to MCP server mapping
-        let config = McpServerConfig {
-            name: server_name.clone(),
-            url,
-            auth,
-            session_id: session_id.to_string(),
-        };
-        let mut mcp_servers = self.mcp_servers.write().await;
-        mcp_servers.insert(server_name, config);
-
-        Ok(())
+    /// Get the session ID for a callback
+    pub async fn get_callback_session(&self, callback_name: &str) -> Option<SessionId> {
+        self.callback_sessions
+            .read()
+            .await
+            .get(callback_name)
+            .cloned()
     }
-
-    /// Get the session ID for a tool
-    pub async fn get_tool_session(&self, tool_name: &str) -> Option<SessionId> {
-        self.tool_sessions.read().await.get(tool_name).cloned()
-    }
-
-    /// Get all registered MCP servers
-    pub async fn list_mcp_servers(&self) -> Vec<McpServerConfig> {
-        self.mcp_servers.read().await.values().cloned().collect()
-    }
-
-    /// Get an MCP server configuration by name
-    pub async fn get_mcp_server(&self, server_name: &str) -> Option<McpServerConfig> {
-        self.mcp_servers.read().await.get(server_name).cloned()
-    }
-
     /// Send a message to a specific session
     pub async fn send_to_session(
         &self,
@@ -367,9 +281,40 @@ impl SessionManager {
         }
     }
 
-    /// Get list of all registered tools
-    pub async fn list_tools(&self) -> Vec<String> {
-        self.tool_sessions.read().await.keys().cloned().collect()
+    /// Get list of all registered callbacks
+    pub async fn list_callbacks(&self) -> Vec<String> {
+        self.callback_sessions
+            .read()
+            .await
+            .keys()
+            .cloned()
+            .collect()
+    }
+
+    /// Get list of all registered callbacks with their info (name and description)
+    pub async fn list_callbacks_with_info(&self) -> Vec<CallbackInfo> {
+        let callback_sessions = self.callback_sessions.read().await;
+        let sessions = self.sessions.read().await;
+
+        let mut callbacks = Vec::new();
+        for (callback_name, session_id) in callback_sessions.iter() {
+            if let Some(session) = sessions.get(session_id) {
+                if let Some(info) = session.get_callback_info(callback_name) {
+                    callbacks.push(info.clone());
+                }
+            }
+        }
+        callbacks
+    }
+
+    /// Get description for a specific callback
+    pub async fn get_callback_description(&self, callback_name: &str) -> Option<String> {
+        let session_id = self.get_callback_session(callback_name).await?;
+        let sessions = self.sessions.read().await;
+        let session = sessions.get(&session_id)?;
+        session
+            .get_callback_info(callback_name)
+            .map(|info| info.description.clone())
     }
 
     /// Get number of active sessions
@@ -392,33 +337,33 @@ impl SessionManager {
         &self.sessions
     }
 
-    /// Get access to tool sessions (for WebSocket server use)
-    pub fn tool_sessions(&self) -> &Arc<RwLock<HashMap<String, SessionId>>> {
-        &self.tool_sessions
+    /// Get access to callback sessions (for WebSocket server use)
+    pub fn callback_sessions(&self) -> &Arc<RwLock<HashMap<String, SessionId>>> {
+        &self.callback_sessions
     }
 
-    /// Execute a tool and wait for response
+    /// Execute a callback and wait for response
     ///
     /// This is a low-level method that sends a raw response message and waits for the result.
     /// Higher-level wrappers in pctx_agent_server provide better ergonomics.
-    pub async fn execute_tool_raw(
+    pub async fn execute_callback_raw(
         &self,
-        tool_name: &str,
+        callback_name: &str,
         message: OutgoingMessage,
         request_id: serde_json::Value,
-    ) -> Result<serde_json::Value, ExecuteToolError> {
-        // Find session for tool
+    ) -> Result<serde_json::Value, ExecutecallbackError> {
+        // Find session for callback
         let session_id = self
-            .get_tool_session(tool_name)
+            .get_callback_session(callback_name)
             .await
-            .ok_or(ExecuteToolError::ToolNotFound)?;
+            .ok_or(ExecutecallbackError::CallbackNotFound)?;
 
         // Create std::sync::mpsc channel for response
         let (response_tx, response_rx) = std::sync::mpsc::channel();
 
         // Store pending execution
         let pending = PendingExecution {
-            tool_name: tool_name.to_string(),
+            callback_name: callback_name.to_string(),
             response_tx,
         };
         self.pending_executions
@@ -429,7 +374,7 @@ impl SessionManager {
         // Send message to client
         self.send_to_session(&session_id, message)
             .await
-            .map_err(|_| ExecuteToolError::SendFailed)?;
+            .map_err(|_| ExecutecallbackError::SendFailed)?;
 
         // Wait for response with timeout
         let result = tokio::time::timeout(
@@ -443,10 +388,10 @@ impl SessionManager {
 
         match result {
             Ok(Ok(Ok(Ok(value)))) => Ok(value),
-            Ok(Ok(Ok(Err(error)))) => Err(ExecuteToolError::ExecutionFailed(error)),
-            Ok(Ok(Err(_))) => Err(ExecuteToolError::ChannelClosed),
-            Ok(Err(_)) => Err(ExecuteToolError::ChannelClosed),
-            Err(_) => Err(ExecuteToolError::Timeout),
+            Ok(Ok(Ok(Err(error)))) => Err(ExecutecallbackError::ExecutionFailed(error)),
+            Ok(Ok(Err(_))) => Err(ExecutecallbackError::ChannelClosed),
+            Ok(Err(_)) => Err(ExecutecallbackError::ChannelClosed),
+            Err(_) => Err(ExecutecallbackError::Timeout),
         }
     }
 }
@@ -454,153 +399,5 @@ impl SessionManager {
 impl Default for SessionManager {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Tool call record for tracking tool usage in dev mode
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ToolCallRecord {
-    pub session_id: SessionId,
-    pub timestamp: i64, // Unix timestamp in milliseconds
-    pub tool_name: String,
-    pub namespace: String,
-    pub arguments: serde_json::Value,
-    pub result: Option<serde_json::Value>,
-    pub error: Option<String>,
-    pub code_snippet: Option<String>,
-}
-
-/// Session history for dev mode TUI
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct SessionHistory {
-    pub session_id: SessionId,
-    pub started_at: i64, // Unix timestamp in milliseconds
-    pub ended_at: Option<i64>,
-    pub registered_tools: Vec<String>,
-    pub registered_mcp_servers: Vec<String>,
-    pub tool_calls: Vec<ToolCallRecord>,
-    pub is_active: bool,
-}
-
-impl SessionHistory {
-    pub fn new(session_id: SessionId) -> Self {
-        Self {
-            session_id,
-            started_at: chrono::Utc::now().timestamp_millis(),
-            ended_at: None,
-            registered_tools: Vec::new(),
-            registered_mcp_servers: Vec::new(),
-            tool_calls: Vec::new(),
-            is_active: true,
-        }
-    }
-
-    pub fn add_tool(&mut self, tool_name: String) {
-        if !self.registered_tools.contains(&tool_name) {
-            self.registered_tools.push(tool_name);
-        }
-    }
-
-    pub fn add_mcp_server(&mut self, server_name: String) {
-        if !self.registered_mcp_servers.contains(&server_name) {
-            self.registered_mcp_servers.push(server_name);
-        }
-    }
-
-    pub fn add_tool_call(&mut self, call: ToolCallRecord) {
-        self.tool_calls.push(call);
-    }
-
-    pub fn end_session(&mut self) {
-        self.ended_at = Some(chrono::Utc::now().timestamp_millis());
-        self.is_active = false;
-    }
-}
-
-/// Session storage manager for persisting session history
-#[derive(Clone)]
-pub struct SessionStorage {
-    storage_dir: std::path::PathBuf,
-}
-
-impl SessionStorage {
-    pub fn new(storage_dir: impl Into<std::path::PathBuf>) -> Self {
-        Self {
-            storage_dir: storage_dir.into(),
-        }
-    }
-
-    /// Initialize storage directory
-    pub fn init(&self) -> std::io::Result<()> {
-        std::fs::create_dir_all(&self.storage_dir)?;
-        Ok(())
-    }
-
-    /// Get path for a session file
-    fn session_file_path(&self, session_id: &str) -> std::path::PathBuf {
-        self.storage_dir.join(format!("{}.json", session_id))
-    }
-
-    /// Save session history to disk
-    pub fn save_session(&self, history: &SessionHistory) -> std::io::Result<()> {
-        let path = self.session_file_path(&history.session_id);
-        let json = serde_json::to_string_pretty(history)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        std::fs::write(path, json)?;
-        Ok(())
-    }
-
-    /// Load session history from disk
-    pub fn load_session(&self, session_id: &str) -> std::io::Result<SessionHistory> {
-        let path = self.session_file_path(session_id);
-        let json = std::fs::read_to_string(path)?;
-        let history = serde_json::from_str(&json)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        Ok(history)
-    }
-
-    /// List all session IDs
-    pub fn list_sessions(&self) -> std::io::Result<Vec<String>> {
-        let mut sessions = Vec::new();
-
-        if !self.storage_dir.exists() {
-            return Ok(sessions);
-        }
-
-        for entry in std::fs::read_dir(&self.storage_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-
-            if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    sessions.push(stem.to_string());
-                }
-            }
-        }
-
-        Ok(sessions)
-    }
-
-    /// Load all sessions, sorted by start time (newest first)
-    pub fn load_all_sessions(&self) -> std::io::Result<Vec<SessionHistory>> {
-        let session_ids = self.list_sessions()?;
-        let mut sessions: Vec<SessionHistory> = session_ids
-            .iter()
-            .filter_map(|id| self.load_session(id).ok())
-            .collect();
-
-        // Sort by started_at, newest first
-        sessions.sort_by(|a, b| b.started_at.cmp(&a.started_at));
-
-        Ok(sessions)
-    }
-
-    /// Delete a session
-    pub fn delete_session(&self, session_id: &str) -> std::io::Result<()> {
-        let path = self.session_file_path(session_id);
-        if path.exists() {
-            std::fs::remove_file(path)?;
-        }
-        Ok(())
     }
 }

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
-use pctx_agent_server::{AppState, session::SessionStorage, start_server};
+use pctx_agent_server::{AppState, start_server};
 use pctx_code_mode::CodeMode;
 use tabled::{
     Table,
@@ -41,18 +41,11 @@ pub struct StartCmd {
 
 impl StartCmd {
     pub(crate) async fn handle(&self) -> Result<()> {
-        // Initialize session storage
-        let session_storage = SessionStorage::new(self.session_dir.as_std_path());
-        session_storage.init()?;
-
-        // Create app state
         let code_mode = CodeMode::default();
-        let state = AppState::new(code_mode).with_session_storage(session_storage);
+        let state = AppState::new(code_mode);
 
-        // Print banner
         self.print_banner();
 
-        // Start server
         start_server(&self.host, self.port, state).await?;
 
         Ok(())

@@ -1,4 +1,4 @@
-use crate::session::{OutgoingMessage, Session, SessionHistory};
+use crate::session::{OutgoingMessage, Session};
 use axum::{
     extract::{
         State,
@@ -37,17 +37,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     let session_id = session.id.clone();
 
     info!("Created session: {}", session_id);
-
-    // Register session in SessionManager
     state.session_manager.add_session(session).await;
-
-    // Create session history if storage is enabled
-    if let Some(storage) = &state.session_storage {
-        let history = SessionHistory::new(session_id.clone().into());
-        if let Err(e) = storage.save_session(&history) {
-            warn!("Failed to save initial session history: {}", e);
-        }
-    }
 
     // Send session_created notification
     let session_created = JsonRpcNotification::new(
@@ -84,24 +74,13 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     // Clean up registered tool callbacks from CallbackRegistry
     let sessions_guard = state.session_manager.sessions().read().await;
     if let Some(session) = sessions_guard.get(&session_id) {
-        for tool_name in &session.registered_tools {
+        for (tool_name, _info) in &session.registered_callbacks {
             state.callback_registry.remove(tool_name);
             debug!("Removed callback for tool: {}", tool_name);
         }
     }
 
-    // Clean up session and save final state
     state.session_manager.remove_session(&session_id).await;
-
-    // Mark session as ended and save
-    if let Some(storage) = &state.session_storage
-        && let Ok(mut history) = storage.load_session(&session_id)
-    {
-        history.end_session();
-        if let Err(e) = storage.save_session(&history) {
-            warn!("Failed to save final session history: {}", e);
-        }
-    }
 
     info!("WebSocket connection closed for session {}", session_id);
 }

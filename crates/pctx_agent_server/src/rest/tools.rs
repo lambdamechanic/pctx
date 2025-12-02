@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::session::{OutgoingMessage, ToolCallRecord};
+use crate::session::OutgoingMessage;
 use axum::{
     Json,
     extract::State,
@@ -74,13 +74,13 @@ pub async fn list_tools(
     }; // MutexGuard dropped here
 
     // Add local tools registered via WebSocket/REST
-    let local_tools = state.session_manager.list_tools().await;
-    for tool_name in local_tools {
-        if let Some((namespace, name)) = tool_name.split_once('.') {
+    let local_tools = state.session_manager.list_callbacks_with_info().await;
+    for callback_info in local_tools {
+        if let Some((namespace, name)) = callback_info.name.split_once('.') {
             tools.push(ToolInfo {
                 namespace: namespace.to_string(),
                 name: name.to_string(),
-                description: String::new(), // We don't store descriptions in SessionManager yet
+                description: callback_info.description,
                 source: ToolSource::Local,
             });
         }
@@ -249,18 +249,14 @@ pub async fn register_local_tools(
 
         // Create callback closure that captures session state
         let session_manager_clone = Arc::clone(&state.session_manager);
-        let session_storage_clone = state.session_storage.clone();
         let session_id_clone = request.session_id.clone();
         let tool_name_clone = tool_name.clone();
 
         let callback: CallbackFn = Arc::new(move |args: Option<serde_json::Value>| {
             let session_manager_clone = session_manager_clone.clone();
-            let session_storage_clone = session_storage_clone.clone();
-            let session_id_clone = session_id_clone.clone();
             let tool_name_clone = tool_name_clone.clone();
 
             Box::pin(async move {
-                let start_time = chrono::Utc::now().timestamp_millis();
                 let request_id = Uuid::new_v4().to_string();
 
                 let request = serde_json::json!({
@@ -274,35 +270,13 @@ pub async fn register_local_tools(
                 });
 
                 let result = session_manager_clone
-                    .execute_tool_raw(
+                    .execute_callback_raw(
                         &tool_name_clone,
                         OutgoingMessage::Response(request),
                         serde_json::Value::String(request_id),
                     )
                     .await
                     .map_err(|e| e.to_string());
-
-                // Record tool call in session storage
-                if let Some(storage) = &session_storage_clone {
-                    let (namespace, tool_name_part) = tool_name_clone
-                        .split_once('.')
-                        .unwrap_or(("", &tool_name_clone));
-                    let tool_call_record = ToolCallRecord {
-                        session_id: session_id_clone.clone(),
-                        timestamp: start_time,
-                        tool_name: tool_name_part.to_string(),
-                        namespace: namespace.to_string(),
-                        arguments: args.clone().unwrap_or(serde_json::Value::Null),
-                        result: result.as_ref().ok().cloned(),
-                        error: result.as_ref().err().cloned(),
-                        code_snippet: None,
-                    };
-
-                    if let Ok(mut history) = storage.load_session(&session_id_clone) {
-                        history.add_tool_call(tool_call_record);
-                        let _ = storage.save_session(&history);
-                    }
-                }
 
                 result
             })
@@ -346,12 +320,11 @@ pub async fn register_local_tools(
                 }),
             )
         })?;
-        // drop(code_mode);
 
         // Register with session_manager for tracking
         state
             .session_manager
-            .register_tool(
+            .register_callback(
                 &request.session_id,
                 tool_name.clone(),
                 Some(tool.description.clone()),
@@ -369,14 +342,6 @@ pub async fn register_local_tools(
                     }),
                 )
             })?;
-
-        // Track tool registration in session history
-        if let Some(storage) = &state.session_storage {
-            if let Ok(mut history) = storage.load_session(&request.session_id) {
-                history.add_tool(tool_name);
-                let _ = storage.save_session(&history);
-            }
-        }
 
         registered += 1;
     }
