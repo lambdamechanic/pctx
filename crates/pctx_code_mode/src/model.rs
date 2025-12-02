@@ -1,17 +1,19 @@
 use schemars::{JsonSchema, json_schema};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::json;
+use utoipa::ToSchema;
 
 // -------------- List Functions --------------
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
 pub struct ListFunctionsOutput {
     /// Available functions
     pub functions: Vec<ListedFunction>,
 
     #[serde(skip)]
+    #[schema(ignore = true)]
     pub code: String,
 }
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
 pub struct ListedFunction {
     /// Namespace the function belongs in
     pub namespace: String,
@@ -23,9 +25,10 @@ pub struct ListedFunction {
 
 // -------------- Get Function Details --------------
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
 pub struct GetFunctionDetailsInput {
     /// List of functions to get details of.
+    #[schema(value_type = Vec<String>)]
     pub functions: Vec<FunctionId>,
 }
 
@@ -80,14 +83,15 @@ impl<'de> Deserialize<'de> for FunctionId {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
 pub struct GetFunctionDetailsOutput {
     pub functions: Vec<FunctionDetails>,
 
     #[serde(skip)]
+    #[schema(ignore = true)]
     pub code: String,
 }
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
 pub struct FunctionDetails {
     #[serde(flatten)]
     pub listed: ListedFunction,
@@ -103,7 +107,7 @@ pub struct FunctionDetails {
 // -------------- Execute --------------
 
 #[allow(clippy::doc_markdown)]
-#[derive(Debug, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Default, Serialize, Deserialize, schemars::JsonSchema, ToSchema)]
 #[serde(default)]
 pub struct ExecuteInput {
     /// Typescript code to execute.
@@ -120,7 +124,7 @@ pub struct ExecuteInput {
     pub code: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema, ToSchema)]
 pub struct ExecuteOutput {
     /// Success of executed code
     pub success: bool,
@@ -129,6 +133,7 @@ pub struct ExecuteOutput {
     /// Standard error of executed code
     pub stderr: String,
     /// Value returned by executed function
+    #[schema(value_type = Object)]
     pub output: Option<serde_json::Value>,
 }
 impl ExecuteOutput {
@@ -154,4 +159,25 @@ impl ExecuteOutput {
             stderr = &self.stderr,
         )
     }
+}
+
+// -------------- Agent Server Wrappers --------------
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
+pub struct AgentListFunctionsInput {
+    pub session_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
+pub struct AgentGetFunctionDetailsInput {
+    pub session_id: String,
+    #[serde(flatten)]
+    pub input: GetFunctionDetailsInput,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
+pub struct AgentExecuteInput {
+    pub session_id: String,
+    #[serde(flatten)]
+    pub input: ExecuteInput,
 }
