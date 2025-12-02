@@ -23,21 +23,21 @@ use tower_http::{
 use tracing::info;
 
 use crate::{
-    mcp::service::PctxMcpService,
+    service::PctxMcpService,
     utils::{
         LOGO,
         styles::{fmt_cyan, fmt_dimmed},
     },
 };
 
-pub(crate) struct PctxMcpServer {
+pub struct PctxMcpServer {
     host: String,
     port: u16,
     banner: bool,
 }
 
 impl PctxMcpServer {
-    pub(crate) fn new(host: &str, port: u16, banner: bool) -> Self {
+    pub fn new(host: &str, port: u16, banner: bool) -> Self {
         Self {
             host: host.into(),
             port,
@@ -45,7 +45,7 @@ impl PctxMcpServer {
         }
     }
 
-    pub(crate) async fn serve(
+    pub async fn serve(
         &self,
         cfg: &Config,
         code_mode: pctx_code_mode::CodeMode,
@@ -59,7 +59,7 @@ impl PctxMcpServer {
             .await
     }
 
-    pub(crate) async fn serve_with_shutdown<F>(
+    pub async fn serve_with_shutdown<F>(
         &self,
         cfg: &Config,
         code_mode: pctx_code_mode::CodeMode,

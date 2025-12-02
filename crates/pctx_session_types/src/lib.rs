@@ -456,3 +456,151 @@ impl Default for SessionManager {
         Self::new()
     }
 }
+
+/// Tool call record for tracking tool usage in dev mode
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ToolCallRecord {
+    pub session_id: SessionId,
+    pub timestamp: i64, // Unix timestamp in milliseconds
+    pub tool_name: String,
+    pub namespace: String,
+    pub arguments: serde_json::Value,
+    pub result: Option<serde_json::Value>,
+    pub error: Option<String>,
+    pub code_snippet: Option<String>,
+}
+
+/// Session history for dev mode TUI
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SessionHistory {
+    pub session_id: SessionId,
+    pub started_at: i64, // Unix timestamp in milliseconds
+    pub ended_at: Option<i64>,
+    pub registered_tools: Vec<String>,
+    pub registered_mcp_servers: Vec<String>,
+    pub tool_calls: Vec<ToolCallRecord>,
+    pub is_active: bool,
+}
+
+impl SessionHistory {
+    pub fn new(session_id: SessionId) -> Self {
+        Self {
+            session_id,
+            started_at: chrono::Utc::now().timestamp_millis(),
+            ended_at: None,
+            registered_tools: Vec::new(),
+            registered_mcp_servers: Vec::new(),
+            tool_calls: Vec::new(),
+            is_active: true,
+        }
+    }
+
+    pub fn add_tool(&mut self, tool_name: String) {
+        if !self.registered_tools.contains(&tool_name) {
+            self.registered_tools.push(tool_name);
+        }
+    }
+
+    pub fn add_mcp_server(&mut self, server_name: String) {
+        if !self.registered_mcp_servers.contains(&server_name) {
+            self.registered_mcp_servers.push(server_name);
+        }
+    }
+
+    pub fn add_tool_call(&mut self, call: ToolCallRecord) {
+        self.tool_calls.push(call);
+    }
+
+    pub fn end_session(&mut self) {
+        self.ended_at = Some(chrono::Utc::now().timestamp_millis());
+        self.is_active = false;
+    }
+}
+
+/// Session storage manager for persisting session history
+#[derive(Clone)]
+pub struct SessionStorage {
+    storage_dir: std::path::PathBuf,
+}
+
+impl SessionStorage {
+    pub fn new(storage_dir: impl Into<std::path::PathBuf>) -> Self {
+        Self {
+            storage_dir: storage_dir.into(),
+        }
+    }
+
+    /// Initialize storage directory
+    pub fn init(&self) -> std::io::Result<()> {
+        std::fs::create_dir_all(&self.storage_dir)?;
+        Ok(())
+    }
+
+    /// Get path for a session file
+    fn session_file_path(&self, session_id: &str) -> std::path::PathBuf {
+        self.storage_dir.join(format!("{}.json", session_id))
+    }
+
+    /// Save session history to disk
+    pub fn save_session(&self, history: &SessionHistory) -> std::io::Result<()> {
+        let path = self.session_file_path(&history.session_id);
+        let json = serde_json::to_string_pretty(history)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        std::fs::write(path, json)?;
+        Ok(())
+    }
+
+    /// Load session history from disk
+    pub fn load_session(&self, session_id: &str) -> std::io::Result<SessionHistory> {
+        let path = self.session_file_path(session_id);
+        let json = std::fs::read_to_string(path)?;
+        let history = serde_json::from_str(&json)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        Ok(history)
+    }
+
+    /// List all session IDs
+    pub fn list_sessions(&self) -> std::io::Result<Vec<String>> {
+        let mut sessions = Vec::new();
+
+        if !self.storage_dir.exists() {
+            return Ok(sessions);
+        }
+
+        for entry in std::fs::read_dir(&self.storage_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    sessions.push(stem.to_string());
+                }
+            }
+        }
+
+        Ok(sessions)
+    }
+
+    /// Load all sessions, sorted by start time (newest first)
+    pub fn load_all_sessions(&self) -> std::io::Result<Vec<SessionHistory>> {
+        let session_ids = self.list_sessions()?;
+        let mut sessions: Vec<SessionHistory> = session_ids
+            .iter()
+            .filter_map(|id| self.load_session(id).ok())
+            .collect();
+
+        // Sort by started_at, newest first
+        sessions.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+
+        Ok(sessions)
+    }
+
+    /// Delete a session
+    pub fn delete_session(&self, session_id: &str) -> std::io::Result<()> {
+        let path = self.session_file_path(session_id);
+        if path.exists() {
+            std::fs::remove_file(path)?;
+        }
+        Ok(())
+    }
+}

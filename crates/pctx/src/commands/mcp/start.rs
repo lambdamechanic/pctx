@@ -4,7 +4,7 @@ use pctx_code_mode::CodeMode;
 use pctx_config::Config;
 use tracing::{debug, info, warn};
 
-use crate::mcp::PctxMcpServer;
+use pctx_mcp_server::PctxMcpServer;
 
 #[derive(Debug, Clone, Parser)]
 pub struct StartCmd {

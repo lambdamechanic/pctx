@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use crate::callable_tool_registry::{CallableToolMetadata, CallableToolRegistry};
 use crate::error::McpError;
-use pctx_session_types::SessionManager;
+use pctx_session_types::{SessionManager, SessionStorage, ToolCallRecord};
 
 /// Check if a local tool is registered
 #[op2(fast)]
@@ -106,14 +106,43 @@ pub(crate) async fn op_execute_local_tool(
         "id": request_id.clone()
     });
 
+    // Get the session ID for this tool
+    let session_id = session_manager
+        .get_tool_session(&name)
+        .await
+        .ok_or_else(|| McpError::ExecutionError(format!("Tool not found: {}", name)))?;
+
     // Execute tool via WebSocket
     // The session manager will return ToolNotFound if the tool doesn't exist
-    session_manager
+    let start_time = chrono::Utc::now().timestamp_millis();
+    let result = session_manager
         .execute_tool_raw(
             &name,
             pctx_session_types::OutgoingMessage::Response(request),
             serde_json::Value::String(request_id),
         )
-        .await
-        .map_err(|e| McpError::ExecutionError(e.to_string()))
+        .await;
+
+    // Record the tool call in session history
+    let (namespace, tool_name_part) = name.split_once('.').unwrap_or(("", &name));
+    let tool_call_record = ToolCallRecord {
+        session_id: session_id.clone(),
+        timestamp: start_time,
+        tool_name: tool_name_part.to_string(),
+        namespace: namespace.to_string(),
+        arguments: arguments.unwrap_or(serde_json::Value::Null),
+        result: result.as_ref().ok().cloned(),
+        error: result.as_ref().err().map(|e| e.to_string()),
+        code_snippet: None, // We don't have access to the source code here
+    };
+
+    // Try to save the tool call if session storage is available
+    if let Some(session_storage) = state.borrow().try_borrow::<Arc<SessionStorage>>() {
+        if let Ok(mut history) = session_storage.load_session(&session_id) {
+            history.add_tool_call(tool_call_record);
+            let _ = session_storage.save_session(&history);
+        }
+    }
+
+    result.map_err(|e| McpError::ExecutionError(e.to_string()))
 }

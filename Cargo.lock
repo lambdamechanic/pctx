@@ -6772,6 +6772,8 @@ dependencies = [
  "pctx_code_mode",
  "pctx_config",
  "pctx_executor",
+ "pctx_mcp_server",
+ "pctx_session_types",
  "ratatui",
  "rmcp",
  "rustls",
@@ -6827,6 +6829,7 @@ name = "pctx_code_execution_runtime"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "deno_core",
  "deno_error",
  "pctx_config",
@@ -6912,9 +6915,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "pctx_mcp_server"
+version = "0.1.0"
+dependencies = [
+ "anstyle",
+ "anyhow",
+ "axum 0.8.7",
+ "codegen",
+ "opentelemetry 0.31.0",
+ "pctx_code_mode",
+ "pctx_config",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "tabled",
+ "terminal_size",
+ "tokio",
+ "tower 0.5.2",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
 name = "pctx_session_types"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "serde",
  "serde_json",
  "thiserror 2.0.17",

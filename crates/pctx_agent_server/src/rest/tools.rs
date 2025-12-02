@@ -163,6 +163,8 @@ pub async fn execute_code(
     let input = ExecuteInput {
         code: request.code,
         session_manager: Some(session_manager),
+        session_id: None, // REST API doesn't have a session context
+        session_storage: state.session_storage.clone(),
     };
 
     // Clone the CodeMode Arc to move into spawn_blocking
@@ -265,7 +267,7 @@ pub async fn register_local_tools(
             .session_manager
             .register_tool(
                 &request.session_id,
-                tool_name,
+                tool_name.clone(),
                 Some(tool.description.clone()),
             )
             .await
@@ -281,6 +283,15 @@ pub async fn register_local_tools(
                     }),
                 )
             })?;
+
+        // Track tool registration in session history
+        if let Some(storage) = &state.session_storage {
+            if let Ok(mut history) = storage.load_session(&request.session_id) {
+                history.add_tool(tool_name);
+                let _ = storage.save_session(&history);
+            }
+        }
+
         registered += 1;
     }
 

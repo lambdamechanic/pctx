@@ -272,6 +272,11 @@ impl CodeMode {
             options = options.with_session_manager(session_manager);
         }
 
+        // Pass the session_storage if provided
+        if let Some(session_storage) = input.session_storage {
+            options = options.with_session_storage(session_storage);
+        }
+
         let execution_res = pctx_executor::execute(&to_execute, options).await?;
 
         if execution_res.success {

@@ -9,7 +9,7 @@ use futures::{
     SinkExt, StreamExt,
     stream::{SplitSink, SplitStream},
 };
-use pctx_session_types::{OutgoingMessage, Session};
+use pctx_session_types::{OutgoingMessage, Session, SessionHistory};
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -40,6 +40,14 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
     // Register session in SessionManager
     state.session_manager.add_session(session).await;
+
+    // Create session history if storage is enabled
+    if let Some(storage) = &state.session_storage {
+        let history = SessionHistory::new(session_id.clone().into());
+        if let Err(e) = storage.save_session(&history) {
+            warn!("Failed to save initial session history: {}", e);
+        }
+    }
 
     // Send session_created notification
     let session_created = JsonRpcNotification::new(
@@ -73,8 +81,18 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
         }
     }
 
-    // Clean up session
+    // Clean up session and save final state
     state.session_manager.remove_session(&session_id).await;
+
+    // Mark session as ended and save
+    if let Some(storage) = &state.session_storage {
+        if let Ok(mut history) = storage.load_session(&session_id) {
+            history.end_session();
+            if let Err(e) = storage.save_session(&history) {
+                warn!("Failed to save final session history: {}", e);
+            }
+        }
+    }
 
     info!("WebSocket connection closed for session {}", session_id);
 }

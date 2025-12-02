@@ -1,11 +1,10 @@
 pub mod commands;
-pub mod mcp;
 pub mod utils;
 
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 
-use crate::utils::{logger::init_cli_logger, telemetry::init_telemetry};
+use crate::utils::{logger::init_cli_logger, telemetry::{init_telemetry, init_telemetry_minimal}};
 use pctx_config::Config;
 
 #[derive(Parser)]
@@ -22,7 +21,7 @@ for AI agents to call via code execution."
     pctx mcp add my-server https://mcp.example.com\n  \
     pctx mcp dev\n\n  \
     # Agent mode (REST API + WebSocket, no config)\n  \
-    pctx agent dev\n\
+    pctx agent start\n\
 ")]
 pub struct Cli {
     #[command(subcommand)]
@@ -88,10 +87,12 @@ impl Cli {
 
     async fn handle_agent(&self, cmd: &AgentCommands) -> anyhow::Result<()> {
         // Agent mode doesn't need config file
-        init_cli_logger(self.verbose, self.quiet);
-
         match cmd {
-            AgentCommands::Dev(cmd) => cmd.handle().await?,
+            AgentCommands::Start(start_cmd) => {
+                // Init minimal telemetry with optional JSONL logging
+                init_telemetry_minimal(self.json_l()).await?;
+                start_cmd.handle().await?
+            }
         }
 
         Ok(())
@@ -145,5 +146,5 @@ pub enum AgentCommands {
     #[command(
         long_about = "Start agent mode with REST API and WebSocket server. No tools preloaded - use REST API to register tools and MCP servers dynamically."
     )]
-    Dev(commands::agent::DevCmd),
+    Start(commands::agent::StartCmd),
 }

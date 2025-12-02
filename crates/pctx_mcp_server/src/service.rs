@@ -1,4 +1,3 @@
-use opentelemetry::KeyValue;
 use pctx_code_mode::{
     CodeMode,
     model::{
@@ -19,7 +18,7 @@ use rmcp::{
 use serde_json::json;
 use tracing::{error, info, instrument};
 
-use crate::utils::metrics::mcp_tool_metrics;
+// Metrics removed - will be added via telemetry support later
 
 type McpResult<T> = Result<T, rmcp::ErrorData>;
 
@@ -211,12 +210,8 @@ impl ServerHandler for PctxMcpService {
             "tools/list"
         );
 
-        // Record metrics
-        if let Some(metrics) = mcp_tool_metrics() {
-            metrics
-                .list_duration
-                .record(latency.as_secs_f64() * 1000.0, &[]);
-        }
+        // Metrics disabled for now
+        let _ = latency;
 
         Ok(res)
     }
@@ -239,28 +234,8 @@ impl ServerHandler for PctxMcpService {
             .map(|r| r.is_error.unwrap_or_default())
             .unwrap_or(true);
 
-        // Record metrics
-        if let Some(metrics) = mcp_tool_metrics() {
-            let attrs = vec![
-                KeyValue::new("tool_name", tool_name.clone()),
-                KeyValue::new("status", if is_error { "error" } else { "success" }),
-            ];
-
-            metrics
-                .call_duration
-                .record(latency.as_secs_f64() * 1000.0, &attrs);
-            metrics.calls_total.add(1, &attrs);
-
-            if is_error {
-                metrics.errors_total.add(
-                    1,
-                    &[
-                        KeyValue::new("tool_name", tool_name.clone()),
-                        KeyValue::new("error_type", "tool_error"),
-                    ],
-                );
-            }
-        }
+        // Metrics disabled for now
+        let _ = (is_error, latency);
 
         let res = res?;
 

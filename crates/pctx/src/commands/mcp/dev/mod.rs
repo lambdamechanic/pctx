@@ -23,7 +23,8 @@ use pctx_config::Config;
 use ratatui::{Terminal, backend::CrosstermBackend, style::Color};
 use tokio::sync::mpsc;
 
-use crate::{commands::mcp::start::StartCmd, mcp::PctxMcpServer};
+use crate::commands::mcp::start::StartCmd;
+use pctx_mcp_server::PctxMcpServer;
 use app::{App, AppMessage, FocusPanel};
 
 #[allow(unused)]

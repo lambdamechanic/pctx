@@ -21,6 +21,8 @@ pub struct ExecuteOptions {
     pub callable_registry: Option<pctx_code_execution_runtime::CallableToolRegistry>,
     /// Session manager for WebSocket-based tool execution
     pub session_manager: Option<std::sync::Arc<pctx_code_execution_runtime::SessionManager>>,
+    /// Session storage for persisting tool call history
+    pub session_storage: Option<std::sync::Arc<pctx_code_execution_runtime::SessionStorage>>,
 }
 
 impl std::fmt::Debug for ExecuteOptions {
@@ -36,6 +38,13 @@ impl std::fmt::Debug for ExecuteOptions {
                     .as_ref()
                     .map(|_| "SessionManager { .. }"),
             )
+            .field(
+                "session_storage",
+                &self
+                    .session_storage
+                    .as_ref()
+                    .map(|_| "SessionStorage { .. }"),
+            )
             .finish()
     }
 }
@@ -47,6 +56,7 @@ impl Default for ExecuteOptions {
             mcp_configs: None,
             callable_registry: None,
             session_manager: None,
+            session_storage: None,
         }
     }
 }
@@ -88,6 +98,16 @@ impl ExecuteOptions {
         session_manager: std::sync::Arc<pctx_code_execution_runtime::SessionManager>,
     ) -> Self {
         self.session_manager = Some(session_manager);
+        self
+    }
+
+    /// Set the session storage for persisting tool call history
+    #[must_use]
+    pub fn with_session_storage(
+        mut self,
+        session_storage: std::sync::Arc<pctx_code_execution_runtime::SessionStorage>,
+    ) -> Self {
+        self.session_storage = Some(session_storage);
         self
     }
 }
@@ -325,6 +345,7 @@ async fn execute_code(
         callable_registry,
         session_manager,
         allowed_hosts,
+        options.session_storage,
     )];
 
     // Create JsRuntime from `pctx_runtime` snapshot and extension

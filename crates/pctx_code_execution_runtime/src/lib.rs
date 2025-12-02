@@ -37,7 +37,7 @@
 //!
 //! let mut runtime = JsRuntime::new(RuntimeOptions {
 //!     startup_snapshot: Some(RUNTIME_SNAPSHOT),
-//!     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, session_manager, allowed_hosts)],
+//!     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, session_manager, allowed_hosts, None)],
 //!     ..Default::default()
 //! });
 //!
@@ -104,8 +104,8 @@ pub use callable_tool_registry::{
 pub use fetch::AllowedHosts;
 pub use registry::MCPRegistry;
 
-// Re-export SessionManager from pctx_session_types for convenience
-pub use pctx_session_types::SessionManager;
+// Re-export SessionManager and SessionStorage from pctx_session_types for convenience
+pub use pctx_session_types::{SessionManager, SessionStorage};
 
 /// Pre-compiled V8 snapshot containing the PCTX runtime
 ///
@@ -132,7 +132,7 @@ pub use pctx_session_types::SessionManager;
 ///
 /// let mut runtime = JsRuntime::new(RuntimeOptions {
 ///     startup_snapshot: Some(RUNTIME_SNAPSHOT),
-///     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, session_manager, allowed_hosts)],
+///     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, session_manager, allowed_hosts, None)],
 ///     ..Default::default()
 /// });
 /// # Ok(())
@@ -168,11 +168,15 @@ deno_core::extension!(
         local_tool_registry: CallableToolRegistry,
         session_manager: std::sync::Arc<SessionManager>,
         allowed_hosts: AllowedHosts,
+        session_storage: Option<std::sync::Arc<SessionStorage>>,
     },
     state = |state, options| {
         state.put(options.registry);
         state.put(options.local_tool_registry);
         state.put(options.session_manager);
         state.put(options.allowed_hosts);
+        if let Some(storage) = options.session_storage {
+            state.put(storage);
+        }
     },
 );

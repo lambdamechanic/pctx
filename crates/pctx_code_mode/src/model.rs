@@ -124,6 +124,16 @@ pub struct ExecuteInput {
     #[schemars(skip)]
     #[allow(dead_code)] // Used when passed from server.rs
     pub session_manager: Option<std::sync::Arc<pctx_session_types::SessionManager>>,
+
+    /// Optional session ID for tracking tool usage
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub session_id: Option<String>,
+
+    /// Optional session storage for persisting tool calls
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub session_storage: Option<std::sync::Arc<pctx_session_types::SessionStorage>>,
 }
 
 impl std::fmt::Debug for ExecuteInput {
@@ -137,6 +147,14 @@ impl std::fmt::Debug for ExecuteInput {
                     .as_ref()
                     .map(|_| "SessionManager { .. }"),
             )
+            .field("session_id", &self.session_id)
+            .field(
+                "session_storage",
+                &self
+                    .session_storage
+                    .as_ref()
+                    .map(|_| "SessionStorage { .. }"),
+            )
             .finish()
     }
 }
@@ -146,6 +164,8 @@ impl Default for ExecuteInput {
         Self {
             code: String::new(),
             session_manager: None,
+            session_id: None,
+            session_storage: None,
         }
     }
 }
