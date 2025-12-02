@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use pctx_code_execution_runtime::CallbackRegistry;
 use pctx_config::{callback::CallbackConfig, server::ServerConfig};
 use serde_json::json;
 use tracing::{debug, warn};
@@ -7,8 +8,8 @@ use tracing::{debug, warn};
 use crate::{
     Error, Result,
     model::{
-        ExecuteInput, ExecuteOutput, FunctionDetails, GetFunctionDetailsInput,
-        GetFunctionDetailsOutput, ListFunctionsOutput, ListedFunction,
+        ExecuteOutput, FunctionDetails, GetFunctionDetailsInput, GetFunctionDetailsOutput,
+        ListFunctionsOutput, ListedFunction,
     },
 };
 
@@ -20,108 +21,15 @@ pub struct CodeMode {
     // configurations
     pub servers: Vec<ServerConfig>,
     pub callbacks: Vec<CallbackConfig>,
-
-    // TODO: delete
-    pub callable_registry: Option<pctx_code_execution_runtime::CallableToolRegistry>,
 }
 
 impl CodeMode {
-    // TODO: delete
-    fn callables_as_toolsets(&self) -> Vec<codegen::ToolSet> {
-        let mut toolsets = Vec::new();
-
-        // Convert local tool callbacks - group by namespace
-        if let Some(ref callable_registry) = self.callable_registry {
-            let callable_metadata = callable_registry.list();
-            if !callable_metadata.is_empty() {
-                let mut tools_by_namespace: HashMap<String, Vec<codegen::Tool>> = HashMap::new();
-
-                for metadata in callable_metadata {
-                    match Self::callable_metadata_to_codegen_tool(&metadata) {
-                        Ok(tool) => {
-                            tools_by_namespace
-                                .entry(metadata.namespace.clone())
-                                .or_default()
-                                .push(tool);
-                        }
-                        Err(e) => {
-                            warn!("Failed to convert callable tool '{}': {}", metadata.name, e)
-                        }
-                    }
-                }
-
-                for (namespace, tools) in tools_by_namespace {
-                    toolsets.push(codegen::ToolSet::new(
-                        &namespace,
-                        &format!("Callable tools in namespace '{}'", namespace),
-                        tools,
-                    ));
-                }
-            }
-        }
-
-        toolsets
-    }
-
-    /// Convert local tool metadata to a codegen Tool
-    // TODO: delete
-    fn callable_metadata_to_codegen_tool(
-        metadata: &pctx_code_execution_runtime::CallableToolMetadata,
-    ) -> Result<codegen::Tool> {
-        let schema_value = if let Some(schema) = &metadata.input_schema {
-            schema.clone()
-        } else {
-            // Default to accepting any object
-            json!({
-                "type": "object",
-                "properties": {},
-                "additionalProperties": true
-            })
-        };
-
-        let input_schema: codegen::RootSchema =
-            serde_json::from_value(schema_value).map_err(|e| {
-                Error::Message(format!(
-                    "Failed to parse input schema for '{}': {}",
-                    metadata.name, e
-                ))
-            })?;
-
-        let output_schema: Option<codegen::RootSchema> =
-            if let Some(schema) = &metadata.output_schema {
-                Some(serde_json::from_value(schema.clone()).map_err(|e| {
-                    Error::Message(format!(
-                        "Failed to parse output schema for '{}': {}",
-                        metadata.name, e
-                    ))
-                })?)
-            } else {
-                None
-            };
-
-        codegen::Tool::new_callable(
-            &metadata.name,
-            metadata.description.clone(),
-            input_schema,
-            output_schema,
-        )
-        .map_err(Error::from)
-    }
-
-    /// Get all tool sets including MCP servers and local tools
-    // TODO: delete
-    fn all_tool_sets(&self) -> Vec<codegen::ToolSet> {
-        let mut all = self.tool_sets.clone();
-        all.extend(self.callables_as_toolsets());
-        all
-    }
-
     /// Returns internal tool sets as minimal code interfaces
     pub fn list_functions(&self) -> ListFunctionsOutput {
         let mut namespaces = vec![];
         let mut functions = vec![];
 
-        for tool_set in &self.all_tool_sets() {
+        for tool_set in &self.tool_sets {
             if tool_set.tools.is_empty() {
                 // skip sets with no tools
                 continue;
@@ -130,7 +38,7 @@ impl CodeMode {
             namespaces.push(tool_set.namespace_interface(false));
 
             functions.extend(tool_set.tools.iter().map(|t| ListedFunction {
-                namespace: tool_set.mod_name.clone(),
+                namespace: tool_set.namespace.clone(),
                 name: t.fn_name.clone(),
                 description: t.description.clone(),
             }));
@@ -156,8 +64,8 @@ impl CodeMode {
         let mut namespaces = vec![];
         let mut functions = vec![];
 
-        for tool_set in &self.all_tool_sets() {
-            if let Some(fn_names) = by_mod.get(&tool_set.mod_name) {
+        for tool_set in &self.tool_sets {
+            if let Some(fn_names) = by_mod.get(&tool_set.namespace) {
                 // filter tools based on requested fn names
                 let tools: Vec<&codegen::Tool> = tool_set
                     .tools
@@ -174,7 +82,7 @@ impl CodeMode {
                     // struct output
                     functions.extend(tools.iter().map(|t| FunctionDetails {
                         listed: ListedFunction {
-                            namespace: tool_set.mod_name.clone(),
+                            namespace: tool_set.namespace.clone(),
                             name: t.fn_name.clone(),
                             description: t.description.clone(),
                         },
@@ -195,7 +103,7 @@ impl CodeMode {
         GetFunctionDetailsOutput { code, functions }
     }
 
-    pub async fn execute(&self, code: &str, callbacks:) -> Result<ExecuteOutput> {
+    pub async fn execute(&self, code: &str, callbacks: CallbackRegistry) -> Result<ExecuteOutput> {
         debug!(
             code_from_llm = %code,
             code_length = code.len(),
@@ -204,7 +112,7 @@ impl CodeMode {
 
         // generate the full script to be executed
         let namespaces: Vec<String> = self
-            .all_tool_sets()
+            .tool_sets
             .iter()
             .filter_map(|s| {
                 if s.tools.is_empty() {
@@ -222,31 +130,25 @@ impl CodeMode {
 
         debug!("Executing code in sandbox");
 
-        // Use the unified CallableToolRegistry
-        let unified_registry = self.callable_registry.clone().unwrap_or_default();
-
         let options = pctx_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
-            .with_mcp_configs(self.servers.clone())
-            .with_callable_registry(unified_registry);
+            .with_servers(self.servers.clone())
+            .with_callbacks(callbacks);
 
         let execution_res = pctx_executor::execute(&to_execute, options).await?;
-        todo!()
 
-        // let execution_res = pctx_executor::execute(&to_execute, options).await?;
+        if execution_res.success {
+            debug!("Sandbox execution completed successfully");
+        } else {
+            warn!("Sandbox execution failed: {:?}", execution_res.stderr);
+        }
 
-        // if execution_res.success {
-        //     debug!("Sandbox execution completed successfully");
-        // } else {
-        //     warn!("Sandbox execution failed: {:?}", execution_res.stderr);
-        // }
-
-        // Ok(ExecuteOutput {
-        //     success: execution_res.success,
-        //     stdout: execution_res.stdout,
-        //     stderr: execution_res.stderr,
-        //     output: execution_res.output,
-        // })
+        Ok(ExecuteOutput {
+            success: execution_res.success,
+            stdout: execution_res.stdout,
+            stderr: execution_res.stderr,
+            output: execution_res.output,
+        })
     }
 
     // Generates a ToolSet from the given MCP server config
