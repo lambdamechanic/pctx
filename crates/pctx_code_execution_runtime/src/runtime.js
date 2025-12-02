@@ -106,4 +106,5 @@ async function fetch(url, options) {
 
 // Make APIs available globally for convenience (matching original behavior)
 globalThis.callMCPTool = callMCPTool;
+globalThis.invokeCallback = invokeCallback;
 globalThis.fetch = fetch;

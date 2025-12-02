@@ -4,18 +4,22 @@
 //! Callbacks handle their own execution logic (WebSocket RPC, MCP calls, etc.)
 
 use deno_core::{OpState, op2};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::{CallbackRegistry, error::McpError};
 
-#[op2]
+#[op2(async)]
 #[serde]
-#[allow(clippy::needless_pass_by_value)]
-pub(crate) fn op_invoke_callback(
-    state: &mut OpState,
+pub(crate) async fn op_invoke_callback(
+    state: Rc<RefCell<OpState>>,
     #[string] id: String,
     #[serde] arguments: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, McpError> {
-    let registry = state.borrow::<CallbackRegistry>();
+    let registry = {
+        let borrowed = state.borrow();
+        borrowed.borrow::<CallbackRegistry>().clone()
+    };
 
-    registry.invoke(&id, arguments)
+    registry.invoke(&id, arguments).await
 }

@@ -1,12 +1,17 @@
 use std::{
     collections::HashMap,
+    future::Future,
+    pin::Pin,
     sync::{Arc, RwLock},
 };
 
 use crate::error::McpError;
 
-pub type CallbackFn =
-    Arc<dyn Fn(Option<serde_json::Value>) -> Result<serde_json::Value, String> + Send + Sync>;
+pub type CallbackFn = Arc<
+    dyn Fn(Option<serde_json::Value>) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, String>> + Send>>
+        + Send
+        + Sync,
+>;
 
 /// Singleton registry for callbacks
 #[derive(Clone, Default)]
@@ -72,7 +77,7 @@ impl CallbackRegistry {
     ///
     /// This function will return an error if a callback by the provided id doesn't exist
     /// or if the callback itself fails
-    pub fn invoke(
+    pub async fn invoke(
         &self,
         id: &str,
         args: Option<serde_json::Value>,
@@ -81,7 +86,7 @@ impl CallbackRegistry {
             McpError::ToolCall(format!("Callback with id \"{id}\" does not exist"))
         })?;
 
-        callback(args).map_err(|e| {
+        callback(args).await.map_err(|e| {
             McpError::ExecutionError(format!("Failed calling callback with id \"{id}\": {e}",))
         })
     }
