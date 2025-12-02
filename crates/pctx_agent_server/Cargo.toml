@@ -15,6 +15,7 @@ path = "src/bin/generate-openapi.rs"
 pctx_session_types = { path = "../pctx_session_types" }
 pctx_code_mode = { path = "../pctx_code_mode" }
 pctx_config = { path = "../pctx_config" }
+pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
 codegen = { path = "../codegen" }
 
 # Web framework
@@ -33,6 +34,7 @@ utoipa = { version = "5.3", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 url = "2.5"
 uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = "0.4"
 
 # Serialization
 serde = { workspace = true }

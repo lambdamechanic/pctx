@@ -103,7 +103,7 @@ pub struct FunctionDetails {
 // -------------- Execute --------------
 
 #[allow(clippy::doc_markdown)]
-#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct ExecuteInput {
     /// Typescript code to execute.
@@ -118,56 +118,6 @@ pub struct ExecuteInput {
     /// The sandbox automatically calls run() and exports the result.
     ///
     pub code: String,
-
-    /// Optional session manager for WebSocket-based local tool execution
-    #[serde(skip)]
-    #[schemars(skip)]
-    #[allow(dead_code)] // Used when passed from server.rs
-    pub session_manager: Option<std::sync::Arc<pctx_session_types::SessionManager>>,
-
-    /// Optional session ID for tracking tool usage
-    #[serde(skip)]
-    #[schemars(skip)]
-    pub session_id: Option<String>,
-
-    /// Optional session storage for persisting tool calls
-    #[serde(skip)]
-    #[schemars(skip)]
-    pub session_storage: Option<std::sync::Arc<pctx_session_types::SessionStorage>>,
-}
-
-impl std::fmt::Debug for ExecuteInput {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ExecuteInput")
-            .field("code", &self.code)
-            .field(
-                "session_manager",
-                &self
-                    .session_manager
-                    .as_ref()
-                    .map(|_| "SessionManager { .. }"),
-            )
-            .field("session_id", &self.session_id)
-            .field(
-                "session_storage",
-                &self
-                    .session_storage
-                    .as_ref()
-                    .map(|_| "SessionStorage { .. }"),
-            )
-            .finish()
-    }
-}
-
-impl Default for ExecuteInput {
-    fn default() -> Self {
-        Self {
-            code: String::new(),
-            session_manager: None,
-            session_id: None,
-            session_storage: None,
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]

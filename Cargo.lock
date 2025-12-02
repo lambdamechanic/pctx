@@ -6800,9 +6800,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum 0.8.7",
+ "chrono",
  "codegen",
  "futures",
  "http-body-util",
+ "pctx_code_execution_runtime",
  "pctx_code_mode",
  "pctx_config",
  "pctx_session_types",
@@ -6829,11 +6831,9 @@ name = "pctx_code_execution_runtime"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "chrono",
  "deno_core",
  "deno_error",
  "pctx_config",
- "pctx_session_types",
  "reqwest",
  "rmcp",
  "rustls",
@@ -6842,7 +6842,6 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "url",
- "uuid",
 ]
 
 [[package]]

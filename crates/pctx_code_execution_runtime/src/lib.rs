@@ -24,20 +24,17 @@
 //!
 //! ```rust,no_run
 //! use deno_core::{JsRuntime, RuntimeOptions};
-//! use pctx_code_execution_runtime::{pctx_runtime_snapshot, MCPRegistry, CallableToolRegistry, AllowedHosts, SessionManager, RUNTIME_SNAPSHOT};
-//! use std::rc::Rc;
-//! use std::sync::Arc;
+//! use pctx_code_execution_runtime::{pctx_runtime_snapshot, MCPRegistry, CallableToolRegistry, AllowedHosts, RUNTIME_SNAPSHOT};
 //!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create registries
 //! let mcp_registry = MCPRegistry::new();
 //! let local_tool_registry = CallableToolRegistry::new();
-//! let session_manager = Arc::new(SessionManager::new());
 //! let allowed_hosts = AllowedHosts::new(Some(vec!["example.com".to_string()]));
 //!
 //! let mut runtime = JsRuntime::new(RuntimeOptions {
 //!     startup_snapshot: Some(RUNTIME_SNAPSHOT),
-//!     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, session_manager, allowed_hosts, None)],
+//!     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, allowed_hosts)],
 //!     ..Default::default()
 //! });
 //!
@@ -104,9 +101,6 @@ pub use callable_tool_registry::{
 pub use fetch::AllowedHosts;
 pub use registry::MCPRegistry;
 
-// Re-export SessionManager and SessionStorage from pctx_session_types for convenience
-pub use pctx_session_types::{SessionManager, SessionStorage};
-
 /// Pre-compiled V8 snapshot containing the PCTX runtime
 ///
 /// This snapshot includes:
@@ -121,18 +115,16 @@ pub use pctx_session_types::{SessionManager, SessionStorage};
 ///
 /// ```rust,no_run
 /// use deno_core::{JsRuntime, RuntimeOptions};
-/// use pctx_code_execution_runtime::{RUNTIME_SNAPSHOT, pctx_runtime_snapshot, MCPRegistry, CallableToolRegistry, AllowedHosts, SessionManager};
-/// use std::sync::Arc;
+/// use pctx_code_execution_runtime::{RUNTIME_SNAPSHOT, pctx_runtime_snapshot, MCPRegistry, CallableToolRegistry, AllowedHosts};
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let mcp_registry = MCPRegistry::new();
 /// let local_tool_registry = CallableToolRegistry::new();
-/// let session_manager = Arc::new(SessionManager::new());
 /// let allowed_hosts = AllowedHosts::new(None);
 ///
 /// let mut runtime = JsRuntime::new(RuntimeOptions {
 ///     startup_snapshot: Some(RUNTIME_SNAPSHOT),
-///     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, session_manager, allowed_hosts, None)],
+///     extensions: vec![pctx_runtime_snapshot::init(mcp_registry, local_tool_registry, allowed_hosts)],
 ///     ..Default::default()
 /// });
 /// # Ok(())
@@ -142,7 +134,7 @@ pub static RUNTIME_SNAPSHOT: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/PCTX_RUNTIME_SNAPSHOT.bin"));
 
 // Deno extension providing MCP client, local tools, and console capturing.
-// Initialize with MCPRegistry, CallableToolRegistry, SessionManager, and AllowedHosts configuration.
+// Initialize with MCPRegistry, CallableToolRegistry, and AllowedHosts configuration.
 // See README.md for complete documentation.
 deno_core::extension!(
     pctx_runtime_snapshot,
@@ -166,17 +158,11 @@ deno_core::extension!(
     options = {
         registry: MCPRegistry,
         local_tool_registry: CallableToolRegistry,
-        session_manager: std::sync::Arc<SessionManager>,
         allowed_hosts: AllowedHosts,
-        session_storage: Option<std::sync::Arc<SessionStorage>>,
     },
     state = |state, options| {
         state.put(options.registry);
         state.put(options.local_tool_registry);
-        state.put(options.session_manager);
         state.put(options.allowed_hosts);
-        if let Some(storage) = options.session_storage {
-            state.put(storage);
-        }
     },
 );

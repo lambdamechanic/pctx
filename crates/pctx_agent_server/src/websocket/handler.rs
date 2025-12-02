@@ -81,6 +81,15 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
         }
     }
 
+    // Clean up registered tool callbacks from CallableToolRegistry
+    let sessions_guard = state.session_manager.sessions().read().await;
+    if let Some(session) = sessions_guard.get(&session_id) {
+        for tool_name in &session.registered_tools {
+            state.callable_registry.delete(tool_name);
+            debug!("Removed callback for tool: {}", tool_name);
+        }
+    }
+
     // Clean up session and save final state
     state.session_manager.remove_session(&session_id).await;
 

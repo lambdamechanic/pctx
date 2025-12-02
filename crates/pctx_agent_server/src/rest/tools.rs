@@ -7,10 +7,13 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use pctx_code_execution_runtime::{CallableToolMetadata, LocalToolCallback};
 use pctx_code_mode::model::{ExecuteInput, FunctionId, GetFunctionDetailsInput};
+use pctx_session_types::{OutgoingMessage, ToolCallRecord};
 use serde_json::json;
 use tracing::{error, info};
 use utoipa;
+use uuid::Uuid;
 
 use crate::AppState;
 use crate::types::*;
@@ -157,14 +160,8 @@ pub async fn execute_code(
     let start = Instant::now();
     let current_span = tracing::Span::current();
 
-    // Clone the session_manager Arc to pass to the executor
-    let session_manager = Arc::clone(&state.session_manager);
-
     let input = ExecuteInput {
         code: request.code,
-        session_manager: Some(session_manager),
-        session_id: None, // REST API doesn't have a session context
-        session_storage: state.session_storage.clone(),
     };
 
     // Clone the CodeMode Arc to move into spawn_blocking
@@ -259,10 +256,91 @@ pub async fn register_local_tools(
         request.session_id
     );
 
-    // Register each tool with the session manager
     let mut registered = 0;
     for tool in &request.tools {
         let tool_name = format!("{}.{}", tool.namespace, tool.name);
+
+        // Create callback closure that captures session state
+        let session_manager_clone = Arc::clone(&state.session_manager);
+        let session_storage_clone = state.session_storage.clone();
+        let session_id_clone = request.session_id.clone();
+        let tool_name_clone = tool_name.clone();
+
+        let callback: LocalToolCallback = Arc::new(move |args: Option<serde_json::Value>| {
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    let start_time = chrono::Utc::now().timestamp_millis();
+                    let request_id = Uuid::new_v4().to_string();
+
+                    let request = serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "method": "execute_tool",
+                        "params": {
+                            "name": tool_name_clone,
+                            "arguments": args
+                        },
+                        "id": request_id.clone()
+                    });
+
+                    let result = session_manager_clone
+                        .execute_tool_raw(
+                            &tool_name_clone,
+                            OutgoingMessage::Response(request),
+                            serde_json::Value::String(request_id),
+                        )
+                        .await
+                        .map_err(|e| e.to_string());
+
+                    // Record tool call in session storage
+                    if let Some(storage) = &session_storage_clone {
+                        let (namespace, tool_name_part) = tool_name_clone.split_once('.')
+                            .unwrap_or(("", &tool_name_clone));
+                        let tool_call_record = ToolCallRecord {
+                            session_id: session_id_clone.clone(),
+                            timestamp: start_time,
+                            tool_name: tool_name_part.to_string(),
+                            namespace: namespace.to_string(),
+                            arguments: args.clone().unwrap_or(serde_json::Value::Null),
+                            result: result.as_ref().ok().cloned(),
+                            error: result.as_ref().err().cloned(),
+                            code_snippet: None,
+                        };
+
+                        if let Ok(mut history) = storage.load_session(&session_id_clone) {
+                            history.add_tool_call(tool_call_record);
+                            let _ = storage.save_session(&history);
+                        }
+                    }
+
+                    result
+                })
+            })
+        });
+
+        // Register callback in CallableToolRegistry
+        let metadata = CallableToolMetadata {
+            name: tool_name.clone(),
+            description: Some(tool.description.clone()),
+            input_schema: Some(tool.parameters.clone()),
+            output_schema: None,
+            namespace: tool.namespace.clone(),
+        };
+
+        state.callable_registry.register_callback(metadata, callback)
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: ErrorInfo {
+                            code: "INTERNAL_ERROR".to_string(),
+                            message: format!("Failed to register callback: {}", e),
+                            details: None,
+                        },
+                    }),
+                )
+            })?;
+
+        // Register with session_manager for tracking
         state
             .session_manager
             .register_tool(
@@ -277,7 +355,7 @@ pub async fn register_local_tools(
                     Json(ErrorResponse {
                         error: ErrorInfo {
                             code: "INTERNAL_ERROR".to_string(),
-                            message: format!("Failed to register tool: {}", e),
+                            message: format!("Failed to register tool with session: {}", e),
                             details: None,
                         },
                     }),

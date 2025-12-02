@@ -13,16 +13,12 @@ use tracing::{debug, warn};
 
 pub type Result<T> = std::result::Result<T, DenoExecutorError>;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ExecuteOptions {
     pub allowed_hosts: Option<Vec<String>>,
     pub mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
     /// Unified registry containing all local tool callbacks (Python, Node.js, Rust, etc.)
     pub callable_registry: Option<pctx_code_execution_runtime::CallableToolRegistry>,
-    /// Session manager for WebSocket-based tool execution
-    pub session_manager: Option<std::sync::Arc<pctx_code_execution_runtime::SessionManager>>,
-    /// Session storage for persisting tool call history
-    pub session_storage: Option<std::sync::Arc<pctx_code_execution_runtime::SessionStorage>>,
 }
 
 impl std::fmt::Debug for ExecuteOptions {
@@ -31,33 +27,7 @@ impl std::fmt::Debug for ExecuteOptions {
             .field("allowed_hosts", &self.allowed_hosts)
             .field("mcp_configs", &self.mcp_configs)
             .field("callable_registry", &self.callable_registry)
-            .field(
-                "session_manager",
-                &self
-                    .session_manager
-                    .as_ref()
-                    .map(|_| "SessionManager { .. }"),
-            )
-            .field(
-                "session_storage",
-                &self
-                    .session_storage
-                    .as_ref()
-                    .map(|_| "SessionStorage { .. }"),
-            )
             .finish()
-    }
-}
-
-impl Default for ExecuteOptions {
-    fn default() -> Self {
-        Self {
-            allowed_hosts: None,
-            mcp_configs: None,
-            callable_registry: None,
-            session_manager: None,
-            session_storage: None,
-        }
     }
 }
 
@@ -88,26 +58,6 @@ impl ExecuteOptions {
         registry: pctx_code_execution_runtime::CallableToolRegistry,
     ) -> Self {
         self.callable_registry = Some(registry);
-        self
-    }
-
-    /// Set the session manager for WebSocket-based tool execution
-    #[must_use]
-    pub fn with_session_manager(
-        mut self,
-        session_manager: std::sync::Arc<pctx_code_execution_runtime::SessionManager>,
-    ) -> Self {
-        self.session_manager = Some(session_manager);
-        self
-    }
-
-    /// Set the session storage for persisting tool call history
-    #[must_use]
-    pub fn with_session_storage(
-        mut self,
-        session_storage: std::sync::Arc<pctx_code_execution_runtime::SessionStorage>,
-    ) -> Self {
-        self.session_storage = Some(session_storage);
         self
     }
 }
@@ -331,21 +281,13 @@ async fn execute_code(
         }
     }
     let callable_registry = options.callable_registry.unwrap_or_default();
-
     let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(options.allowed_hosts);
-
-    // Use provided session_manager or create a default one
-    let session_manager = options
-        .session_manager
-        .unwrap_or_else(|| std::sync::Arc::new(pctx_code_execution_runtime::SessionManager::new()));
 
     // Build extensions list
     let extensions = vec![pctx_code_execution_runtime::pctx_runtime_snapshot::init(
         mcp_registry,
         callable_registry,
-        session_manager,
         allowed_hosts,
-        options.session_storage,
     )];
 
     // Create JsRuntime from `pctx_runtime` snapshot and extension
