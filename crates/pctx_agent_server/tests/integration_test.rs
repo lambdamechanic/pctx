@@ -13,6 +13,7 @@ use axum::{
 use futures::StreamExt;
 use pctx_agent_server::{AppState, rest, types::*, websocket};
 use pctx_code_mode::CodeMode;
+use pctx_code_mode::model::GetFunctionDetailsOutput;
 use serde_json::json;
 use serial_test::serial;
 use tokio::net::TcpListener;
@@ -77,7 +78,7 @@ async fn test_full_workflow_websocket_registration_and_list() {
     // 3. Register tools via REST API
     let client = reqwest::Client::new();
     let register_response = client
-        .post(format!("{}/tools/local/register", http_url))
+        .post(format!("{http_url}/tools/local/register"))
         .json(&json!({
             "session_id": session_id,
             "tools": [
@@ -104,7 +105,7 @@ async fn test_full_workflow_websocket_registration_and_list() {
 
     // 4. List tools via REST API
     let list_response = client
-        .post(format!("{}/tools/list", http_url))
+        .post(format!("{http_url}/tools/list"))
         .json(&json!({}))
         .send()
         .await
@@ -130,7 +131,7 @@ async fn test_rest_only_code_execution() {
 
     // Execute simple code without any registered tools
     let execute_response = client
-        .post(format!("{}/tools/execute", http_url))
+        .post(format!("{http_url}/tools/execute"))
         .json(&json!({
             "code": "async function run() { return 1 + 1; }",
             "timeout_ms": 5000
@@ -153,7 +154,7 @@ async fn test_health_check_always_available() {
     let client = reqwest::Client::new();
 
     let health_response = client
-        .get(format!("{}/health", http_url))
+        .get(format!("{http_url}/health"))
         .send()
         .await
         .expect("Failed to get health");
@@ -172,7 +173,7 @@ async fn test_mcp_server_registration() {
 
     // Register an MCP server (will fail to connect but should validate URL)
     let register_response = client
-        .post(format!("{}/tools/mcp/register", http_url))
+        .post(format!("{http_url}/tools/mcp/register"))
         .json(&json!({
             "servers": [
                 {
@@ -203,14 +204,14 @@ async fn test_execute_code_with_async_operations() {
     let client = reqwest::Client::new();
 
     let execute_response = client
-        .post(format!("{}/tools/execute", http_url))
+        .post(format!("{http_url}/tools/execute"))
         .json(&json!({
-            "code": r#"
+            "code": r"
                 async function run() {
                     await Promise.resolve();
                     return { completed: true };
                 }
-            "#,
+            ",
             "timeout_ms": 5000
         }))
         .send()
@@ -230,7 +231,7 @@ async fn test_execute_code_with_console_output() {
     let client = reqwest::Client::new();
 
     let execute_response = client
-        .post(format!("{}/tools/execute", http_url))
+        .post(format!("{http_url}/tools/execute"))
         .json(&json!({
             "code": r#"
                 async function run() {
@@ -292,7 +293,7 @@ async fn test_multiple_websocket_sessions_isolated() {
     // Register tool for session 1
     let client = reqwest::Client::new();
     let register_response = client
-        .post(format!("{}/tools/local/register", http_url))
+        .post(format!("{http_url}/tools/local/register"))
         .json(&json!({
             "session_id": session_id1,
             "tools": [
@@ -312,7 +313,7 @@ async fn test_multiple_websocket_sessions_isolated() {
 
     // Register different tool for session 2
     let register_response2 = client
-        .post(format!("{}/tools/local/register", http_url))
+        .post(format!("{http_url}/tools/local/register"))
         .json(&json!({
             "session_id": session_id2,
             "tools": [
@@ -332,7 +333,7 @@ async fn test_multiple_websocket_sessions_isolated() {
 
     // List all tools - should see both
     let list_response = client
-        .post(format!("{}/tools/list", http_url))
+        .post(format!("{http_url}/tools/list"))
         .json(&json!({}))
         .send()
         .await
@@ -364,7 +365,7 @@ async fn test_error_handling_invalid_session_id() {
 
     // Try to register tools with invalid session ID
     let register_response = client
-        .post(format!("{}/tools/local/register", http_url))
+        .post(format!("{http_url}/tools/local/register"))
         .json(&json!({
             "session_id": "non-existent-session-id",
             "tools": [
@@ -399,7 +400,7 @@ async fn test_execute_code_syntax_error() {
     let client = reqwest::Client::new();
 
     let execute_response = client
-        .post(format!("{}/tools/execute", http_url))
+        .post(format!("{http_url}/tools/execute"))
         .json(&json!({
             "code": "this is not valid javascript syntax !!!",
             "timeout_ms": 5000
@@ -411,4 +412,64 @@ async fn test_execute_code_syntax_error() {
     assert_eq!(execute_response.status(), StatusCode::BAD_REQUEST);
     let error_body: ErrorResponse = execute_response.json().await.unwrap();
     assert_eq!(error_body.error.code, "EXECUTION_ERROR");
+}
+
+#[tokio::test]
+#[serial]
+async fn test_get_function_details_returns_code_field() {
+    let (http_url, ws_url) = start_full_test_server().await;
+    let (ws_stream, _) = connect_async(&ws_url).await.expect("Failed to connect");
+    let (_write, mut read) = ws_stream.split();
+
+    let session_id = if let Some(Ok(Message::Text(text))) = read.next().await {
+        let notification: serde_json::Value = serde_json::from_str(&text).unwrap();
+        notification["params"]["session_id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    } else {
+        panic!("Expected session_created notification");
+    };
+
+    // Register a local tool with JSON schema
+    let client = reqwest::Client::new();
+    let register_response = client
+        .post(format!("{http_url}/tools/local/register"))
+        .json(&json!({
+            "session_id": session_id,
+            "tools": [{
+                "namespace": "TestTools",
+                "name": "myFunction",
+                "description": "A test function",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "input": { "type": "string" }
+                    }
+                }
+            }]
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(register_response.status(), StatusCode::OK);
+    let details_response = client
+        .post(format!("{http_url}/tools/details"))
+        .json(&json!({
+            "namespace": "TestTools",
+            "name": "myFunction"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(details_response.status(), StatusCode::OK);
+    let details: GetFunctionDetailsOutput = details_response.json().await.unwrap();
+    assert!(!details.code.is_empty(), "Code field should not be empty");
+    assert!(
+        !details.functions.is_empty(),
+        "Should have function details"
+    );
+    assert_eq!(details.functions[0].listed.name, "myFunction");
 }
