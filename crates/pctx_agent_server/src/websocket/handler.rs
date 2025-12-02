@@ -81,11 +81,11 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
         }
     }
 
-    // Clean up registered tool callbacks from CallableToolRegistry
+    // Clean up registered tool callbacks from CallbackRegistry
     let sessions_guard = state.session_manager.sessions().read().await;
     if let Some(session) = sessions_guard.get(&session_id) {
         for tool_name in &session.registered_tools {
-            state.callable_registry.delete(tool_name);
+            state.callback_registry.remove(tool_name);
             debug!("Removed callback for tool: {}", tool_name);
         }
     }
@@ -94,12 +94,12 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     state.session_manager.remove_session(&session_id).await;
 
     // Mark session as ended and save
-    if let Some(storage) = &state.session_storage {
-        if let Ok(mut history) = storage.load_session(&session_id) {
-            history.end_session();
-            if let Err(e) = storage.save_session(&history) {
-                warn!("Failed to save final session history: {}", e);
-            }
+    if let Some(storage) = &state.session_storage
+        && let Ok(mut history) = storage.load_session(&session_id)
+    {
+        history.end_session();
+        if let Err(e) = storage.save_session(&history) {
+            warn!("Failed to save final session history: {}", e);
         }
     }
 

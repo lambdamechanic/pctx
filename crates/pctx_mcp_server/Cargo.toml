@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 # Local crates
 pctx_code_mode = { path = "../pctx_code_mode" }
+pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
 pctx_config = { path = "../pctx_config" }
 codegen = { path = "../codegen" }
 

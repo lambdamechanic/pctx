@@ -42,17 +42,6 @@ pub struct GetFunctionDetailsRequest {
     pub name: String,
 }
 
-/// Response with function details
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct GetFunctionDetailsResponse {
-    pub namespace: String,
-    pub name: String,
-    pub description: String,
-    #[schema(value_type = Object)]
-    pub parameters: Value,
-    pub return_type: String,
-}
-
 /// Request to execute code
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ExecuteCodeRequest {
@@ -68,8 +57,16 @@ fn default_timeout() -> u64 {
 /// Successful code execution response
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ExecuteCodeResponse {
+    /// Success of executed code
+    pub success: bool,
+    /// Standard output of executed code
+    pub stdout: String,
+    /// Standard error of executed code
+    pub stderr: String,
+    /// Value returned by executed function
     #[schema(value_type = Object)]
-    pub result: Value,
+    pub output: Option<Value>,
+    /// Execution time in milliseconds
     pub execution_time_ms: u64,
 }
 

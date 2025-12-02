@@ -8,7 +8,9 @@ use std::{
 use crate::error::McpError;
 
 pub type CallbackFn = Arc<
-    dyn Fn(Option<serde_json::Value>) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, String>> + Send>>
+    dyn Fn(
+            Option<serde_json::Value>,
+        ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, String>> + Send>>
         + Send
         + Sync,
 >;
@@ -59,6 +61,16 @@ impl CallbackRegistry {
         callbacks.insert(id.into(), callback);
 
         Ok(())
+    }
+
+    /// Remove a callback from the registry by id
+    ///
+    /// # Panics
+    ///
+    /// Panics if cannot obtain lock
+    pub fn remove(&self, id: &str) -> Option<CallbackFn> {
+        let mut callbacks = self.callbacks.write().unwrap();
+        callbacks.remove(id)
     }
 
     /// Get a Callback from the registry by id

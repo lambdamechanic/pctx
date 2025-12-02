@@ -149,7 +149,7 @@ async fn test_execute_code_simple() {
     }
 
     let body: ExecuteCodeResponse = parse_response_body(response.into_body()).await;
-    assert_eq!(body.result, json!(42));
+    assert_eq!(body.output, Some(json!(42)));
     assert!(body.execution_time_ms > 0);
 }
 
@@ -207,7 +207,7 @@ async fn test_execute_code_with_console_log() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body: ExecuteCodeResponse = parse_response_body(response.into_body()).await;
-    assert_eq!(body.result, json!("done"));
+    assert_eq!(body.output, Some(json!("done")));
 }
 
 #[tokio::test]
@@ -310,7 +310,7 @@ async fn test_execute_code_async() {
     }
 
     let body: ExecuteCodeResponse = parse_response_body(response.into_body()).await;
-    assert_eq!(body.result, json!(123));
+    assert_eq!(body.output, Some(json!(123)));
 }
 
 #[tokio::test]
@@ -339,11 +339,11 @@ async fn test_execute_code_json_result() {
 
     let body: ExecuteCodeResponse = parse_response_body(response.into_body()).await;
     assert_eq!(
-        body.result,
-        json!({
+        body.output,
+        Some(json!({
             "foo": "bar",
             "count": 42,
             "nested": { "value": true }
-        })
+        }))
     );
 }

@@ -134,6 +134,7 @@ impl PctxMcpService {
         let current_span = tracing::Span::current();
 
         let code_mode = self.code_mode.clone();
+        let code = input.code;
 
         let execution_output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
             // Enter the captured span context in the new thread
@@ -146,8 +147,9 @@ impl PctxMcpService {
                 .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
 
             rt.block_on(async {
+                let callbacks = pctx_code_execution_runtime::CallbackRegistry::default();
                 code_mode
-                    .execute(input)
+                    .execute(&code, callbacks)
                     .await
                     .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
             })
