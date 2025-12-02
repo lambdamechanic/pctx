@@ -111,6 +111,16 @@ impl CodeMode {
             "Received code to execute"
         );
 
+        // confirm that there is a callback present in the registry for each callback config
+        for c in &self.callbacks {
+            if !callbacks.has(&c.id()) {
+                return Err(Error::Message(format!(
+                    "Missing callback in registry for {}",
+                    c.id()
+                )));
+            }
+        }
+
         // generate the full script to be executed
         let namespaces: Vec<String> = self
             .tool_sets

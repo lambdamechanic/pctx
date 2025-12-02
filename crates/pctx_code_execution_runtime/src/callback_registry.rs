@@ -83,6 +83,16 @@ impl CallbackRegistry {
         callbacks.get(id).cloned()
     }
 
+    /// Confirms the callback registry contains a given id
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
+    pub fn has(&self, id: &str) -> bool {
+        let callbacks = self.callbacks.read().unwrap();
+        callbacks.contains_key(id)
+    }
+
     /// invokes the callback with the provided args
     ///
     /// # Errors

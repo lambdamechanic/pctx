@@ -8,3 +8,8 @@ pub struct CallbackConfig {
     pub input_schema: Option<serde_json::Value>,
     pub output_schema: Option<serde_json::Value>,
 }
+impl CallbackConfig {
+    pub fn id(&self) -> String {
+        format!("{}.{}", &self.namespace, &self.name)
+    }
+}
