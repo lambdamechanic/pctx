@@ -12,21 +12,16 @@ use deno_core::snapshot::CreateSnapshotOptions;
 use deno_core::snapshot::create_snapshot;
 
 use rmcp::model::JsonObject;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct CallMCPToolArgs {
-    pub name: String,
-    pub tool: String,
-    #[serde(default)]
-    pub arguments: Option<JsonObject>,
-}
 
 /// Call an MCP tool (async stub)
 #[deno_core::op2(async)]
 #[serde]
 #[allow(clippy::unused_async)]
-async fn op_call_mcp_tool(#[serde] _args: CallMCPToolArgs) -> serde_json::Value {
+async fn op_call_mcp_tool(
+    #[string] _server_name: String,
+    #[string] _tool_name: String,
+    #[serde] _args: Option<JsonObject>,
+) -> serde_json::Value {
     serde_json::Value::Null
 }
 

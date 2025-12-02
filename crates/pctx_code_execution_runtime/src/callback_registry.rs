@@ -8,7 +8,9 @@ use std::{
 use crate::error::McpError;
 
 pub type CallbackFn = Arc<
-    dyn Fn(Option<serde_json::Value>) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, String>> + Send>>
+    dyn Fn(
+            Option<serde_json::Value>,
+        ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, String>> + Send>>
         + Send
         + Sync,
 >;

@@ -47,8 +47,8 @@ async fn test_execute_with_mcp_client_call_tool_nonexistent_server() {
 async function test() {
     try {
         await callMCPTool({
-            name: "nonexistent-server",
-            tool: "some-tool"
+            serverName: "nonexistent-server",
+            toolName: "some-tool"
         });
         return { error: false };
     } catch (e) {
@@ -62,6 +62,7 @@ export default await test();
     let result = execute(code, ExecuteOptions::new())
         .await
         .expect("execution should succeed");
+
     assert!(result.success, "Execution should succeed even with error");
     assert!(
         result.runtime_error.is_none(),
@@ -78,7 +79,7 @@ export default await test();
     );
     let message = obj.get("message").unwrap().as_str().unwrap();
     assert!(
-        message.contains("does not exist") || message.contains("nonexistent-server"),
+        message.contains("nonexistent-server"),
         "Error message should mention nonexistent server, got: {message}"
     );
 }
