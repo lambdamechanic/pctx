@@ -7,7 +7,7 @@ use crate::{CodegenResult, case::Case, generate_docstring, typegen::generate_typ
 #[derive(Clone, Debug)]
 pub struct ToolSet {
     pub name: String,
-    pub mod_name: String,
+    pub namespace: String,
     pub description: String,
     pub tools: Vec<Tool>,
 }
@@ -16,7 +16,7 @@ impl ToolSet {
     pub fn new(name: &str, description: &str, tools: Vec<Tool>) -> Self {
         Self {
             name: name.into(),
-            mod_name: Case::Pascal.sanitize(name),
+            namespace: Case::Pascal.sanitize(name),
             description: description.into(),
             tools,
         }
@@ -44,7 +44,7 @@ namespace {namespace} {{
   {content}
 }}",
             docstring = generate_docstring(&self.description),
-            namespace = &self.mod_name,
+            namespace = &self.namespace,
         )
     }
 }
@@ -158,10 +158,13 @@ impl Tool {
             ToolVariant::Callable => {
                 format!(
                     "{fn_sig} {{
-  return await callLocallyCallableTool<{output}>({tool}, input);
+  return await invokeCallable<{output}>({{
+     id: {id},
+     arguments: input,
+  }});
 }}",
                     fn_sig = self.fn_signature(true),
-                    tool = json!(&self.name),
+                    id = json!(format!("{toolset_name}.{}", &self.name)),
                     output = &self.output_signature,
                 )
             }
