@@ -8,10 +8,12 @@ use tracing::debug;
 use crate::{logger::LoggerConfig, server::ServerConfig, telemetry::TelemetryConfig};
 
 pub mod auth;
+pub mod callback;
 pub(crate) mod defaults;
 pub mod logger;
 pub mod server;
 pub mod telemetry;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     #[serde(skip_serializing)]

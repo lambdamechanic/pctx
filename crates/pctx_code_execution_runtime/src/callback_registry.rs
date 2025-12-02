@@ -1,0 +1,88 @@
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+
+use crate::error::McpError;
+
+pub type CallbackFn =
+    Arc<dyn Fn(Option<serde_json::Value>) -> Result<serde_json::Value, String> + Send + Sync>;
+
+/// Singleton registry for callbacks
+#[derive(Clone, Default)]
+pub struct CallbackRegistry {
+    callbacks: Arc<RwLock<HashMap<String, CallbackFn>>>,
+}
+
+impl CallbackRegistry {
+    /// Returns the ids of this [`CallbackRegistry`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if it fails acquiring the lock
+    pub fn ids(&self) -> Vec<String> {
+        self.callbacks
+            .read()
+            .unwrap()
+            .keys()
+            .map(String::from)
+            .collect()
+    }
+
+    /// Adds callback to registry
+    ///
+    /// # Panics
+    ///
+    /// Panics if cannot obtain lock
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if a callback already exists with the same ID
+    pub fn add(
+        &self,
+        id: &str, // namespace.name
+        callback: CallbackFn,
+    ) -> Result<(), McpError> {
+        let mut callbacks = self.callbacks.write().unwrap();
+
+        if callbacks.contains_key(id) {
+            return Err(McpError::Config(format!(
+                "Callback with id \"{id}\" is already registered"
+            )));
+        }
+
+        callbacks.insert(id.into(), callback);
+
+        Ok(())
+    }
+
+    /// Get a Callback from the registry by id
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
+    pub fn get(&self, id: &str) -> Option<CallbackFn> {
+        let callbacks = self.callbacks.read().unwrap();
+        callbacks.get(id).cloned()
+    }
+
+    /// invokes the callback with the provided args
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if a callback by the provided id doesn't exist
+    /// or if the callback itself fails
+    pub fn invoke(
+        &self,
+        id: &str,
+        args: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value, McpError> {
+        let callback = self.get(id).ok_or_else(|| {
+            McpError::ToolCall(format!("Callback with id \"{id}\" does not exist"))
+        })?;
+
+        callback(args).map_err(|e| {
+            McpError::ExecutionError(format!("Failed calling callback with id \"{id}\": {e}",))
+        })
+    }
+}

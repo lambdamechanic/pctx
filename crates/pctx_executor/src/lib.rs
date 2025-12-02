@@ -4,7 +4,7 @@ use deno_runtime::deno_core::ModuleCodeString;
 use deno_runtime::deno_core::RuntimeOptions;
 use deno_runtime::deno_core::anyhow;
 use deno_runtime::deno_core::error::CoreError;
-pub use pctx_code_execution_runtime::CallableToolMetadata;
+use pctx_code_execution_runtime::CallbackRegistry;
 pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, type_check};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
@@ -16,17 +16,16 @@ pub type Result<T> = std::result::Result<T, DenoExecutorError>;
 #[derive(Clone, Default)]
 pub struct ExecuteOptions {
     pub allowed_hosts: Option<Vec<String>>,
-    pub mcp_configs: Option<Vec<pctx_config::server::ServerConfig>>,
-    /// Unified registry containing all local tool callbacks (Python, Node.js, Rust, etc.)
-    pub callable_registry: Option<pctx_code_execution_runtime::CallableToolRegistry>,
+    pub servers: Vec<pctx_config::server::ServerConfig>,
+    pub callback_registry: CallbackRegistry,
 }
 
 impl std::fmt::Debug for ExecuteOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExecuteOptions")
             .field("allowed_hosts", &self.allowed_hosts)
-            .field("mcp_configs", &self.mcp_configs)
-            .field("callable_registry", &self.callable_registry)
+            .field("servers", &self.servers)
+            .field("callback_registry", &self.callback_registry.ids())
             .finish()
     }
 }
@@ -43,8 +42,8 @@ impl ExecuteOptions {
     }
 
     #[must_use]
-    pub fn with_mcp_configs(mut self, configs: Vec<pctx_config::server::ServerConfig>) -> Self {
-        self.mcp_configs = Some(configs);
+    pub fn with_servers(mut self, servers: Vec<pctx_config::server::ServerConfig>) -> Self {
+        self.servers = servers;
         self
     }
 
@@ -53,11 +52,11 @@ impl ExecuteOptions {
     /// This registry contains all local tool callbacks regardless of their source language.
     /// Python, Node.js, and Rust callbacks are all wrapped as Rust closures and stored here.
     #[must_use]
-    pub fn with_callable_registry(
+    pub fn with_callbacks(
         mut self,
-        registry: pctx_code_execution_runtime::CallableToolRegistry,
+        registry: pctx_code_execution_runtime::CallbackRegistry,
     ) -> Self {
-        self.callable_registry = Some(registry);
+        self.callback_registry = registry;
         self
     }
 }
@@ -263,30 +262,28 @@ async fn execute_code(
 
     // Create MCP registry and populate it with provided configs
     let mcp_registry = pctx_code_execution_runtime::MCPRegistry::new();
-    if let Some(configs) = options.mcp_configs {
-        for config in configs {
-            if let Err(e) = mcp_registry.add(config) {
-                warn!(runtime = "execution", error = %e, "Failed to register MCP server");
-                return Ok(InternalExecuteResult {
-                    success: false,
-                    output: None,
-                    error: Some(ExecutionError {
-                        message: format!("MCP registration failed: {e}"),
-                        stack: None,
-                    }),
-                    stdout: String::new(),
-                    stderr: String::new(),
-                });
-            }
+
+    for config in options.servers {
+        if let Err(e) = mcp_registry.add(config) {
+            warn!(runtime = "execution", error = %e, "Failed to register MCP server");
+            return Ok(InternalExecuteResult {
+                success: false,
+                output: None,
+                error: Some(ExecutionError {
+                    message: format!("MCP registration failed: {e}"),
+                    stack: None,
+                }),
+                stdout: String::new(),
+                stderr: String::new(),
+            });
         }
     }
-    let callable_registry = options.callable_registry.unwrap_or_default();
     let allowed_hosts = pctx_code_execution_runtime::AllowedHosts::new(options.allowed_hosts);
 
     // Build extensions list
     let extensions = vec![pctx_code_execution_runtime::pctx_runtime_snapshot::init(
         mcp_registry,
-        callable_registry,
+        options.callback_registry,
         allowed_hosts,
     )];
 

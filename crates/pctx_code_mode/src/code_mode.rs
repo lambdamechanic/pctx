@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use pctx_config::server::ServerConfig;
+use pctx_config::{callback::CallbackConfig, server::ServerConfig};
 use serde_json::json;
 use tracing::{debug, warn};
 
@@ -14,14 +14,19 @@ use crate::{
 
 #[derive(Debug, Clone, Default)]
 pub struct CodeMode {
+    // Codegen interfaces
     pub tool_sets: Vec<codegen::ToolSet>,
 
     // configurations
     pub servers: Vec<ServerConfig>,
+    pub callbacks: Vec<CallbackConfig>,
+
+    // TODO: delete
     pub callable_registry: Option<pctx_code_execution_runtime::CallableToolRegistry>,
 }
 
 impl CodeMode {
+    // TODO: delete
     fn callables_as_toolsets(&self) -> Vec<codegen::ToolSet> {
         let mut toolsets = Vec::new();
 
@@ -59,6 +64,7 @@ impl CodeMode {
     }
 
     /// Convert local tool metadata to a codegen Tool
+    // TODO: delete
     fn callable_metadata_to_codegen_tool(
         metadata: &pctx_code_execution_runtime::CallableToolMetadata,
     ) -> Result<codegen::Tool> {
@@ -103,6 +109,7 @@ impl CodeMode {
     }
 
     /// Get all tool sets including MCP servers and local tools
+    // TODO: delete
     fn all_tool_sets(&self) -> Vec<codegen::ToolSet> {
         let mut all = self.tool_sets.clone();
         all.extend(self.callables_as_toolsets());
@@ -188,10 +195,10 @@ impl CodeMode {
         GetFunctionDetailsOutput { code, functions }
     }
 
-    pub async fn execute(&self, input: ExecuteInput) -> Result<ExecuteOutput> {
+    pub async fn execute(&self, code: &str, callbacks:) -> Result<ExecuteOutput> {
         debug!(
-            code_from_llm = %input.code,
-            code_length = input.code.len(),
+            code_from_llm = %code,
+            code_length = code.len(),
             "Received code to execute"
         );
 
@@ -211,7 +218,6 @@ impl CodeMode {
         let to_execute = codegen::format::format_ts(&format!(
             "{namespaces}\n\n{code}\n\nexport default await run();\n",
             namespaces = namespaces.join("\n\n"),
-            code = &input.code
         ));
 
         debug!("Executing code in sandbox");
@@ -225,21 +231,25 @@ impl CodeMode {
             .with_callable_registry(unified_registry);
 
         let execution_res = pctx_executor::execute(&to_execute, options).await?;
+        todo!()
 
-        if execution_res.success {
-            debug!("Sandbox execution completed successfully");
-        } else {
-            warn!("Sandbox execution failed: {:?}", execution_res.stderr);
-        }
+        // let execution_res = pctx_executor::execute(&to_execute, options).await?;
 
-        Ok(ExecuteOutput {
-            success: execution_res.success,
-            stdout: execution_res.stdout,
-            stderr: execution_res.stderr,
-            output: execution_res.output,
-        })
+        // if execution_res.success {
+        //     debug!("Sandbox execution completed successfully");
+        // } else {
+        //     warn!("Sandbox execution failed: {:?}", execution_res.stderr);
+        // }
+
+        // Ok(ExecuteOutput {
+        //     success: execution_res.success,
+        //     stdout: execution_res.stdout,
+        //     stderr: execution_res.stderr,
+        //     output: execution_res.output,
+        // })
     }
 
+    // Generates a ToolSet from the given MCP server config
     pub async fn add_server(&mut self, server: &ServerConfig) -> Result<()> {
         if self.tool_sets.iter().any(|t| t.name == server.name) {
             return Err(Error::Message(format!(
@@ -307,6 +317,13 @@ impl CodeMode {
         self.servers.push(server.clone());
 
         Ok(())
+    }
+
+    // Generates a Tool and add it to the correct Toolset from the given callback config
+    pub fn add_callback(&mut self, callback: &CallbackConfig) -> Result<()> {
+        todo!(
+            "Codegen to create tool and add to relevant self.tool_set, then store callback to self.callbacks"
+        )
     }
 
     pub fn allowed_hosts(&self) -> HashSet<String> {
