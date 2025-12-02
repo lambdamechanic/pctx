@@ -73,13 +73,17 @@ console.debug = (...args) => {
  * Call an MCP tool
  * @template T
  * @param {Object} call - Tool call configuration
- * @param {string} call.name - Name of the registered MCP server
- * @param {string} call.tool - Name of the tool to call
- * @param {Object} [call.arguments] - Arguments to pass to the tool
+ * @param {string} call.serverName - Name of the registered MCP server
+ * @param {string} call.toolName - Name of the registered tool to call
+ * @param {Object?} [call.arguments] - Arguments to pass to the tool
  * @returns {Promise<T>} The tool's response
  */
 export async function callMCPTool(call) {
-  return await ops.op_call_mcp_tool(call);
+  return await ops.op_call_mcp_tool(
+    call.serverName,
+    call.toolName,
+    call.arguments,
+  );
 }
 
 /**
@@ -87,11 +91,11 @@ export async function callMCPTool(call) {
  * @template T
  * @param {Object} call - Tool call configuration
  * @param {string} call.id - ID of the callback
- * @param {Object} [call.arguments] - Arguments to pass to the callback
+ * @param {Object?} [call.arguments] - Arguments to pass to the callback
  * @returns {Promise<T>} The tool's response
  */
 export async function invokeCallback(call) {
-  return await ops.op_invoke_callback(call.id, call?.arguments);
+  return await ops.op_invoke_callback(call.id, call.arguments);
 }
 
 /**

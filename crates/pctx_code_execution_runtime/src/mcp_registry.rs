@@ -1,18 +1,8 @@
 use crate::error::McpError;
 use pctx_config::server::ServerConfig;
 use rmcp::model::{CallToolRequestParam, JsonObject, RawContent};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-
-/// Arguments for calling an MCP tool
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct CallMCPToolArgs {
-    pub name: String,
-    pub tool: String,
-    #[serde(default)]
-    pub arguments: Option<JsonObject>,
-}
 
 /// Singleton registry for MCP server configurations
 #[derive(Clone)]
@@ -98,21 +88,22 @@ impl Default for MCPRegistry {
 /// Call an MCP tool on a registered server
 pub(crate) async fn call_mcp_tool(
     registry: &MCPRegistry,
-    args: CallMCPToolArgs,
+    server_name: &str,
+    tool_name: &str,
+    args: Option<JsonObject>,
 ) -> Result<serde_json::Value, McpError> {
     // Get the server config from registry
-    let mcp_cfg = registry.get(&args.name).ok_or_else(|| {
+    let mcp_cfg = registry.get(server_name).ok_or_else(|| {
         McpError::ToolCall(format!(
-            "MCP Server with name \"{}\" does not exist",
-            args.name
+            "MCP Server with name \"{server_name}\" does not exist"
         ))
     })?;
 
     let client = mcp_cfg.connect().await?;
     let tool_result = client
         .call_tool(CallToolRequestParam {
-            name: args.tool.clone().into(),
-            arguments: args.arguments,
+            name: tool_name.to_string().into(),
+            arguments: args,
         })
         .await
         .unwrap();
@@ -121,8 +112,7 @@ pub(crate) async fn call_mcp_tool(
     // Check if the tool call resulted in an error
     if tool_result.is_error.unwrap_or(false) {
         return Err(McpError::ToolCall(format!(
-            "Tool call \"{}.{}\" failed",
-            args.name, args.tool
+            "Tool call \"{server_name}.{tool_name}\" failed"
         )));
     }
 

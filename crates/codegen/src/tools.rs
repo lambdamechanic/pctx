@@ -144,8 +144,8 @@ impl Tool {
                 format!(
                     "{fn_sig} {{
   return await callMCPTool<{output}>({{
-    name: {name},
-    tool: {tool},
+    serverName: {name},
+    toolName: {tool},
     arguments: input,
   }});
 }}",

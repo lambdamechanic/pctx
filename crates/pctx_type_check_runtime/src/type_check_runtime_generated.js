@@ -26,29 +26,19 @@ declare namespace Deno {
   export const core: any;
 }
 
-interface MCPServerConfig {
-  name: string;
-  url: string;
-  auth?: any;
+interface MCPToolProps {
+  serverName: string;
+  toolName: string;
+  arguments?: any;
 }
-
-interface MCPToolCall {
-  name: string;
-  tool: string;
+interface InvokeCallbackProps {
+  id: string;
   arguments?: any;
 }
 
-declare function registerMCP(config: MCPServerConfig): void;
-declare function callMCPTool<T = any>(call: MCPToolCall): Promise<T>;
-
-declare const REGISTRY: {
-  has(name: string): boolean;
-  get(name: string): MCPServerConfig | undefined;
-  delete(name: string): boolean;
-  clear(): void;
-};
+declare function callMCPTool<T = any>(call: MCPToolProps): Promise<T>;
+declare function invokeCallback<T = any>(call: InvokeCallbackProps): Promise<T>;
 `;
-
 
 /**
  * Type check TypeScript code using the full TypeScript compiler
@@ -82,7 +72,7 @@ function typeCheckCode(code) {
         return undefined;
       },
       getDefaultLibFileName: () => "lib.deno.d.ts",
-      writeFile: () => { },
+      writeFile: () => {},
       getCurrentDirectory: () => "/",
       getDirectories: () => [],
       fileExists: (fileName) => files.has(fileName),
