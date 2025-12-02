@@ -27,7 +27,6 @@ pctx_code_mode = { path = "../pctx_code_mode" }
 pctx_executor = { path = "../pctx_executor" }
 pctx_agent_server = { path = "../pctx_agent_server" }
 pctx_mcp_server = { path = "../pctx_mcp_server" }
-pctx_session_types = { path = "../pctx_session_types" }
 codegen = { path = "../codegen" }
 pctx_config = { path = "../pctx_config" }
 

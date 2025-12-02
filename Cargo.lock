@@ -6773,7 +6773,6 @@ dependencies = [
  "pctx_config",
  "pctx_executor",
  "pctx_mcp_server",
- "pctx_session_types",
  "ratatui",
  "rmcp",
  "rustls",
@@ -6807,7 +6806,6 @@ dependencies = [
  "pctx_code_execution_runtime",
  "pctx_code_mode",
  "pctx_config",
- "pctx_session_types",
  "reqwest",
  "rmcp",
  "serde",
@@ -6852,7 +6850,6 @@ dependencies = [
  "pctx_code_execution_runtime",
  "pctx_config",
  "pctx_executor",
- "pctx_session_types",
  "schemars 1.1.0",
  "serde",
  "serde_json",
@@ -6933,19 +6930,6 @@ dependencies = [
  "tower 0.5.2",
  "tower-http",
  "tracing",
-]
-
-[[package]]
-name = "pctx_session_types"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "tokio",
- "url",
- "uuid",
 ]
 
 [[package]]

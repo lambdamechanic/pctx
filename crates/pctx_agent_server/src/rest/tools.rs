@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::session::{OutgoingMessage, ToolCallRecord};
 use axum::{
     Json,
     extract::State,
@@ -9,7 +10,6 @@ use axum::{
 };
 use pctx_code_execution_runtime::{CallableToolMetadata, LocalToolCallback};
 use pctx_code_mode::model::{ExecuteInput, FunctionId, GetFunctionDetailsInput};
-use pctx_session_types::{OutgoingMessage, ToolCallRecord};
 use serde_json::json;
 use tracing::{error, info};
 use utoipa;
@@ -160,9 +160,7 @@ pub async fn execute_code(
     let start = Instant::now();
     let current_span = tracing::Span::current();
 
-    let input = ExecuteInput {
-        code: request.code,
-    };
+    let input = ExecuteInput { code: request.code };
 
     // Clone the CodeMode Arc to move into spawn_blocking
     let code_mode = Arc::clone(&state.code_mode);
@@ -293,7 +291,8 @@ pub async fn register_local_tools(
 
                     // Record tool call in session storage
                     if let Some(storage) = &session_storage_clone {
-                        let (namespace, tool_name_part) = tool_name_clone.split_once('.')
+                        let (namespace, tool_name_part) = tool_name_clone
+                            .split_once('.')
                             .unwrap_or(("", &tool_name_clone));
                         let tool_call_record = ToolCallRecord {
                             session_id: session_id_clone.clone(),
@@ -326,7 +325,9 @@ pub async fn register_local_tools(
             namespace: tool.namespace.clone(),
         };
 
-        state.callable_registry.register_callback(metadata, callback)
+        state
+            .callable_registry
+            .register_callback(metadata, callback)
             .map_err(|e| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,

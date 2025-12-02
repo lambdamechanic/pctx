@@ -12,7 +12,6 @@ path = "src/bin/generate-openapi.rs"
 
 [dependencies]
 # Local crates
-pctx_session_types = { path = "../pctx_session_types" }
 pctx_code_mode = { path = "../pctx_code_mode" }
 pctx_config = { path = "../pctx_config" }
 pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }

@@ -77,6 +77,7 @@ pub(crate) fn op_execute_local_tool(
 ) -> Result<serde_json::Value, McpError> {
     let registry = state.borrow::<CallableToolRegistry>();
 
-    registry.execute(&name, arguments)
+    registry
+        .execute(&name, arguments)
         .map_err(McpError::ExecutionError)
 }

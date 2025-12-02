@@ -1,10 +1,10 @@
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
-use pctx_agent_server::{AppState, start_server};
+use pctx_agent_server::{AppState, session::SessionStorage, start_server};
 use pctx_code_mode::CodeMode;
-use pctx_session_types::SessionStorage;
 use tabled::{
+    Table,
     builder::Builder,
     settings::{
         Alignment, Color, Panel, Style, Width,
@@ -12,7 +12,6 @@ use tabled::{
         peaker::Priority,
         width::MinWidth,
     },
-    Table,
 };
 use terminal_size::terminal_size;
 use tracing::info;

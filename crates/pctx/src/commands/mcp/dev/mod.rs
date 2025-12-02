@@ -24,8 +24,8 @@ use ratatui::{Terminal, backend::CrosstermBackend, style::Color};
 use tokio::sync::mpsc;
 
 use crate::commands::mcp::start::StartCmd;
-use pctx_mcp_server::PctxMcpServer;
 use app::{App, AppMessage, FocusPanel};
+use pctx_mcp_server::PctxMcpServer;
 
 #[allow(unused)]
 const PRIMARY: Color = Color::Rgb(0, 43, 86); // #002B56

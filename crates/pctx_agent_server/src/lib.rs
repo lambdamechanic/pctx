@@ -1,5 +1,6 @@
 pub mod rest;
 pub mod server;
+pub mod session;
 pub mod types;
 pub mod websocket;
 
@@ -7,7 +8,7 @@ use std::sync::Arc;
 
 use pctx_code_execution_runtime::CallableToolRegistry;
 use pctx_code_mode::CodeMode;
-use pctx_session_types::{SessionManager, SessionStorage};
+use session::{SessionManager, SessionStorage};
 
 /// Shared application state
 #[derive(Clone)]

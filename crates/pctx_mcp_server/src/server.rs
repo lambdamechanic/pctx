@@ -45,11 +45,7 @@ impl PctxMcpServer {
         }
     }
 
-    pub async fn serve(
-        &self,
-        cfg: &Config,
-        code_mode: pctx_code_mode::CodeMode,
-    ) -> Result<()> {
+    pub async fn serve(&self, cfg: &Config, code_mode: pctx_code_mode::CodeMode) -> Result<()> {
         let shutdown_signal = async {
             tokio::signal::ctrl_c()
                 .await

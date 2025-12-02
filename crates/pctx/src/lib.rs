@@ -4,7 +4,10 @@ pub mod utils;
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 
-use crate::utils::{logger::init_cli_logger, telemetry::{init_telemetry, init_telemetry_minimal}};
+use crate::utils::{
+    logger::init_cli_logger,
+    telemetry::{init_telemetry, init_telemetry_minimal},
+};
 use pctx_config::Config;
 
 #[derive(Parser)]
