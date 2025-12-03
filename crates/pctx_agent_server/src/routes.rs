@@ -4,18 +4,18 @@ use std::time::Instant;
 use crate::state::ws_manager::OutgoingMessage;
 use axum::{Json, extract::State, http::StatusCode};
 use pctx_code_execution_runtime::CallbackFn;
-use pctx_code_mode::model::{
-    ExecuteInput, ExecuteOutput, GetFunctionDetailsInput, GetFunctionDetailsOutput,
-    ListFunctionsOutput,
-};
+use pctx_code_mode::model::{ExecuteOutput, GetFunctionDetailsOutput, ListFunctionsOutput};
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::AppState;
 use crate::model::{
-    ErrorInfo, ErrorResponse, HealthResponse, McpServerConfig, RegisterLocalToolsRequest,
-    RegisterLocalToolsResponse, RegisterMcpServersRequest, RegisterMcpServersResponse,
+    ErrorCode, ErrorData, ExecuteRequest, GetFunctionDetailsRequest, HealthResponse,
+    ListFunctionsRequest, McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
+    RegisterToolsRequest, RegisterToolsResponse,
 };
+
+pub(crate) type ApiResult<T> = Result<T, (StatusCode, Json<ErrorData>)>;
 
 /// Health check endpoint
 #[utoipa::path(
@@ -38,22 +38,32 @@ pub(crate) async fn health() -> Json<HealthResponse> {
     post,
     path = "/code-mode/functions/list",
     tag = "CodeMode",
+    request_body = ListFunctionsRequest,
     responses(
         (status = 200, description = "List of all code mode functions as source code & structured output", body = ListFunctionsOutput),
-        (status = 500, description = "Internal server error", body = ErrorResponse)
+        (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
 pub(crate) async fn list_functions(
     State(state): State<AppState>,
-) -> Result<Json<ListFunctionsOutput>, (StatusCode, Json<ErrorResponse>)> {
-    info!("Listing tools");
+    Json(request): Json<ListFunctionsRequest>,
+) -> ApiResult<Json<ListFunctionsOutput>> {
+    info!(session_id =? request.session_id, "Listing tools");
 
-    // TODO: impl session id & 404
-    let functions = state
+    let code_mode_lock = state
         .code_mode_manager
-        .with_read(Uuid::new_v4(), |cm| cm.list_functions())
+        .get(request.session_id)
         .await
-        .unwrap();
+        .ok_or((
+            StatusCode::NOT_FOUND,
+            Json(ErrorData {
+                code: ErrorCode::InvalidSession,
+                message: format!("Code mode session {} does not exist", &request.session_id),
+                details: None,
+            }),
+        ))?;
+
+    let functions = code_mode_lock.read().await.list_functions();
 
     Ok(Json(functions))
 }
@@ -63,47 +73,48 @@ pub(crate) async fn list_functions(
     post,
     path = "/code-mode/functions/details",
     tag = "CodeMode",
-    request_body = GetFunctionDetailsInput,
+    request_body = GetFunctionDetailsRequest,
     responses(
         (status = 200, description = "Function details", body = GetFunctionDetailsOutput),
-        (status = 404, description = "Function not found", body = ErrorResponse),
-        (status = 500, description = "Internal server error", body = ErrorResponse)
+        (status = 404, description = "Function not found", body = ErrorData),
+        (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
 pub(crate) async fn get_function_details(
     State(state): State<AppState>,
-    Json(request): Json<GetFunctionDetailsInput>,
-) -> Result<Json<GetFunctionDetailsOutput>, (StatusCode, Json<ErrorResponse>)> {
+    Json(request): Json<GetFunctionDetailsRequest>,
+) -> ApiResult<Json<GetFunctionDetailsOutput>> {
     let requested_functions = request
+        .input
         .functions
         .iter()
         .map(ToString::to_string)
         .collect::<Vec<String>>()
         .join(", ");
-    info!("Getting function details for {requested_functions}",);
+    info!(
+        session_id =? request.session_id,
+        "Getting function details for {requested_functions}"
+    );
 
-    // TODO: code mode session id & 404
-    let output = state
+    let code_mode_lock = state
         .code_mode_manager
-        .with_read(Uuid::new_v4(), |cm| cm.get_function_details(request))
+        .get(request.session_id)
         .await
-        .unwrap();
-
-    // Check if we got the function
-    if output.functions.is_empty() {
-        return Err((
+        .ok_or((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: ErrorInfo {
-                    code: "NOT_FOUND".to_string(),
-                    message: format!("Functions not found: {requested_functions}"),
-                    details: None,
-                },
+            Json(ErrorData {
+                code: ErrorCode::InvalidSession,
+                message: format!("Code mode session {} does not exist", &request.session_id),
+                details: None,
             }),
-        ));
-    }
+        ))?;
 
-    Ok(Json(output))
+    let details = code_mode_lock
+        .read()
+        .await
+        .get_function_details(request.input);
+
+    Ok(Json(details))
 }
 
 /// Execute TypeScript code with access to registered tools
@@ -111,26 +122,35 @@ pub(crate) async fn get_function_details(
     post,
     path = "/code-mode/execute",
     tag = "CodeMode",
-    request_body = ExecuteInput,
+    request_body = ExecuteRequest,
     responses(
         (status = 200, description = "Code executed successfully", body = ExecuteOutput),
-        (status = 400, description = "Code execution failed", body = ErrorResponse),
-        (status = 500, description = "Internal server error", body = ErrorResponse)
+        (status = 400, description = "Code execution failed", body = ErrorData),
+        (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
 pub(crate) async fn execute_code(
     State(state): State<AppState>,
-    Json(request): Json<ExecuteInput>,
-) -> Result<Json<ExecuteOutput>, (StatusCode, Json<ErrorResponse>)> {
+    Json(request): Json<ExecuteRequest>,
+) -> ApiResult<Json<ExecuteOutput>> {
     info!("Executing code");
 
     let start = Instant::now();
     let current_span = tracing::Span::current();
 
     // Clone the CodeMode Arc to move into spawn_blocking
-    // TODO: code mode session id & 404
-    let code_mode = state.code_mode_manager.get(Uuid::new_v4()).await.unwrap();
-    let code = request.code;
+    let code_mode_lock = state
+        .code_mode_manager
+        .get(request.session_id)
+        .await
+        .ok_or((
+            StatusCode::NOT_FOUND,
+            Json(ErrorData {
+                code: ErrorCode::InvalidSession,
+                message: format!("Code mode session {} does not exist", &request.session_id),
+                details: None,
+            }),
+        ))?;
 
     // Use spawn_blocking with current-thread runtime for Deno's unsync operations
     let output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
@@ -143,8 +163,10 @@ pub(crate) async fn execute_code(
             .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
 
         rt.block_on(async {
-            code_mode
-                .execute(&code)
+            code_mode_lock
+                .read()
+                .await
+                .execute(&request.input.code)
                 .await
                 .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
         })
@@ -154,12 +176,10 @@ pub(crate) async fn execute_code(
         error!("Task join failed: {e}");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: ErrorInfo {
-                    code: "INTERNAL_ERROR".to_string(),
-                    message: format!("Task join failed: {e}"),
-                    details: None,
-                },
+            Json(ErrorData {
+                code: ErrorCode::Internal,
+                message: format!("Execute task join failed: {e}"),
+                details: None,
             }),
         )
     })?
@@ -167,12 +187,10 @@ pub(crate) async fn execute_code(
         error!("Sandbox execution error: {e}");
         (
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: ErrorInfo {
-                    code: "EXECUTION_ERROR".to_string(),
-                    message: format!("Execution failed: {e}"),
-                    details: None,
-                },
+            Json(ErrorData {
+                code: ErrorCode::Execution,
+                message: format!("Execution failed: {e}"),
+                details: None,
             }),
         )
     })?;
@@ -187,95 +205,95 @@ pub(crate) async fn execute_code(
     post,
     path = "/register/tools",
     tag = "registration",
-    request_body = RegisterLocalToolsRequest,
+    request_body = RegisterToolsRequest,
     responses(
-        (status = 200, description = "Tools registered successfully", body = RegisterLocalToolsResponse),
-        (status = 404, description = "Session not found", body = ErrorResponse),
-        (status = 500, description = "Internal server error", body = ErrorResponse)
+        (status = 200, description = "Tools registered successfully", body = RegisterToolsResponse),
+        (status = 404, description = "Session not found", body = ErrorData),
+        (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
 pub(crate) async fn register_tools(
     State(state): State<AppState>,
-    Json(request): Json<RegisterLocalToolsRequest>,
-) -> Result<Json<RegisterLocalToolsResponse>, (StatusCode, Json<ErrorResponse>)> {
+    Json(request): Json<RegisterToolsRequest>,
+) -> ApiResult<Json<RegisterToolsResponse>> {
     info!(
         "Registering {} tools for session {}",
         request.tools.len(),
         request.session_id
     );
 
-    todo!();
+    let code_mode_lock = state
+        .code_mode_manager
+        .get(request.session_id)
+        .await
+        .unwrap();
+    let ws_session_lock = state
+        .ws_manager
+        .get_for_code_mode_session(request.session_id)
+        .await
+        .ok_or((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorData {
+                code: ErrorCode::InvalidSession,
+                message: format!(
+                    "Failed to find websocket for session {}",
+                    request.session_id
+                ),
+                details: None,
+            }),
+        ))?;
 
-    // let mut registered = 0;
-    // for tool in &request.tools {
-    //     // Create callback closure that captures session state
-    //     let session_manager_clone = Arc::clone(&state.session_manager);
-    //     let tool_id = tool.id();
+    let mut registered = 0;
+    for tool in &request.tools {
+        // Create callback closure that captures session state
+        let tool_id = tool.id();
+        let ws_session_lock_clone = ws_session_lock.clone();
 
-    //     let callback: CallbackFn = Arc::new(move |args: Option<serde_json::Value>| {
-    //         let session_manager_clone = session_manager_clone.clone();
-    //         let tool_id_clone = tool_id.clone();
+        let callback: CallbackFn = Arc::new(move |args: Option<serde_json::Value>| {
+            let tool_id_clone = tool_id.clone();
+            let ws_session_lock_clone = ws_session_lock_clone.clone();
 
-    //         Box::pin(async move {
-    //             let request_id = Uuid::new_v4().to_string();
+            Box::pin(async move {
+                let request_id = Uuid::new_v4().to_string();
+                let request = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "method": "execute_tool",
+                    "params": {
+                        "name": tool_id_clone,
+                        "arguments": args
+                    },
+                    "id": request_id.clone()
+                });
 
-    //             let request = serde_json::json!({
-    //                 "jsonrpc": "2.0",
-    //                 "method": "execute_tool",
-    //                 "params": {
-    //                     "name": tool_id_clone,
-    //                     "arguments": args
-    //                 },
-    //                 "id": request_id.clone()
-    //             });
+                let mut ws_session_write = ws_session_lock_clone.write().await;
 
-    //             session_manager_clone
-    //                 .execute_callback_raw(
-    //                     &tool_id_clone,
-    //                     OutgoingMessage::Response(request),
-    //                     serde_json::Value::String(request_id),
-    //                 )
-    //                 .await
-    //                 .map_err(|e| e.to_string())
-    //         })
-    //     });
+                ws_session_write
+                    .execute_callback_raw(
+                        &tool_id_clone,
+                        OutgoingMessage::Response(request),
+                        serde_json::Value::String(request_id),
+                    )
+                    .await
+                    .map_err(|e| e.to_string())
+            })
+        });
 
-    //     let mut code_mode = state.code_mode.lock().await;
-    //     code_mode.add_callback(tool, callback).map_err(|e| {
-    //         (
-    //             StatusCode::INTERNAL_SERVER_ERROR,
-    //             Json(ErrorResponse {
-    //                 error: ErrorInfo {
-    //                     code: "INTERNAL_ERROR".to_string(),
-    //                     message: format!("Failed to register callback in CodeMode: {e}"),
-    //                     details: None,
-    //                 },
-    //             }),
-    //         )
-    //     })?;
+        let mut code_mode_write = code_mode_lock.write().await;
+        code_mode_write.add_callback(tool, callback).map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorData {
+                    code: ErrorCode::Internal,
+                    message: format!("Failed to register callback in CodeMode: {e}"),
+                    details: None,
+                }),
+            )
+        })?;
 
-    //     // Register with session_manager for tracking
-    //     state
-    //         .session_manager
-    //         .register_callback(&request.session_id, tool.id(), tool.description.clone())
-    //         .await
-    //         .map_err(|e| {
-    //             (
-    //                 StatusCode::INTERNAL_SERVER_ERROR,
-    //                 Json(ErrorResponse {
-    //                     error: ErrorInfo {
-    //                         code: "INTERNAL_ERROR".to_string(),
-    //                         message: format!("Failed to register tool with session: {e}"),
-    //                         details: None,
-    //                     },
-    //                 }),
-    //             )
-    //         })?;
+        registered += 1;
+    }
 
-    //     registered += 1;
-    // }
-
-    // Ok(Json(RegisterLocalToolsResponse { registered }))
+    Ok(Json(RegisterToolsResponse { registered }))
 }
 
 /// Register MCP servers dynamically at runtime
@@ -286,7 +304,7 @@ pub(crate) async fn register_tools(
     request_body = RegisterMcpServersRequest,
     responses(
         (status = 200, description = "MCP servers registration result", body = RegisterMcpServersResponse),
-        (status = 500, description = "Internal server error", body = ErrorResponse)
+        (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
 pub(crate) async fn register_servers(

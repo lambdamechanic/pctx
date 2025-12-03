@@ -11,8 +11,9 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::{
     AppState,
     model::{
-        ErrorInfo, ErrorResponse, HealthResponse, McpServerConfig, RegisterLocalToolsRequest,
-        RegisterLocalToolsResponse, RegisterMcpServersRequest, RegisterMcpServersResponse,
+        ErrorData, ExecuteRequest, GetFunctionDetailsRequest, HealthResponse, ListFunctionsRequest,
+        McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
+        RegisterToolsRequest, RegisterToolsResponse,
     },
     routes, websocket,
 };
@@ -35,21 +36,29 @@ use pctx_code_mode::model::{
     components(
         schemas(
             HealthResponse,
+            // List functions
+            ListFunctionsRequest,
             ListFunctionsOutput,
             ListedFunction,
+            // Get function details
+            GetFunctionDetailsRequest,
             GetFunctionDetailsInput,
             GetFunctionDetailsOutput,
             FunctionDetails,
+            // Execute
+            ExecuteRequest,
             ExecuteInput,
             ExecuteOutput,
-            RegisterLocalToolsRequest,
+            // Tool registration
+            RegisterToolsRequest,
             CallbackConfig,
-            RegisterLocalToolsResponse,
+            RegisterToolsResponse,
+            // Server registration
             RegisterMcpServersRequest,
             McpServerConfig,
             RegisterMcpServersResponse,
-            ErrorResponse,
-            ErrorInfo,
+            // Common
+            ErrorData
         )
     ),
     tags(

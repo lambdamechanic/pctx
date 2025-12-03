@@ -47,7 +47,7 @@ impl Cli {
     fn cli_logger(&self) -> bool {
         !matches!(
             &self.command,
-            Commands::Mcp(McpCommands::Start(_)) | Commands::Mcp(McpCommands::Dev(_))
+            Commands::Mcp(McpCommands::Start(_) | McpCommands::Dev(_))
         )
     }
 
@@ -94,7 +94,7 @@ impl Cli {
             AgentCommands::Start(start_cmd) => {
                 // Init minimal telemetry with optional JSONL logging
                 init_telemetry_minimal(self.json_l()).await?;
-                start_cmd.handle().await?
+                start_cmd.handle().await?;
             }
         }
 

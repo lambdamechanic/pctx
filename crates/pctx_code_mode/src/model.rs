@@ -11,8 +11,6 @@ pub struct ListFunctionsOutput {
     /// Available functions
     pub functions: Vec<ListedFunction>,
 
-    #[serde(skip)]
-    #[schema(ignore = true)]
     pub code: String,
 }
 #[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]

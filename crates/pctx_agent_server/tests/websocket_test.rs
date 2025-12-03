@@ -10,11 +10,11 @@ use uuid::Uuid;
 
 /// Helper to create test app state
 async fn create_test_state() -> (Uuid, AppState) {
-    let state = AppState::new();
+    let state = AppState::default();
     let session_id = Uuid::new_v4();
     state
         .code_mode_manager
-        .set(session_id, CodeMode::default())
+        .add(session_id, CodeMode::default())
         .await;
 
     (session_id, state)
@@ -109,7 +109,7 @@ async fn test_websocket_multiple_connections() {
     let msg1 = read1.next().await.unwrap().unwrap();
     if let Message::Text(text) = msg1 {
         let notification: serde_json::Value = serde_json::from_str(&text).unwrap();
-        assert!(notification["params"]["session_id"].as_str().is_some())
+        assert!(notification["params"]["session_id"].as_str().is_some());
     } else {
         panic!("Expected text message");
     };

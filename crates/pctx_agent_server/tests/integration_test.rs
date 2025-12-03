@@ -1,159 +1,170 @@
-// //! Integration tests for full agent server workflows
-// //!
-// //! These tests exercise complete end-to-end scenarios including:
-// //! - WebSocket connection + tool registration + REST execution
-// //! - MCP server registration + tool availability + execution
-// //! - Local tool callbacks via WebSocket
+//! Integration tests for full agent server workflows
+//!
+//! These tests exercise complete end-to-end scenarios including:
+//! - WebSocket connection + tool registration + REST execution
+//! - MCP server registration + tool availability + execution
+//! - Local tool callbacks via WebSocket
 
-// use axum::http::StatusCode;
-// use futures::StreamExt;
-// use pctx_agent_server::{
-//     AppState,
-//     model::{
-//         ErrorResponse, HealthResponse, RegisterLocalToolsResponse, RegisterMcpServersResponse,
-//     },
-//     server::create_router,
-// };
-// use pctx_code_mode::model::{ExecuteOutput, GetFunctionDetailsOutput};
-// use pctx_code_mode::{CodeMode, model::ListFunctionsOutput};
-// use serde_json::json;
-// use serial_test::serial;
-// use tokio::net::TcpListener;
-// use tokio_tungstenite::{connect_async, tungstenite::Message};
+use axum::http::StatusCode;
+use futures::StreamExt;
+use pctx_agent_server::{
+    AppState,
+    model::{HealthResponse, RegisterMcpServersResponse, RegisterToolsResponse},
+    server::create_router,
+};
+use pctx_code_mode::model::{ExecuteOutput, GetFunctionDetailsOutput};
+use pctx_code_mode::{CodeMode, model::ListFunctionsOutput};
+use serde_json::json;
+use serial_test::serial;
+use tokio::net::TcpListener;
+use tokio_tungstenite::{connect_async, tungstenite::Message};
+use uuid::Uuid;
 
-// /// Helper to create test app state
-// fn create_test_state() -> AppState {
-//     let code_mode = CodeMode::default();
-//     AppState::new(code_mode)
-// }
+/// Helper to create test app state
+async fn create_test_state() -> (Uuid, AppState) {
+    let session_id = Uuid::new_v4();
+    let state = AppState::default();
+    state
+        .code_mode_manager
+        .add(session_id, CodeMode::default())
+        .await;
 
-// /// Helper to start full test server with both REST and WebSocket
-// async fn start_full_test_server() -> (String, String) {
-//     let state = create_test_state();
-//     let router = create_router(state);
+    (session_id, state)
+}
 
-//     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-//     let addr = listener.local_addr().unwrap();
+/// Helper to start full test server with both REST and WebSocket
+async fn start_full_test_server() -> (Uuid, String, String) {
+    let (session_id, state) = create_test_state().await;
+    let router = create_router(state);
 
-//     tokio::spawn(async move {
-//         axum::serve(listener, router).await.unwrap();
-//     });
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
 
-//     // Give server time to start
-//     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
 
-//     let http_url = format!("http://127.0.0.1:{}", addr.port());
-//     let ws_url = format!("ws://127.0.0.1:{}/ws", addr.port());
+    // Give server time to start
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-//     (http_url, ws_url)
-// }
+    let http_url = format!("http://127.0.0.1:{}", addr.port());
+    let ws_url = format!(
+        "ws://127.0.0.1:{}/ws?code_mode_session_id={session_id}",
+        addr.port()
+    );
 
-// #[tokio::test]
-// #[serial]
-// async fn test_full_workflow_websocket_registration_and_list() {
-//     let (http_url, ws_url) = start_full_test_server().await;
+    (session_id, http_url, ws_url)
+}
 
-//     // 1. Connect via WebSocket
-//     let (ws_stream, _) = connect_async(&ws_url).await.expect("Failed to connect");
-//     let (_write, mut read) = ws_stream.split();
+#[tokio::test]
+#[serial]
+async fn test_full_workflow_websocket_registration_and_list() {
+    let (session_id, http_url, ws_url) = start_full_test_server().await;
 
-//     // 2. Receive session_created notification
-//     let session_id = if let Some(Ok(Message::Text(text))) = read.next().await {
-//         let notification: serde_json::Value = serde_json::from_str(&text).unwrap();
-//         notification["params"]["session_id"]
-//             .as_str()
-//             .unwrap()
-//             .to_string()
-//     } else {
-//         panic!("Expected session_created notification");
-//     };
+    // 1. Connect via WebSocket
+    let (ws_stream, _) = connect_async(&ws_url).await.expect("Failed to connect");
+    let (_write, mut read) = ws_stream.split();
 
-//     // 3. Register tools via REST API
-//     let client = reqwest::Client::new();
-//     let register_response = client
-//         .post(format!("{http_url}/register/tools"))
-//         .json(&json!({
-//             "session_id": session_id,
-//             "tools": [
-//                 {
-//                     "namespace": "TestTools",
-//                     "name": "myFunction",
-//                     "description": "A test function",
-//                     "input_schema": {
-//                         "type": "object",
-//                         "properties": {
-//                             "input": { "type": "string" }
-//                         }
-//                     }
-//                 }
-//             ]
-//         }))
-//         .send()
-//         .await
-//         .expect("Failed to register tools");
+    // 2. Receive session_created notification
+    if let Some(Ok(Message::Text(text))) = read.next().await {
+        let notification: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let ws_id = notification["params"]["session_id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(Uuid::parse_str(&ws_id).is_ok());
+    } else {
+        panic!("Expected session_created notification");
+    };
 
-//     assert_eq!(register_response.status(), StatusCode::OK);
-//     let register_body: RegisterLocalToolsResponse = register_response.json().await.unwrap();
-//     assert_eq!(register_body.registered, 1);
+    // 3. Register tools via REST API
+    let client = reqwest::Client::new();
+    let register_response = client
+        .post(format!("{http_url}/register/tools"))
+        .json(&json!({
+            "session_id": session_id,
+            "tools": [
+                {
+                    "namespace": "TestTools",
+                    "name": "myFunction",
+                    "description": "A test function",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "input": { "type": "string" }
+                        }
+                    }
+                }
+            ]
+        }))
+        .send()
+        .await
+        .expect("Failed to register tools");
 
-//     // 4. List tools via REST API
-//     let list_response = client
-//         .post(format!("{http_url}/code-mode/functions/list"))
-//         .json(&json!({}))
-//         .send()
-//         .await
-//         .expect("Failed to list tools");
+    assert_eq!(register_response.status(), StatusCode::OK);
+    let register_body: RegisterToolsResponse = register_response.json().await.unwrap();
+    assert_eq!(register_body.registered, 1);
 
-//     assert_eq!(list_response.status(), StatusCode::OK);
-//     let list_body: ListFunctionsOutput = list_response.json().await.unwrap();
+    // 4. List tools via REST API
+    let list_response = client
+        .post(format!("{http_url}/code-mode/functions/list"))
+        .json(&json!({"session_id": session_id}))
+        .send()
+        .await
+        .expect("Failed to list tools");
 
-//     // Should contain our registered tool
-//     let found = list_body
-//         .functions
-//         .iter()
-//         .find(|t| t.namespace == "TestTools" && t.name == "myFunction");
-//     assert!(found.is_some());
-// }
+    assert_eq!(list_response.status(), StatusCode::OK);
+    let list_body: ListFunctionsOutput = list_response.json().await.unwrap();
+    println!("{}", list_body.code);
 
-// #[tokio::test]
-// #[serial]
-// async fn test_rest_only_code_execution() {
-//     let (http_url, _ws_url) = start_full_test_server().await;
+    // Should contain our registered tool
+    let found = list_body
+        .functions
+        .iter()
+        .find(|t| t.namespace == "TestTools" && t.name == "myFunction");
+    assert!(found.is_some());
+}
 
-//     let client = reqwest::Client::new();
+#[tokio::test]
+#[serial]
+async fn test_rest_only_code_execution() {
+    let (session_id, http_url, _ws_url) = start_full_test_server().await;
 
-//     // Execute simple code without any registered tools
-//     let execute_response = client
-//         .post(format!("{http_url}/code-mode/execute"))
-//         .json(&json!({
-//             "code": "async function run() { return 1 + 1; }",
-//         }))
-//         .send()
-//         .await
-//         .expect("Failed to execute code");
+    let client = reqwest::Client::new();
 
-//     assert_eq!(execute_response.status(), StatusCode::OK);
-//     let execute_body: ExecuteOutput = execute_response.json().await.unwrap();
-//     assert_eq!(execute_body.output, Some(json!(2)));
-// }
+    // Execute simple code without any registered tools
+    let execute_response = client
+        .post(format!("{http_url}/code-mode/execute"))
+        .json(&json!({
+            "session_id": session_id,
+            "code": "async function run() { return 1 + 1; }",
+        }))
+        .send()
+        .await
+        .expect("Failed to execute code");
 
-// #[tokio::test]
-// #[serial]
-// async fn test_health_check_always_available() {
-//     let (http_url, _ws_url) = start_full_test_server().await;
+    assert_eq!(execute_response.status(), StatusCode::OK);
+    let execute_body: ExecuteOutput = execute_response.json().await.unwrap();
+    assert_eq!(execute_body.output, Some(json!(2)));
+}
 
-//     let client = reqwest::Client::new();
+#[tokio::test]
+#[serial]
+async fn test_health_check_always_available() {
+    let (_session_id, http_url, _ws_url) = start_full_test_server().await;
 
-//     let health_response = client
-//         .get(format!("{http_url}/health"))
-//         .send()
-//         .await
-//         .expect("Failed to get health");
+    let client = reqwest::Client::new();
 
-//     assert_eq!(health_response.status(), StatusCode::OK);
-//     let health_body: HealthResponse = health_response.json().await.unwrap();
-//     assert_eq!(health_body.status, "ok");
-// }
+    let health_response = client
+        .get(format!("{http_url}/health"))
+        .send()
+        .await
+        .expect("Failed to get health");
+
+    assert_eq!(health_response.status(), StatusCode::OK);
+    let health_body: HealthResponse = health_response.json().await.unwrap();
+    assert_eq!(health_body.status, "ok");
+}
 
 // #[tokio::test]
 // #[serial]

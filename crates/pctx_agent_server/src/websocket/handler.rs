@@ -48,7 +48,7 @@ pub async fn ws_handler(
     // Check if there's already a WebSocket session for this code mode ID
     if state
         .ws_manager
-        .get_for_code_mode_id(code_mode_session_id)
+        .get_for_code_mode_session(code_mode_session_id)
         .await
         .is_some()
     {
@@ -90,7 +90,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, code_mode_session_id:
         "Created session {session_id} connected to code mode session {}",
         session.code_mode_session_id
     );
-    state.ws_manager.add_session(session).await;
+    state.ws_manager.add(session).await;
 
     // Send session_created notification
     let session_created = JsonRpcNotification::new(

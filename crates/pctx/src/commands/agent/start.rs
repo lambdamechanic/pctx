@@ -2,7 +2,6 @@ use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
 use pctx_agent_server::{AppState, start_server};
-use pctx_code_mode::CodeMode;
 use tabled::{
     Table,
     builder::Builder,
@@ -41,8 +40,7 @@ pub struct StartCmd {
 
 impl StartCmd {
     pub(crate) async fn handle(&self) -> Result<()> {
-        let code_mode = CodeMode::default();
-        let state = AppState::new(code_mode);
+        let state = AppState::default();
 
         self.print_banner();
 

@@ -1,6 +1,8 @@
+use pctx_code_mode::model::{ExecuteInput, GetFunctionDetailsInput};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 /// Health check response
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -9,35 +11,63 @@ pub struct HealthResponse {
     pub version: String,
 }
 
-/// Error response
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ErrorResponse {
-    pub error: ErrorInfo,
+pub struct ListFunctionsRequest {
+    #[schema(value_type = String)]
+    pub session_id: Uuid,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ErrorInfo {
-    pub code: String,
+pub struct GetFunctionDetailsRequest {
+    #[schema(value_type = String)]
+    pub session_id: Uuid,
+
+    #[serde(flatten)]
+    pub input: GetFunctionDetailsInput,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ExecuteRequest {
+    #[schema(value_type = String)]
+    pub session_id: Uuid,
+
+    #[serde(flatten)]
+    pub input: ExecuteInput,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ErrorData {
+    pub code: ErrorCode,
     pub message: String,
     pub details: Option<String>,
+}
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorCode {
+    InvalidSession,
+    Internal,
+    Execution,
 }
 
 /// Request to register tools
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct RegisterLocalToolsRequest {
-    pub session_id: String,
+pub struct RegisterToolsRequest {
+    #[schema(value_type = String)]
+    pub session_id: Uuid,
     pub tools: Vec<pctx_code_mode::model::CallbackConfig>,
 }
 
 /// Response to registering tools
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct RegisterLocalToolsResponse {
+pub struct RegisterToolsResponse {
     pub registered: usize,
 }
 
 /// Request to register MCP servers
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterMcpServersRequest {
+    #[schema(value_type = String)]
+    pub session_id: Uuid,
     pub servers: Vec<McpServerConfig>,
 }
 
