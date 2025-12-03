@@ -49,7 +49,6 @@ pub async fn health() -> Json<HealthResponse> {
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-#[axum::debug_handler]
 pub async fn list_tools(
     State(state): State<AppState>,
     Json(_request): Json<ListToolsRequest>,
@@ -73,9 +72,8 @@ pub async fn list_tools(
             .collect()
     }; // MutexGuard dropped here
 
-    // Add local tools registered via WebSocket/REST
-    let local_tools = state.session_manager.list_callbacks_with_info().await;
-    for callback_info in local_tools {
+    let callbacks = state.session_manager.list_callbacks_with_info().await;
+    for callback_info in callbacks {
         if let Some((namespace, name)) = callback_info.name.split_once('.') {
             tools.push(ToolInfo {
                 namespace: namespace.to_string(),
@@ -148,7 +146,6 @@ pub async fn get_function_details(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-#[axum::debug_handler]
 pub async fn execute_code(
     State(state): State<AppState>,
     Json(request): Json<ExecuteCodeRequest>,
@@ -249,7 +246,6 @@ pub async fn register_local_tools(
 
         // Create callback closure that captures session state
         let session_manager_clone = Arc::clone(&state.session_manager);
-        let session_id_clone = request.session_id.clone();
         let tool_name_clone = tool_name.clone();
 
         let callback: CallbackFn = Arc::new(move |args: Option<serde_json::Value>| {
@@ -336,7 +332,7 @@ pub async fn register_local_tools(
                     Json(ErrorResponse {
                         error: ErrorInfo {
                             code: "INTERNAL_ERROR".to_string(),
-                            message: format!("Failed to register tool with session: {}", e),
+                            message: format!("Failed to register tool with session: {e}"),
                             details: None,
                         },
                     }),
@@ -360,7 +356,6 @@ pub async fn register_local_tools(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-#[axum::debug_handler]
 pub async fn register_mcp_servers(
     State(state): State<AppState>,
     Json(request): Json<RegisterMcpServersRequest>,
@@ -396,7 +391,7 @@ async fn register_mcp_server(state: &AppState, server: &McpServerConfig) -> Resu
     // Add auth if provided
     if let Some(auth) = &server.auth {
         server_config.auth = serde_json::from_value(auth.clone())
-            .map_err(|e| format!("Invalid auth config: {}", e))?;
+            .map_err(|e| format!("Invalid auth config: {e}"))?;
     }
 
     // Connect to MCP server and register tools
@@ -405,7 +400,7 @@ async fn register_mcp_server(state: &AppState, server: &McpServerConfig) -> Resu
     code_mode
         .add_server(&server_config)
         .await
-        .map_err(|e| format!("Failed to add MCP server: {}", e))?;
+        .map_err(|e| format!("Failed to add MCP server: {e}"))?;
 
     info!(
         "Successfully registered MCP server '{}' with {} tools",
@@ -414,8 +409,7 @@ async fn register_mcp_server(state: &AppState, server: &McpServerConfig) -> Resu
             .tool_sets
             .iter()
             .find(|ts| ts.name == server.name)
-            .map(|ts| ts.tools.len())
-            .unwrap_or(0)
+            .map_or(0, |ts| ts.tools.len())
     );
 
     Ok(())
