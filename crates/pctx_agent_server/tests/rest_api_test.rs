@@ -6,8 +6,14 @@ use axum::{
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use pctx_agent_server::{AppState, types::*};
-use pctx_code_mode::CodeMode;
+use pctx_agent_server::{
+    AppState,
+    types::{ErrorResponse, HealthResponse, RegisterMcpServersResponse},
+};
+use pctx_code_mode::{
+    CodeMode,
+    model::{ExecuteOutput, ListFunctionsOutput},
+};
 use serde_json::json;
 use serial_test::serial;
 use tower::ServiceExt;
@@ -83,8 +89,8 @@ async fn test_list_tools_empty() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body: ListToolsResponse = parse_response_body(response.into_body()).await;
-    assert_eq!(body.tools.len(), 0);
+    let body: ListFunctionsOutput = parse_response_body(response.into_body()).await;
+    assert_eq!(body.functions.len(), 0);
 }
 
 #[tokio::test]
@@ -148,9 +154,8 @@ async fn test_execute_code_simple() {
         panic!("Expected OK, got {}", status);
     }
 
-    let body: ExecuteCodeResponse = parse_response_body(response.into_body()).await;
+    let body: ExecuteOutput = parse_response_body(response.into_body()).await;
     assert_eq!(body.output, Some(json!(42)));
-    assert!(body.execution_time_ms > 0);
 }
 
 #[tokio::test]
@@ -206,7 +211,7 @@ async fn test_execute_code_with_console_log() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body: ExecuteCodeResponse = parse_response_body(response.into_body()).await;
+    let body: ExecuteOutput = parse_response_body(response.into_body()).await;
     assert_eq!(body.output, Some(json!("done")));
 }
 
@@ -309,7 +314,7 @@ async fn test_execute_code_async() {
         panic!("Expected OK, got {}", status);
     }
 
-    let body: ExecuteCodeResponse = parse_response_body(response.into_body()).await;
+    let body: ExecuteOutput = parse_response_body(response.into_body()).await;
     assert_eq!(body.output, Some(json!(123)));
 }
 
@@ -337,7 +342,7 @@ async fn test_execute_code_json_result() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body: ExecuteCodeResponse = parse_response_body(response.into_body()).await;
+    let body: ExecuteOutput = parse_response_body(response.into_body()).await;
     assert_eq!(
         body.output,
         Some(json!({

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use schemars::{JsonSchema, json_schema};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::json;
@@ -38,6 +40,12 @@ pub struct FunctionId {
     pub fn_name: String,
 }
 
+impl Display for FunctionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.mod_name, self.fn_name)
+    }
+}
+
 impl JsonSchema for FunctionId {
     fn schema_name() -> std::borrow::Cow<'static, str> {
         "FunctionId".into()
@@ -56,8 +64,7 @@ impl Serialize for FunctionId {
     where
         S: Serializer,
     {
-        let s = format!("{}.{}", self.mod_name, self.fn_name);
-        serializer.serialize_str(&s)
+        serializer.serialize_str(&self.to_string())
     }
 }
 
@@ -159,23 +166,18 @@ impl ExecuteOutput {
     }
 }
 
-// -------------- Agent Server Wrappers --------------
+// -------------- Callbacks --------------
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
-pub struct AgentListFunctionsInput {
-    pub session_id: String,
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CallbackConfig {
+    pub name: String,
+    pub namespace: String,
+    pub description: Option<String>,
+    pub input_schema: Option<serde_json::Value>,
+    pub output_schema: Option<serde_json::Value>,
 }
-
-#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
-pub struct AgentGetFunctionDetailsInput {
-    pub session_id: String,
-    #[serde(flatten)]
-    pub input: GetFunctionDetailsInput,
-}
-
-#[derive(Debug, Serialize, Deserialize, JsonSchema, ToSchema)]
-pub struct AgentExecuteInput {
-    pub session_id: String,
-    #[serde(flatten)]
-    pub input: ExecuteInput,
+impl CallbackConfig {
+    pub fn id(&self) -> String {
+        format!("{}.{}", &self.namespace, &self.name)
+    }
 }

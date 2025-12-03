@@ -2,15 +2,15 @@ use std::collections::{HashMap, HashSet};
 
 use codegen::{Tool, ToolSet};
 use pctx_code_execution_runtime::CallbackRegistry;
-use pctx_config::{callback::CallbackConfig, server::ServerConfig};
+use pctx_config::server::ServerConfig;
 use serde_json::json;
 use tracing::{debug, warn};
 
 use crate::{
     Error, Result,
     model::{
-        ExecuteOutput, FunctionDetails, GetFunctionDetailsInput, GetFunctionDetailsOutput,
-        ListFunctionsOutput, ListedFunction,
+        CallbackConfig, ExecuteOutput, FunctionDetails, GetFunctionDetailsInput,
+        GetFunctionDetailsOutput, ListFunctionsOutput, ListedFunction,
     },
 };
 

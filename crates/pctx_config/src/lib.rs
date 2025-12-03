@@ -8,7 +8,6 @@ use tracing::debug;
 use crate::{logger::LoggerConfig, server::ServerConfig, telemetry::TelemetryConfig};
 
 pub mod auth;
-pub mod callback;
 pub(crate) mod defaults;
 pub mod logger;
 pub mod server;

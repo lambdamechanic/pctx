@@ -9,17 +9,18 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use pctx_code_execution_runtime::CallbackFn;
-use pctx_code_mode::model::{FunctionId, GetFunctionDetailsInput, GetFunctionDetailsOutput};
+use pctx_code_mode::model::{
+    ExecuteInput, ExecuteOutput, GetFunctionDetailsInput, GetFunctionDetailsOutput,
+    ListFunctionsOutput,
+};
 use tracing::{error, info};
 use utoipa;
 use uuid::Uuid;
 
 use crate::AppState;
 use crate::types::{
-    ErrorInfo, ErrorResponse, ExecuteCodeRequest, ExecuteCodeResponse, GetFunctionDetailsRequest,
-    HealthResponse, ListToolsRequest, ListToolsResponse, McpServerConfig,
-    RegisterLocalToolsRequest, RegisterLocalToolsResponse, RegisterMcpServersRequest,
-    RegisterMcpServersResponse, ToolInfo, ToolSource,
+    ErrorInfo, ErrorResponse, HealthResponse, McpServerConfig, RegisterLocalToolsRequest,
+    RegisterLocalToolsResponse, RegisterMcpServersRequest, RegisterMcpServersResponse,
 };
 
 /// Health check endpoint
@@ -43,50 +44,21 @@ pub async fn health() -> Json<HealthResponse> {
     post,
     path = "/tools/list",
     tag = "tools",
-    request_body = ListToolsRequest,
     responses(
-        (status = 200, description = "List of all registered tools", body = ListToolsResponse),
+        (status = 200, description = "List of all registered tools", body = ListFunctionsOutput),
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
 #[axum::debug_handler]
 pub async fn list_tools(
     State(state): State<AppState>,
-    Json(_request): Json<ListToolsRequest>,
-) -> Result<Json<ListToolsResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<ListFunctionsOutput>, (StatusCode, Json<ErrorResponse>)> {
     info!("Listing tools");
 
-    // Convert MCP tools to ToolInfo
-    let mut tools: Vec<ToolInfo> = {
-        let code_mode = state.code_mode.lock().await;
-        let output = code_mode.list_functions();
+    let code_mode = state.code_mode.lock().await;
+    let functions = code_mode.list_functions();
 
-        output
-            .functions
-            .iter()
-            .map(|f| ToolInfo {
-                namespace: f.namespace.clone(),
-                name: f.name.clone(),
-                description: f.description.clone().unwrap_or_default(),
-                source: ToolSource::Mcp,
-            })
-            .collect()
-    }; // MutexGuard dropped here
-
-    // Add local tools registered via WebSocket/REST
-    let local_tools = state.session_manager.list_callbacks_with_info().await;
-    for callback_info in local_tools {
-        if let Some((namespace, name)) = callback_info.name.split_once('.') {
-            tools.push(ToolInfo {
-                namespace: namespace.to_string(),
-                name: name.to_string(),
-                description: callback_info.description,
-                source: ToolSource::Local,
-            });
-        }
-    }
-
-    Ok(Json(ListToolsResponse { tools }))
+    Ok(Json(functions))
 }
 
 /// Get detailed information about a specific function
@@ -94,7 +66,7 @@ pub async fn list_tools(
     post,
     path = "/tools/details",
     tag = "tools",
-    request_body = GetFunctionDetailsRequest,
+    request_body = GetFunctionDetailsInput,
     responses(
         (status = 200, description = "Function details", body = GetFunctionDetailsOutput),
         (status = 404, description = "Function not found", body = ErrorResponse),
@@ -103,21 +75,18 @@ pub async fn list_tools(
 )]
 pub async fn get_function_details(
     State(state): State<AppState>,
-    Json(request): Json<GetFunctionDetailsRequest>,
+    Json(request): Json<GetFunctionDetailsInput>,
 ) -> Result<Json<GetFunctionDetailsOutput>, (StatusCode, Json<ErrorResponse>)> {
-    info!(
-        "Getting function details for {}.{}",
-        request.namespace, request.name
-    );
+    let requested_functions = request
+        .functions
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<String>>()
+        .join(", ");
+    info!("Getting function details for {requested_functions}",);
 
     let code_mode = state.code_mode.lock().await;
-    let input = GetFunctionDetailsInput {
-        functions: vec![FunctionId {
-            mod_name: request.namespace.clone(),
-            fn_name: request.name.clone(),
-        }],
-    };
-    let output = code_mode.get_function_details(input);
+    let output = code_mode.get_function_details(request);
 
     // Check if we got the function
     if output.functions.is_empty() {
@@ -126,7 +95,7 @@ pub async fn get_function_details(
             Json(ErrorResponse {
                 error: ErrorInfo {
                     code: "NOT_FOUND".to_string(),
-                    message: format!("Function not found: {}.{}", request.namespace, request.name),
+                    message: format!("Functions not found: {requested_functions}"),
                     details: None,
                 },
             }),
@@ -141,9 +110,9 @@ pub async fn get_function_details(
     post,
     path = "/tools/execute",
     tag = "tools",
-    request_body = ExecuteCodeRequest,
+    request_body = ExecuteInput,
     responses(
-        (status = 200, description = "Code executed successfully", body = ExecuteCodeResponse),
+        (status = 200, description = "Code executed successfully", body = ExecuteOutput),
         (status = 400, description = "Code execution failed", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
@@ -151,9 +120,9 @@ pub async fn get_function_details(
 #[axum::debug_handler]
 pub async fn execute_code(
     State(state): State<AppState>,
-    Json(request): Json<ExecuteCodeRequest>,
-) -> Result<Json<ExecuteCodeResponse>, (StatusCode, Json<ErrorResponse>)> {
-    info!("Executing code (timeout: {}ms)", request.timeout_ms);
+    Json(request): Json<ExecuteInput>,
+) -> Result<Json<ExecuteOutput>, (StatusCode, Json<ErrorResponse>)> {
+    info!("Executing code");
 
     let start = Instant::now();
     let current_span = tracing::Span::current();
@@ -210,17 +179,10 @@ pub async fn execute_code(
     })?;
 
     let execution_time_ms = start.elapsed().as_millis() as u64;
+    info!("Completed execution in {execution_time_ms}ms");
 
-    // Return full execution output including stdout/stderr
-    Ok(Json(ExecuteCodeResponse {
-        success: output.success,
-        stdout: output.stdout,
-        stderr: output.stderr,
-        output: output.output,
-        execution_time_ms,
-    }))
+    Ok(axum::Json(output))
 }
-
 /// Register local tools that will be called via WebSocket callbacks
 #[utoipa::path(
     post,
@@ -245,16 +207,13 @@ pub async fn register_local_tools(
 
     let mut registered = 0;
     for tool in &request.tools {
-        let tool_name = format!("{}.{}", tool.namespace, tool.name);
-
         // Create callback closure that captures session state
         let session_manager_clone = Arc::clone(&state.session_manager);
-        let session_id_clone = request.session_id.clone();
-        let tool_name_clone = tool_name.clone();
+        let tool_id = tool.id();
 
         let callback: CallbackFn = Arc::new(move |args: Option<serde_json::Value>| {
             let session_manager_clone = session_manager_clone.clone();
-            let tool_name_clone = tool_name_clone.clone();
+            let tool_id_clone = tool_id.clone();
 
             Box::pin(async move {
                 let request_id = Uuid::new_v4().to_string();
@@ -263,29 +222,27 @@ pub async fn register_local_tools(
                     "jsonrpc": "2.0",
                     "method": "execute_tool",
                     "params": {
-                        "name": tool_name_clone,
+                        "name": tool_id_clone,
                         "arguments": args
                     },
                     "id": request_id.clone()
                 });
 
-                let result = session_manager_clone
+                session_manager_clone
                     .execute_callback_raw(
-                        &tool_name_clone,
+                        &tool_id_clone,
                         OutgoingMessage::Response(request),
                         serde_json::Value::String(request_id),
                     )
                     .await
-                    .map_err(|e| e.to_string());
-
-                result
+                    .map_err(|e| e.to_string())
             })
         });
 
         // Register callback in CallbackRegistry
         state
             .callback_registry
-            .add(&tool_name, callback)
+            .add(&tool.id(), callback)
             .map_err(|e| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -299,16 +256,8 @@ pub async fn register_local_tools(
                 )
             })?;
 
-        let callback_config = pctx_config::callback::CallbackConfig {
-            name: tool.name.clone(),
-            namespace: tool.namespace.clone(),
-            description: Some(tool.description.clone()),
-            input_schema: Some(tool.parameters.clone()),
-            output_schema: None,
-        };
-
         let mut code_mode = state.code_mode.lock().await;
-        code_mode.add_callback(&callback_config).map_err(|e| {
+        code_mode.add_callback(&tool).map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
@@ -324,11 +273,7 @@ pub async fn register_local_tools(
         // Register with session_manager for tracking
         state
             .session_manager
-            .register_callback(
-                &request.session_id,
-                tool_name.clone(),
-                Some(tool.description.clone()),
-            )
+            .register_callback(&request.session_id, tool.id(), tool.description.clone())
             .await
             .map_err(|e| {
                 (

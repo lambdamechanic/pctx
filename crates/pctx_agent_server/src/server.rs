@@ -9,7 +9,10 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{AppState, rest, types::*, websocket};
-use pctx_code_mode::model::{FunctionDetails, GetFunctionDetailsOutput, ListedFunction};
+use pctx_code_mode::model::{
+    CallbackConfig, ExecuteInput, ExecuteOutput, FunctionDetails, GetFunctionDetailsInput,
+    GetFunctionDetailsOutput, ListFunctionsOutput, ListedFunction,
+};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -24,18 +27,15 @@ use pctx_code_mode::model::{FunctionDetails, GetFunctionDetailsOutput, ListedFun
     components(
         schemas(
             HealthResponse,
-            ListToolsRequest,
-            ListToolsResponse,
-            ToolInfo,
-            ToolSource,
-            GetFunctionDetailsRequest,
+            ListFunctionsOutput,
+            ListedFunction,
+            GetFunctionDetailsInput,
             GetFunctionDetailsOutput,
             FunctionDetails,
-            ListedFunction,
-            ExecuteCodeRequest,
-            ExecuteCodeResponse,
+            ExecuteInput,
+            ExecuteOutput,
             RegisterLocalToolsRequest,
-            LocalToolDefinition,
+            CallbackConfig,
             RegisterLocalToolsResponse,
             RegisterMcpServersRequest,
             McpServerConfig,

@@ -11,9 +11,15 @@ use axum::{
     routing::{get, post},
 };
 use futures::StreamExt;
-use pctx_agent_server::{AppState, rest, types::*, websocket};
-use pctx_code_mode::CodeMode;
-use pctx_code_mode::model::GetFunctionDetailsOutput;
+use pctx_agent_server::{
+    AppState, rest,
+    types::{
+        ErrorResponse, HealthResponse, RegisterLocalToolsResponse, RegisterMcpServersResponse,
+    },
+    websocket,
+};
+use pctx_code_mode::model::{ExecuteOutput, GetFunctionDetailsOutput};
+use pctx_code_mode::{CodeMode, model::ListFunctionsOutput};
 use serde_json::json;
 use serial_test::serial;
 use tokio::net::TcpListener;
@@ -86,7 +92,7 @@ async fn test_full_workflow_websocket_registration_and_list() {
                     "namespace": "TestTools",
                     "name": "myFunction",
                     "description": "A test function",
-                    "parameters": {
+                    "input_schema": {
                         "type": "object",
                         "properties": {
                             "input": { "type": "string" }
@@ -112,14 +118,14 @@ async fn test_full_workflow_websocket_registration_and_list() {
         .expect("Failed to list tools");
 
     assert_eq!(list_response.status(), StatusCode::OK);
-    let list_body: ListToolsResponse = list_response.json().await.unwrap();
+    let list_body: ListFunctionsOutput = list_response.json().await.unwrap();
 
     // Should contain our registered tool
-    let found_tool = list_body
-        .tools
+    let found = list_body
+        .functions
         .iter()
         .find(|t| t.namespace == "TestTools" && t.name == "myFunction");
-    assert!(found_tool.is_some());
+    assert!(found.is_some());
 }
 
 #[tokio::test]
@@ -134,16 +140,14 @@ async fn test_rest_only_code_execution() {
         .post(format!("{http_url}/tools/execute"))
         .json(&json!({
             "code": "async function run() { return 1 + 1; }",
-            "timeout_ms": 5000
         }))
         .send()
         .await
         .expect("Failed to execute code");
 
     assert_eq!(execute_response.status(), StatusCode::OK);
-    let execute_body: ExecuteCodeResponse = execute_response.json().await.unwrap();
+    let execute_body: ExecuteOutput = execute_response.json().await.unwrap();
     assert_eq!(execute_body.output, Some(json!(2)));
-    assert!(execute_body.execution_time_ms > 0);
 }
 
 #[tokio::test]
@@ -219,7 +223,7 @@ async fn test_execute_code_with_async_operations() {
         .expect("Failed to execute code");
 
     assert_eq!(execute_response.status(), StatusCode::OK);
-    let execute_body: ExecuteCodeResponse = execute_response.json().await.unwrap();
+    let execute_body: ExecuteOutput = execute_response.json().await.unwrap();
     assert_eq!(execute_body.output, Some(json!({ "completed": true })));
 }
 
@@ -247,7 +251,7 @@ async fn test_execute_code_with_console_output() {
         .expect("Failed to execute code");
 
     assert_eq!(execute_response.status(), StatusCode::OK);
-    let execute_body: ExecuteCodeResponse = execute_response.json().await.unwrap();
+    let execute_body: ExecuteOutput = execute_response.json().await.unwrap();
     assert_eq!(execute_body.output, Some(json!("done")));
 }
 
@@ -301,7 +305,7 @@ async fn test_multiple_websocket_sessions_isolated() {
                     "namespace": "Session1Tools",
                     "name": "tool1",
                     "description": "Tool from session 1",
-                    "parameters": {}
+                    "input_schema": {}
                 }
             ]
         }))
@@ -321,7 +325,7 @@ async fn test_multiple_websocket_sessions_isolated() {
                     "namespace": "Session2Tools",
                     "name": "tool2",
                     "description": "Tool from session 2",
-                    "parameters": {}
+                    "input_schema": {}
                 }
             ]
         }))
@@ -340,17 +344,17 @@ async fn test_multiple_websocket_sessions_isolated() {
         .expect("Failed to list tools");
 
     assert_eq!(list_response.status(), StatusCode::OK);
-    let list_body: ListToolsResponse = list_response.json().await.unwrap();
+    let list_body: ListFunctionsOutput = list_response.json().await.unwrap();
 
     assert!(
         list_body
-            .tools
+            .functions
             .iter()
             .any(|t| t.namespace == "Session1Tools" && t.name == "tool1")
     );
     assert!(
         list_body
-            .tools
+            .functions
             .iter()
             .any(|t| t.namespace == "Session2Tools" && t.name == "tool2")
     );
@@ -373,7 +377,7 @@ async fn test_error_handling_invalid_session_id() {
                     "namespace": "TestTools",
                     "name": "myFunction",
                     "description": "A test function",
-                    "parameters": {}
+                    "input_schema": {}
                 }
             ]
         }))
@@ -441,7 +445,7 @@ async fn test_get_function_details_returns_code_field() {
                 "namespace": "TestTools",
                 "name": "myFunction",
                 "description": "A test function",
-                "parameters": {
+                "input_schema": {
                     "type": "object",
                     "properties": {
                         "input": { "type": "string" }
@@ -456,10 +460,7 @@ async fn test_get_function_details_returns_code_field() {
     assert_eq!(register_response.status(), StatusCode::OK);
     let details_response = client
         .post(format!("{http_url}/tools/details"))
-        .json(&json!({
-            "namespace": "TestTools",
-            "name": "myFunction"
-        }))
+        .json(&json!({"functions": ["TestTools.myFunction"]}))
         .send()
         .await
         .unwrap();

@@ -9,67 +9,6 @@ pub struct HealthResponse {
     pub version: String,
 }
 
-/// Request to list all available tools
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct ListToolsRequest {}
-
-/// Tool information in list response
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-pub struct ToolInfo {
-    pub namespace: String,
-    pub name: String,
-    pub description: String,
-    pub source: ToolSource,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum ToolSource {
-    Mcp,
-    Local,
-}
-
-/// Response with list of tools
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ListToolsResponse {
-    pub tools: Vec<ToolInfo>,
-}
-
-/// Request to get function details
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct GetFunctionDetailsRequest {
-    pub namespace: String,
-    pub name: String,
-}
-
-/// Request to execute code
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct ExecuteCodeRequest {
-    pub code: String,
-    #[serde(default = "default_timeout")]
-    pub timeout_ms: u64,
-}
-
-fn default_timeout() -> u64 {
-    30000 // 30 seconds
-}
-
-/// Successful code execution response
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ExecuteCodeResponse {
-    /// Success of executed code
-    pub success: bool,
-    /// Standard output of executed code
-    pub stdout: String,
-    /// Standard error of executed code
-    pub stderr: String,
-    /// Value returned by executed function
-    #[schema(value_type = Object)]
-    pub output: Option<Value>,
-    /// Execution time in milliseconds
-    pub execution_time_ms: u64,
-}
-
 /// Error response
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ErrorResponse {
@@ -87,16 +26,7 @@ pub struct ErrorInfo {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterLocalToolsRequest {
     pub session_id: String,
-    pub tools: Vec<LocalToolDefinition>,
-}
-
-#[derive(Debug, Deserialize, Clone, ToSchema)]
-pub struct LocalToolDefinition {
-    pub namespace: String,
-    pub name: String,
-    pub description: String,
-    #[schema(value_type = Object)]
-    pub parameters: Value,
+    pub tools: Vec<pctx_code_mode::model::CallbackConfig>,
 }
 
 /// Response after registering local tools
