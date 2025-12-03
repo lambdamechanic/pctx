@@ -8,6 +8,7 @@ use axum::{
 use http_body_util::BodyExt;
 use pctx_agent_server::{
     AppState,
+    server::create_router,
     types::{ErrorResponse, HealthResponse, RegisterMcpServersResponse},
 };
 use pctx_code_mode::{
@@ -27,19 +28,9 @@ fn create_test_state() -> AppState {
 
 /// Helper to create router for testing
 fn create_test_router() -> Router {
-    use axum::routing::{get, post};
-    use pctx_agent_server::rest;
-
     let state = create_test_state();
 
-    Router::new()
-        .route("/health", get(rest::health))
-        .route("/tools/list", post(rest::list_tools))
-        .route("/tools/details", post(rest::get_function_details))
-        .route("/tools/execute", post(rest::execute_code))
-        .route("/tools/local/register", post(rest::register_local_tools))
-        .route("/tools/mcp/register", post(rest::register_mcp_servers))
-        .with_state(state)
+    create_router(state)
 }
 
 /// Helper to parse JSON response body
@@ -79,7 +70,7 @@ async fn test_list_tools_empty() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/tools/list")
+                .uri("/code-mode/list-functions")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&request_body).unwrap()))
                 .unwrap(),
@@ -135,7 +126,7 @@ async fn test_execute_code_simple() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/tools/execute")
+                .uri("/code-mode/execute")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&request_body).unwrap()))
                 .unwrap(),
@@ -149,9 +140,9 @@ async fn test_execute_code_simple() {
     if status != StatusCode::OK {
         let bytes = response.into_body().collect().await.unwrap().to_bytes();
         let body_str = String::from_utf8_lossy(&bytes);
-        eprintln!("Status: {}", status);
-        eprintln!("Body: {}", body_str);
-        panic!("Expected OK, got {}", status);
+        eprintln!("Status: {status}");
+        eprintln!("Body: {body_str}");
+        panic!("Expected OK, got {status}");
     }
 
     let body: ExecuteOutput = parse_response_body(response.into_body()).await;
@@ -172,7 +163,7 @@ async fn test_execute_code_error() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/tools/execute")
+                .uri("/code-mode/execute")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&request_body).unwrap()))
                 .unwrap(),
@@ -201,7 +192,7 @@ async fn test_execute_code_with_console_log() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/tools/execute")
+                .uri("/code-mode/execute")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&request_body).unwrap()))
                 .unwrap(),
@@ -233,7 +224,7 @@ async fn test_register_mcp_servers_invalid_url() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/tools/mcp/register")
+                .uri("/register/servers")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&request_body).unwrap()))
                 .unwrap(),
@@ -267,7 +258,7 @@ async fn test_register_mcp_servers_valid_url() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/tools/mcp/register")
+                .uri("/register/servers")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&request_body).unwrap()))
                 .unwrap(),
@@ -297,7 +288,7 @@ async fn test_execute_code_async() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/tools/execute")
+                .uri("/code-mode/execute")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&request_body).unwrap()))
                 .unwrap(),
@@ -309,9 +300,9 @@ async fn test_execute_code_async() {
     if status != StatusCode::OK {
         let bytes = response.into_body().collect().await.unwrap().to_bytes();
         let body_str = String::from_utf8_lossy(&bytes);
-        eprintln!("Status: {}", status);
-        eprintln!("Body: {}", body_str);
-        panic!("Expected OK, got {}", status);
+        eprintln!("Status: {status}");
+        eprintln!("Body: {body_str}");
+        panic!("Expected OK, got {status}");
     }
 
     let body: ExecuteOutput = parse_response_body(response.into_body()).await;
@@ -332,7 +323,7 @@ async fn test_execute_code_json_result() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/tools/execute")
+                .uri("/code-mode/execute")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&request_body).unwrap()))
                 .unwrap(),

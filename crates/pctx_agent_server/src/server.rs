@@ -8,7 +8,14 @@ use tracing::info;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::{AppState, rest, types::*, websocket};
+use crate::{
+    AppState, routes,
+    types::{
+        ErrorInfo, ErrorResponse, HealthResponse, McpServerConfig, RegisterLocalToolsRequest,
+        RegisterLocalToolsResponse, RegisterMcpServersRequest, RegisterMcpServersResponse,
+    },
+    websocket,
+};
 use pctx_code_mode::model::{
     CallbackConfig, ExecuteInput, ExecuteOutput, FunctionDetails, GetFunctionDetailsInput,
     GetFunctionDetailsOutput, ListFunctionsOutput, ListedFunction,
@@ -17,12 +24,12 @@ use pctx_code_mode::model::{
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        rest::health,
-        rest::list_tools,
-        rest::get_function_details,
-        rest::execute_code,
-        rest::register_local_tools,
-        rest::register_mcp_servers,
+        routes::health,
+        routes::list_functions,
+        routes::get_function_details,
+        routes::execute_code,
+        routes::register_tools,
+        routes::register_servers,
     ),
     components(
         schemas(
@@ -60,7 +67,7 @@ pub struct ApiDoc;
 pub async fn start_server(host: &str, port: u16, state: AppState) -> Result<()> {
     let app = create_router(state);
 
-    let addr = format!("{}:{}", host, port);
+    let addr = format!("{host}:{port}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
     info!("🚀 PCTX Agent Server listening on http://{}", addr);
@@ -80,16 +87,19 @@ pub async fn start_server(host: &str, port: u16, state: AppState) -> Result<()> 
 }
 
 /// Create the Axum router with all routes
-fn create_router(state: AppState) -> Router {
+pub fn create_router(state: AppState) -> Router {
     Router::new()
         // Health check
-        .route("/health", get(rest::health))
+        .route("/health", get(routes::health))
         // Tools endpoints
-        .route("/tools/list", post(rest::list_tools))
-        .route("/tools/details", post(rest::get_function_details))
-        .route("/tools/execute", post(rest::execute_code))
-        .route("/tools/local/register", post(rest::register_local_tools))
-        .route("/tools/mcp/register", post(rest::register_mcp_servers))
+        .route("/code-mode/list-functions", post(routes::list_functions))
+        .route(
+            "/code-mode/get-function-details",
+            post(routes::get_function_details),
+        )
+        .route("/code-mode/execute", post(routes::execute_code))
+        .route("/register/tools", post(routes::register_tools))
+        .route("/register/servers", post(routes::register_servers))
         // WebSocket endpoint
         .route("/ws", get(websocket::ws_handler))
         // Swagger UI

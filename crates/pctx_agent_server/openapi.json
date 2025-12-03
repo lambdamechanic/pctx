@@ -10,20 +10,50 @@
     "version": "0.1.0"
   },
   "paths": {
-    "/health": {
-      "get": {
+    "/code-mode/execute": {
+      "post": {
         "tags": [
-          "health"
+          "CodeMode"
         ],
-        "summary": "Health check endpoint",
-        "operationId": "health",
+        "summary": "Execute TypeScript code with access to registered tools",
+        "operationId": "execute_code",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteInput"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "Service is healthy",
+            "description": "Code executed successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
+                  "$ref": "#/components/schemas/ExecuteOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Code execution failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -31,10 +61,10 @@
         }
       }
     },
-    "/tools/details": {
+    "/code-mode/get-function-details": {
       "post": {
         "tags": [
-          "tools"
+          "CodeMode"
         ],
         "summary": "Get detailed information about a specific function",
         "operationId": "get_function_details",
@@ -42,7 +72,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GetFunctionDetailsRequest"
+                "$ref": "#/components/schemas/GetFunctionDetailsInput"
               }
             }
           },
@@ -82,81 +112,20 @@
         }
       }
     },
-    "/tools/execute": {
+    "/code-mode/list-functions": {
       "post": {
         "tags": [
-          "tools"
-        ],
-        "summary": "Execute TypeScript code with access to registered tools",
-        "operationId": "execute_code",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExecuteCodeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Code executed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExecuteCodeResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Code execution failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tools/list": {
-      "post": {
-        "tags": [
-          "tools"
+          "CodeMode"
         ],
         "summary": "List all available tools from both local and MCP registrations",
-        "operationId": "list_tools",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ListToolsRequest"
-              }
-            }
-          },
-          "required": true
-        },
+        "operationId": "list_functions",
         "responses": {
           "200": {
             "description": "List of all registered tools",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ListToolsResponse"
+                  "$ref": "#/components/schemas/ListFunctionsOutput"
                 }
               }
             }
@@ -174,13 +143,75 @@
         }
       }
     },
-    "/tools/local/register": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health check endpoint",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/register/servers": {
       "post": {
         "tags": [
-          "tools"
+          "registration"
+        ],
+        "summary": "Register MCP servers dynamically at runtime",
+        "operationId": "register_servers",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterMcpServersRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MCP servers registration result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterMcpServersResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/register/tools": {
+      "post": {
+        "tags": [
+          "registration"
         ],
         "summary": "Register local tools that will be called via WebSocket callbacks",
-        "operationId": "register_local_tools",
+        "operationId": "register_tools",
         "requestBody": {
           "content": {
             "application/json": {
@@ -224,51 +255,33 @@
           }
         }
       }
-    },
-    "/tools/mcp/register": {
-      "post": {
-        "tags": [
-          "tools"
-        ],
-        "summary": "Register MCP servers dynamically at runtime",
-        "operationId": "register_mcp_servers",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterMcpServersRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "MCP servers registration result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegisterMcpServersResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
     "schemas": {
+      "CallbackConfig": {
+        "type": "object",
+        "required": [
+          "name",
+          "namespace"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "input_schema": {},
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "output_schema": {}
+        }
+      },
       "ErrorInfo": {
         "type": "object",
         "required": [
@@ -302,40 +315,25 @@
           }
         }
       },
-      "ExecuteCodeRequest": {
+      "ExecuteInput": {
         "type": "object",
-        "description": "Request to execute code",
-        "required": [
-          "code"
-        ],
         "properties": {
           "code": {
-            "type": "string"
-          },
-          "timeout_ms": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
+            "type": "string",
+            "description": "Typescript code to execute.\n\nREQUIRED FORMAT:\nasync function ``run()`` {\n  // YOUR CODE GOES HERE e.g. const result await ``Namespace.method();``\n  // ALWAYS RETURN THE RESULT e.g. return result;\n}\n\nIMPORTANT: Your code should ONLY contain the function definition.\nThe sandbox automatically calls run() and exports the result.\n",
+            "default": ""
           }
         }
       },
-      "ExecuteCodeResponse": {
+      "ExecuteOutput": {
         "type": "object",
-        "description": "Successful code execution response",
         "required": [
           "success",
           "stdout",
           "stderr",
-          "output",
-          "execution_time_ms"
+          "output"
         ],
         "properties": {
-          "execution_time_ms": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Execution time in milliseconds",
-            "minimum": 0
-          },
           "output": {
             "type": "object",
             "description": "Value returned by executed function"
@@ -383,6 +381,21 @@
           }
         ]
       },
+      "GetFunctionDetailsInput": {
+        "type": "object",
+        "required": [
+          "functions"
+        ],
+        "properties": {
+          "functions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of functions to get details of."
+          }
+        }
+      },
       "GetFunctionDetailsOutput": {
         "type": "object",
         "required": [
@@ -398,22 +411,6 @@
             "items": {
               "$ref": "#/components/schemas/FunctionDetails"
             }
-          }
-        }
-      },
-      "GetFunctionDetailsRequest": {
-        "type": "object",
-        "description": "Request to get function details",
-        "required": [
-          "namespace",
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "namespace": {
-            "type": "string"
           }
         }
       },
@@ -433,22 +430,18 @@
           }
         }
       },
-      "ListToolsRequest": {
+      "ListFunctionsOutput": {
         "type": "object",
-        "description": "Request to list all available tools"
-      },
-      "ListToolsResponse": {
-        "type": "object",
-        "description": "Response with list of tools",
         "required": [
-          "tools"
+          "functions"
         ],
         "properties": {
-          "tools": {
+          "functions": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ToolInfo"
-            }
+              "$ref": "#/components/schemas/ListedFunction"
+            },
+            "description": "Available functions"
           }
         }
       },
@@ -473,29 +466,6 @@
           "namespace": {
             "type": "string",
             "description": "Namespace the function belongs in"
-          }
-        }
-      },
-      "LocalToolDefinition": {
-        "type": "object",
-        "required": [
-          "namespace",
-          "name",
-          "description",
-          "parameters"
-        ],
-        "properties": {
-          "description": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "namespace": {
-            "type": "string"
-          },
-          "parameters": {
-            "type": "object"
           }
         }
       },
@@ -534,7 +504,7 @@
           "tools": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/LocalToolDefinition"
+              "$ref": "#/components/schemas/CallbackConfig"
             }
           }
         }
@@ -586,37 +556,6 @@
             "minimum": 0
           }
         }
-      },
-      "ToolInfo": {
-        "type": "object",
-        "description": "Tool information in list response",
-        "required": [
-          "namespace",
-          "name",
-          "description",
-          "source"
-        ],
-        "properties": {
-          "description": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "namespace": {
-            "type": "string"
-          },
-          "source": {
-            "$ref": "#/components/schemas/ToolSource"
-          }
-        }
-      },
-      "ToolSource": {
-        "type": "string",
-        "enum": [
-          "mcp",
-          "local"
-        ]
       }
     }
   },

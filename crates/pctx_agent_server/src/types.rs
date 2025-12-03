@@ -41,6 +41,7 @@ pub struct RegisterMcpServersRequest {
     pub servers: Vec<McpServerConfig>,
 }
 
+// TODO: de-dup with pctx_config
 #[derive(Debug, Deserialize, Clone, ToSchema)]
 pub struct McpServerConfig {
     pub name: String,

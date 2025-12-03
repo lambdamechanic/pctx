@@ -5,18 +5,14 @@
 //! - MCP server registration + tool availability + execution
 //! - Local tool callbacks via WebSocket
 
-use axum::{
-    Router,
-    http::StatusCode,
-    routing::{get, post},
-};
+use axum::http::StatusCode;
 use futures::StreamExt;
 use pctx_agent_server::{
-    AppState, rest,
+    AppState,
+    server::create_router,
     types::{
         ErrorResponse, HealthResponse, RegisterLocalToolsResponse, RegisterMcpServersResponse,
     },
-    websocket,
 };
 use pctx_code_mode::model::{ExecuteOutput, GetFunctionDetailsOutput};
 use pctx_code_mode::{CodeMode, model::ListFunctionsOutput};
@@ -34,22 +30,13 @@ fn create_test_state() -> AppState {
 /// Helper to start full test server with both REST and WebSocket
 async fn start_full_test_server() -> (String, String) {
     let state = create_test_state();
-
-    let app = Router::new()
-        .route("/health", get(rest::health))
-        .route("/tools/list", post(rest::list_tools))
-        .route("/tools/details", post(rest::get_function_details))
-        .route("/tools/execute", post(rest::execute_code))
-        .route("/tools/local/register", post(rest::register_local_tools))
-        .route("/tools/mcp/register", post(rest::register_mcp_servers))
-        .route("/ws", get(websocket::ws_handler))
-        .with_state(state);
+    let router = create_router(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
 
     tokio::spawn(async move {
-        axum::serve(listener, app).await.unwrap();
+        axum::serve(listener, router).await.unwrap();
     });
 
     // Give server time to start
@@ -84,7 +71,7 @@ async fn test_full_workflow_websocket_registration_and_list() {
     // 3. Register tools via REST API
     let client = reqwest::Client::new();
     let register_response = client
-        .post(format!("{http_url}/tools/local/register"))
+        .post(format!("{http_url}/register/tools"))
         .json(&json!({
             "session_id": session_id,
             "tools": [
@@ -111,7 +98,7 @@ async fn test_full_workflow_websocket_registration_and_list() {
 
     // 4. List tools via REST API
     let list_response = client
-        .post(format!("{http_url}/tools/list"))
+        .post(format!("{http_url}/code-mode/list-functions"))
         .json(&json!({}))
         .send()
         .await
@@ -137,7 +124,7 @@ async fn test_rest_only_code_execution() {
 
     // Execute simple code without any registered tools
     let execute_response = client
-        .post(format!("{http_url}/tools/execute"))
+        .post(format!("{http_url}/code-mode/execute"))
         .json(&json!({
             "code": "async function run() { return 1 + 1; }",
         }))
@@ -177,7 +164,7 @@ async fn test_mcp_server_registration() {
 
     // Register an MCP server (will fail to connect but should validate URL)
     let register_response = client
-        .post(format!("{http_url}/tools/mcp/register"))
+        .post(format!("{http_url}/register/servers"))
         .json(&json!({
             "servers": [
                 {
@@ -208,7 +195,7 @@ async fn test_execute_code_with_async_operations() {
     let client = reqwest::Client::new();
 
     let execute_response = client
-        .post(format!("{http_url}/tools/execute"))
+        .post(format!("{http_url}/code-mode/execute"))
         .json(&json!({
             "code": r"
                 async function run() {
@@ -235,7 +222,7 @@ async fn test_execute_code_with_console_output() {
     let client = reqwest::Client::new();
 
     let execute_response = client
-        .post(format!("{http_url}/tools/execute"))
+        .post(format!("{http_url}/code-mode/execute"))
         .json(&json!({
             "code": r#"
                 async function run() {
@@ -297,7 +284,7 @@ async fn test_multiple_websocket_sessions_isolated() {
     // Register tool for session 1
     let client = reqwest::Client::new();
     let register_response = client
-        .post(format!("{http_url}/tools/local/register"))
+        .post(format!("{http_url}/register/tools"))
         .json(&json!({
             "session_id": session_id1,
             "tools": [
@@ -317,7 +304,7 @@ async fn test_multiple_websocket_sessions_isolated() {
 
     // Register different tool for session 2
     let register_response2 = client
-        .post(format!("{http_url}/tools/local/register"))
+        .post(format!("{http_url}/register/tools"))
         .json(&json!({
             "session_id": session_id2,
             "tools": [
@@ -337,7 +324,7 @@ async fn test_multiple_websocket_sessions_isolated() {
 
     // List all tools - should see both
     let list_response = client
-        .post(format!("{http_url}/tools/list"))
+        .post(format!("{http_url}/code-mode/list-functions"))
         .json(&json!({}))
         .send()
         .await
@@ -369,7 +356,7 @@ async fn test_error_handling_invalid_session_id() {
 
     // Try to register tools with invalid session ID
     let register_response = client
-        .post(format!("{http_url}/tools/local/register"))
+        .post(format!("{http_url}/register/tools"))
         .json(&json!({
             "session_id": "non-existent-session-id",
             "tools": [
@@ -404,7 +391,7 @@ async fn test_execute_code_syntax_error() {
     let client = reqwest::Client::new();
 
     let execute_response = client
-        .post(format!("{http_url}/tools/execute"))
+        .post(format!("{http_url}/code-mode/execute"))
         .json(&json!({
             "code": "this is not valid javascript syntax !!!",
             "timeout_ms": 5000
@@ -438,7 +425,7 @@ async fn test_get_function_details_returns_code_field() {
     // Register a local tool with JSON schema
     let client = reqwest::Client::new();
     let register_response = client
-        .post(format!("{http_url}/tools/local/register"))
+        .post(format!("{http_url}/register/tools"))
         .json(&json!({
             "session_id": session_id,
             "tools": [{
@@ -459,7 +446,7 @@ async fn test_get_function_details_returns_code_field() {
 
     assert_eq!(register_response.status(), StatusCode::OK);
     let details_response = client
-        .post(format!("{http_url}/tools/details"))
+        .post(format!("{http_url}/code-mode/get-function-details"))
         .json(&json!({"functions": ["TestTools.myFunction"]}))
         .send()
         .await

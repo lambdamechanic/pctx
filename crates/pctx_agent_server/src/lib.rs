@@ -1,4 +1,4 @@
-pub mod rest;
+pub mod routes;
 pub mod server;
 pub mod session;
 pub mod types;

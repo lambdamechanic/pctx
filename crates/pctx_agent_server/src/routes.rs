@@ -42,14 +42,14 @@ pub async fn health() -> Json<HealthResponse> {
 /// List all available tools from both local and MCP registrations
 #[utoipa::path(
     post,
-    path = "/tools/list",
-    tag = "tools",
+    path = "/code-mode/list-functions",
+    tag = "CodeMode",
     responses(
         (status = 200, description = "List of all registered tools", body = ListFunctionsOutput),
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn list_tools(
+pub async fn list_functions(
     State(state): State<AppState>,
 ) -> Result<Json<ListFunctionsOutput>, (StatusCode, Json<ErrorResponse>)> {
     info!("Listing tools");
@@ -63,8 +63,8 @@ pub async fn list_tools(
 /// Get detailed information about a specific function
 #[utoipa::path(
     post,
-    path = "/tools/details",
-    tag = "tools",
+    path = "/code-mode/get-function-details",
+    tag = "CodeMode",
     request_body = GetFunctionDetailsInput,
     responses(
         (status = 200, description = "Function details", body = GetFunctionDetailsOutput),
@@ -107,8 +107,8 @@ pub async fn get_function_details(
 /// Execute TypeScript code with access to registered tools
 #[utoipa::path(
     post,
-    path = "/tools/execute",
-    tag = "tools",
+    path = "/code-mode/execute",
+    tag = "CodeMode",
     request_body = ExecuteInput,
     responses(
         (status = 200, description = "Code executed successfully", body = ExecuteOutput),
@@ -184,8 +184,8 @@ pub async fn execute_code(
 /// Register local tools that will be called via WebSocket callbacks
 #[utoipa::path(
     post,
-    path = "/tools/local/register",
-    tag = "tools",
+    path = "/register/tools",
+    tag = "registration",
     request_body = RegisterLocalToolsRequest,
     responses(
         (status = 200, description = "Tools registered successfully", body = RegisterLocalToolsResponse),
@@ -193,7 +193,7 @@ pub async fn execute_code(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn register_local_tools(
+pub async fn register_tools(
     State(state): State<AppState>,
     Json(request): Json<RegisterLocalToolsRequest>,
 ) -> Result<Json<RegisterLocalToolsResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -295,15 +295,15 @@ pub async fn register_local_tools(
 /// Register MCP servers dynamically at runtime
 #[utoipa::path(
     post,
-    path = "/tools/mcp/register",
-    tag = "tools",
+    path = "/register/servers",
+    tag = "registration",
     request_body = RegisterMcpServersRequest,
     responses(
         (status = 200, description = "MCP servers registration result", body = RegisterMcpServersResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn register_mcp_servers(
+pub async fn register_servers(
     State(state): State<AppState>,
     Json(request): Json<RegisterMcpServersRequest>,
 ) -> Json<RegisterMcpServersResponse> {
