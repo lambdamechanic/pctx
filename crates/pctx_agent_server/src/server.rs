@@ -11,7 +11,8 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::{
     AppState,
     model::{
-        ErrorData, ExecuteRequest, GetFunctionDetailsRequest, HealthResponse, ListFunctionsRequest,
+        CloseSessionRequest, CloseSessionResponse, CreateSessionResponse, ErrorData,
+        ExecuteRequest, GetFunctionDetailsRequest, HealthResponse, ListFunctionsRequest,
         McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
         RegisterToolsRequest, RegisterToolsResponse,
     },
@@ -27,6 +28,8 @@ use pctx_code_mode::model::{
 #[openapi(
     paths(
         routes::health,
+        routes::create_session,
+        routes::close_session,
         routes::list_functions,
         routes::get_function_details,
         routes::execute_code,
@@ -36,6 +39,10 @@ use pctx_code_mode::model::{
     components(
         schemas(
             HealthResponse,
+            // Session management
+            CreateSessionResponse,
+            CloseSessionRequest,
+            CloseSessionResponse,
             // List functions
             ListFunctionsRequest,
             ListFunctionsOutput,
@@ -102,6 +109,9 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         // Health check
         .route("/health", get(routes::health))
+        // Session management
+        .route("/code-mode/session/create", post(routes::create_session))
+        .route("/code-mode/session/close", post(routes::close_session))
         // Tools endpoints
         .route("/code-mode/functions/list", post(routes::list_functions))
         .route(

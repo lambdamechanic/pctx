@@ -4,15 +4,19 @@ use std::time::Instant;
 use crate::state::ws_manager::OutgoingMessage;
 use axum::{Json, extract::State, http::StatusCode};
 use pctx_code_execution_runtime::CallbackFn;
-use pctx_code_mode::model::{ExecuteOutput, GetFunctionDetailsOutput, ListFunctionsOutput};
+use pctx_code_mode::{
+    CodeMode,
+    model::{ExecuteOutput, GetFunctionDetailsOutput, ListFunctionsOutput},
+};
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::AppState;
 use crate::model::{
-    ErrorCode, ErrorData, ExecuteRequest, GetFunctionDetailsRequest, HealthResponse,
-    ListFunctionsRequest, McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
-    RegisterToolsRequest, RegisterToolsResponse,
+    CloseSessionRequest, CloseSessionResponse, CreateSessionResponse, ErrorCode, ErrorData,
+    ExecuteRequest, GetFunctionDetailsRequest, HealthResponse, ListFunctionsRequest,
+    McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse, RegisterToolsRequest,
+    RegisterToolsResponse,
 };
 
 pub(crate) type ApiResult<T> = Result<T, (StatusCode, Json<ErrorData>)>;
@@ -31,6 +35,66 @@ pub(crate) async fn health() -> Json<HealthResponse> {
         status: "ok".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
     })
+}
+
+/// Create a new `CodeMode` session
+#[utoipa::path(
+    post,
+    path = "/code-mode/session/create",
+    tag = "CodeMode",
+    responses(
+        (status = 200, description = "Session created successfully", body = CreateSessionResponse),
+        (status = 500, description = "Internal server error", body = ErrorData)
+    )
+)]
+pub(crate) async fn create_session(
+    State(state): State<AppState>,
+) -> ApiResult<Json<CreateSessionResponse>> {
+    let session_id = Uuid::new_v4();
+    info!("Creating new CodeMode session: {session_id}");
+
+    let code_mode = CodeMode::default();
+    state.code_mode_manager.add(session_id, code_mode).await;
+
+    info!("Created CodeMode session: {session_id}");
+
+    Ok(Json(CreateSessionResponse { session_id }))
+}
+
+/// Close a `CodeMode` session
+#[utoipa::path(
+    post,
+    path = "/code-mode/session/close",
+    tag = "CodeMode",
+    request_body = CloseSessionRequest,
+    responses(
+        (status = 200, description = "Session closed successfully", body = CloseSessionResponse),
+        (status = 404, description = "Session not found", body = ErrorData),
+        (status = 500, description = "Internal server error", body = ErrorData)
+    )
+)]
+pub(crate) async fn close_session(
+    State(state): State<AppState>,
+    Json(request): Json<CloseSessionRequest>,
+) -> ApiResult<Json<CloseSessionResponse>> {
+    info!("Closing CodeMode session: {}", request.session_id);
+
+    let existed = state.code_mode_manager.delete(request.session_id).await;
+
+    if existed.is_none() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorData {
+                code: ErrorCode::InvalidSession,
+                message: format!("Code mode session {} does not exist", request.session_id),
+                details: None,
+            }),
+        ));
+    }
+
+    info!("Closed CodeMode session: {}", request.session_id);
+
+    Ok(Json(CloseSessionResponse { success: true }))
 }
 
 /// List all available code mode functions from both server and tool registrations

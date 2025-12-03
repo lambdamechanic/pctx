@@ -2,7 +2,7 @@
 
 use axum::{Router, routing::get};
 use axum_test::{TestResponse, TestServer, TestWebSocket};
-use pctx_agent_server::{AppState, server::create_router, websocket};
+use pctx_agent_server::{AppState, model::CreateSessionResponse, server::create_router, websocket};
 use pctx_code_mode::CodeMode;
 use tokio::net::TcpListener;
 use uuid::Uuid;
@@ -99,9 +99,7 @@ pub async fn connect_websocket(server: &TestServer, session_id: Uuid) -> TestRes
         .await
 }
 
-pub fn insta_filters() -> Vec<(&'static str, &'static str)> {
-    vec![(
-        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-        "<UUID>",
-    )]
+pub async fn create_session(server: &TestServer) -> Uuid {
+    let res: CreateSessionResponse = server.post("/code-mode/session/create").await.json();
+    res.session_id
 }

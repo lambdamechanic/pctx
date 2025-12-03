@@ -87,3 +87,23 @@ pub struct RegisterMcpServersResponse {
     pub registered: usize,
     pub failed: Vec<String>,
 }
+
+/// Response after creating a new CodeMode session
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateSessionResponse {
+    #[schema(value_type = String)]
+    pub session_id: Uuid,
+}
+
+/// Request to close a CodeMode session
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CloseSessionRequest {
+    #[schema(value_type = String)]
+    pub session_id: Uuid,
+}
+
+/// Response after closing a CodeMode session
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CloseSessionResponse {
+    pub success: bool,
+}

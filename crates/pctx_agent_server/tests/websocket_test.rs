@@ -4,11 +4,11 @@ mod utils;
 
 use axum_test::WsMessage;
 use serde_json::json;
-use similar_asserts::assert_eq;
+use similar_asserts::{assert_eq, assert_serde_eq};
 use utils::create_test_server_with_session;
 use uuid::Uuid;
 
-use crate::utils::{connect_websocket, create_test_server};
+use crate::utils::{connect_websocket, create_session, create_test_server};
 
 /// Tests opening a websocket connection returns a connected message with a session id
 #[tokio::test]
@@ -55,7 +55,32 @@ async fn test_websocket_double_connection() {
 
 #[tokio::test]
 async fn test_websocket_different_connections() {
-    todo!("waiting for connect endpoint")
+    let server = create_test_server();
+    let session_1 = create_session(&server).await;
+    let session_2 = create_session(&server).await;
+
+    let mut ws_1 = connect_websocket(&server, session_1)
+        .await
+        .into_websocket()
+        .await;
+
+    let mut ws_2 = connect_websocket(&server, session_2)
+        .await
+        .into_websocket()
+        .await;
+
+    // confirm they both get the created session message with different ids
+    let msg_1: serde_json::Value = ws_1.receive_json().await;
+    let msg_2: serde_json::Value = ws_2.receive_json().await;
+
+    assert_serde_eq!(msg_1["method"], "websocket_session_created");
+    assert_serde_eq!(msg_2["method"], "websocket_session_created");
+
+    let id_1 = msg_1["params"]["session_id"].clone();
+    let id_2 = msg_2["params"]["session_id"].clone();
+    assert!(id_1.is_string());
+    assert!(id_2.is_string());
+    assert_ne!(id_1, id_2);
 }
 
 #[tokio::test]
