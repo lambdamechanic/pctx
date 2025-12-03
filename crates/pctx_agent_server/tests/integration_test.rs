@@ -5,56 +5,17 @@
 //! - MCP server registration + tool availability + execution
 //! - Local tool callbacks via WebSocket
 
+mod utils;
+
 use axum::http::StatusCode;
 use futures::StreamExt;
-use pctx_agent_server::{
-    AppState,
-    model::{HealthResponse, RegisterMcpServersResponse, RegisterToolsResponse},
-    server::create_router,
-};
-use pctx_code_mode::model::{ExecuteOutput, GetFunctionDetailsOutput};
-use pctx_code_mode::{CodeMode, model::ListFunctionsOutput};
+use pctx_agent_server::model::{HealthResponse, RegisterToolsResponse};
+use pctx_code_mode::model::{ExecuteOutput, ListFunctionsOutput};
 use serde_json::json;
 use serial_test::serial;
-use tokio::net::TcpListener;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use utils::start_full_test_server;
 use uuid::Uuid;
-
-/// Helper to create test app state
-async fn create_test_state() -> (Uuid, AppState) {
-    let session_id = Uuid::new_v4();
-    let state = AppState::default();
-    state
-        .code_mode_manager
-        .add(session_id, CodeMode::default())
-        .await;
-
-    (session_id, state)
-}
-
-/// Helper to start full test server with both REST and WebSocket
-async fn start_full_test_server() -> (Uuid, String, String) {
-    let (session_id, state) = create_test_state().await;
-    let router = create_router(state);
-
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-
-    tokio::spawn(async move {
-        axum::serve(listener, router).await.unwrap();
-    });
-
-    // Give server time to start
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-    let http_url = format!("http://127.0.0.1:{}", addr.port());
-    let ws_url = format!(
-        "ws://127.0.0.1:{}/ws?code_mode_session_id={session_id}",
-        addr.port()
-    );
-
-    (session_id, http_url, ws_url)
-}
 
 #[tokio::test]
 #[serial]

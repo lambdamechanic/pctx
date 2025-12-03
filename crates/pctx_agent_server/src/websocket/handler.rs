@@ -1,7 +1,10 @@
-use crate::state::ws_manager::{OutgoingMessage, WsSession};
+use crate::{
+    extractors::CodeModeSessionId,
+    state::ws_manager::{OutgoingMessage, WsSession},
+};
 use axum::{
     extract::{
-        Query, State,
+        State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::StatusCode,
@@ -11,7 +14,6 @@ use futures::{
     SinkExt, StreamExt,
     stream::{SplitSink, SplitStream},
 };
-use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -20,18 +22,11 @@ use uuid::Uuid;
 use super::protocol::{JsonRpcNotification, SessionCreatedParams};
 use crate::AppState;
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct WsQuery {
-    pub code_mode_session_id: Uuid,
-}
-
 /// Handle WebSocket upgrade
 pub async fn ws_handler(
-    Query(WsQuery {
-        code_mode_session_id,
-    }): Query<WsQuery>,
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
+    CodeModeSessionId(code_mode_session_id): CodeModeSessionId,
 ) -> Response {
     // Verify that a code mode session exists with this ID
     if !state.code_mode_manager.exists(code_mode_session_id).await {
@@ -94,7 +89,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, code_mode_session_id:
 
     // Send session_created notification
     let session_created = JsonRpcNotification::new(
-        "session_created",
+        "websocket_session_created",
         Some(json!(SessionCreatedParams {
             session_id: session_id.to_string()
         })),

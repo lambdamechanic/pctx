@@ -1,3 +1,4 @@
+pub mod extractors;
 pub mod model;
 mod routes;
 pub mod server;
