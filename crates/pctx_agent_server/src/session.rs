@@ -141,7 +141,7 @@ pub struct SessionManager {
     /// Request ID → pending execution mapping
     pending_executions: Arc<RwLock<HashMap<serde_json::Value, PendingExecution>>>,
     /// Code execution callback (optional) - uses std::sync::RwLock for synchronous setup
-    code_executor: Arc<StdRwLock<Option<CodeExecutorFn>>>,
+    // code_executor: Arc<StdRwLock<Option<CodeExecutorFn>>>,
 }
 
 impl SessionManager {
@@ -150,19 +150,19 @@ impl SessionManager {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             callback_sessions: Arc::new(RwLock::new(HashMap::new())),
             pending_executions: Arc::new(RwLock::new(HashMap::new())),
-            code_executor: Arc::new(StdRwLock::new(None)),
+            // code_executor: Arc::new(StdRwLock::new(None)),
         }
     }
 
-    pub fn with_code_executor(self, executor: CodeExecutorFn) -> Self {
-        *self.code_executor.write().unwrap() = Some(executor);
-        self
-    }
+    // pub fn with_code_executor(self, executor: CodeExecutorFn) -> Self {
+    //     *self.code_executor.write().unwrap() = Some(executor);
+    //     self
+    // }
 
-    /// Set the code executor (for setting after construction)
-    pub fn set_code_executor(&self, executor: CodeExecutorFn) {
-        *self.code_executor.write().unwrap() = Some(executor);
-    }
+    // /// Set the code executor (for setting after construction)
+    // pub fn set_code_executor(&self, executor: CodeExecutorFn) {
+    //     *self.code_executor.write().unwrap() = Some(executor);
+    // }
 
     /// Add a new session
     pub async fn add_session(&self, session: Session) -> SessionId {
@@ -314,10 +314,10 @@ impl SessionManager {
         &self.pending_executions
     }
 
-    /// Get access to code executor (for WebSocket server use)
-    pub fn code_executor(&self) -> &Arc<StdRwLock<Option<CodeExecutorFn>>> {
-        &self.code_executor
-    }
+    // /// Get access to code executor (for WebSocket server use)
+    // pub fn code_executor(&self) -> &Arc<StdRwLock<Option<CodeExecutorFn>>> {
+    //     &self.code_executor
+    // }
 
     /// Get access to sessions (for WebSocket server use)
     pub fn sessions(&self) -> &Arc<RwLock<HashMap<SessionId, Session>>> {

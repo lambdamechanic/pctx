@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::session::OutgoingMessage;
+use crate::state::ws_manager::OutgoingMessage;
 use axum::{Json, extract::State, http::StatusCode};
 use pctx_code_execution_runtime::CallbackFn;
 use pctx_code_mode::model::{
@@ -48,8 +48,12 @@ pub(crate) async fn list_functions(
 ) -> Result<Json<ListFunctionsOutput>, (StatusCode, Json<ErrorResponse>)> {
     info!("Listing tools");
 
-    let code_mode = state.code_mode.lock().await;
-    let functions = code_mode.list_functions();
+    // TODO: impl session id & 404
+    let functions = state
+        .code_mode_manager
+        .with_read(Uuid::new_v4(), |cm| cm.list_functions())
+        .await
+        .unwrap();
 
     Ok(Json(functions))
 }
@@ -78,8 +82,12 @@ pub(crate) async fn get_function_details(
         .join(", ");
     info!("Getting function details for {requested_functions}",);
 
-    let code_mode = state.code_mode.lock().await;
-    let output = code_mode.get_function_details(request);
+    // TODO: code mode session id & 404
+    let output = state
+        .code_mode_manager
+        .with_read(Uuid::new_v4(), |cm| cm.get_function_details(request))
+        .await
+        .unwrap();
 
     // Check if we got the function
     if output.functions.is_empty() {
@@ -120,7 +128,8 @@ pub(crate) async fn execute_code(
     let current_span = tracing::Span::current();
 
     // Clone the CodeMode Arc to move into spawn_blocking
-    let code_mode = Arc::clone(&state.code_mode);
+    // TODO: code mode session id & 404
+    let code_mode = state.code_mode_manager.get(Uuid::new_v4()).await.unwrap();
     let code = request.code;
 
     // Use spawn_blocking with current-thread runtime for Deno's unsync operations
@@ -134,8 +143,7 @@ pub(crate) async fn execute_code(
             .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
 
         rt.block_on(async {
-            let code_mode_guard = code_mode.lock().await;
-            code_mode_guard
+            code_mode
                 .execute(&code)
                 .await
                 .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
@@ -196,76 +204,78 @@ pub(crate) async fn register_tools(
         request.session_id
     );
 
-    let mut registered = 0;
-    for tool in &request.tools {
-        // Create callback closure that captures session state
-        let session_manager_clone = Arc::clone(&state.session_manager);
-        let tool_id = tool.id();
+    todo!();
 
-        let callback: CallbackFn = Arc::new(move |args: Option<serde_json::Value>| {
-            let session_manager_clone = session_manager_clone.clone();
-            let tool_id_clone = tool_id.clone();
+    // let mut registered = 0;
+    // for tool in &request.tools {
+    //     // Create callback closure that captures session state
+    //     let session_manager_clone = Arc::clone(&state.session_manager);
+    //     let tool_id = tool.id();
 
-            Box::pin(async move {
-                let request_id = Uuid::new_v4().to_string();
+    //     let callback: CallbackFn = Arc::new(move |args: Option<serde_json::Value>| {
+    //         let session_manager_clone = session_manager_clone.clone();
+    //         let tool_id_clone = tool_id.clone();
 
-                let request = serde_json::json!({
-                    "jsonrpc": "2.0",
-                    "method": "execute_tool",
-                    "params": {
-                        "name": tool_id_clone,
-                        "arguments": args
-                    },
-                    "id": request_id.clone()
-                });
+    //         Box::pin(async move {
+    //             let request_id = Uuid::new_v4().to_string();
 
-                session_manager_clone
-                    .execute_callback_raw(
-                        &tool_id_clone,
-                        OutgoingMessage::Response(request),
-                        serde_json::Value::String(request_id),
-                    )
-                    .await
-                    .map_err(|e| e.to_string())
-            })
-        });
+    //             let request = serde_json::json!({
+    //                 "jsonrpc": "2.0",
+    //                 "method": "execute_tool",
+    //                 "params": {
+    //                     "name": tool_id_clone,
+    //                     "arguments": args
+    //                 },
+    //                 "id": request_id.clone()
+    //             });
 
-        let mut code_mode = state.code_mode.lock().await;
-        code_mode.add_callback(tool, callback).map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: ErrorInfo {
-                        code: "INTERNAL_ERROR".to_string(),
-                        message: format!("Failed to register callback in CodeMode: {e}"),
-                        details: None,
-                    },
-                }),
-            )
-        })?;
+    //             session_manager_clone
+    //                 .execute_callback_raw(
+    //                     &tool_id_clone,
+    //                     OutgoingMessage::Response(request),
+    //                     serde_json::Value::String(request_id),
+    //                 )
+    //                 .await
+    //                 .map_err(|e| e.to_string())
+    //         })
+    //     });
 
-        // Register with session_manager for tracking
-        state
-            .session_manager
-            .register_callback(&request.session_id, tool.id(), tool.description.clone())
-            .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: ErrorInfo {
-                            code: "INTERNAL_ERROR".to_string(),
-                            message: format!("Failed to register tool with session: {e}"),
-                            details: None,
-                        },
-                    }),
-                )
-            })?;
+    //     let mut code_mode = state.code_mode.lock().await;
+    //     code_mode.add_callback(tool, callback).map_err(|e| {
+    //         (
+    //             StatusCode::INTERNAL_SERVER_ERROR,
+    //             Json(ErrorResponse {
+    //                 error: ErrorInfo {
+    //                     code: "INTERNAL_ERROR".to_string(),
+    //                     message: format!("Failed to register callback in CodeMode: {e}"),
+    //                     details: None,
+    //                 },
+    //             }),
+    //         )
+    //     })?;
 
-        registered += 1;
-    }
+    //     // Register with session_manager for tracking
+    //     state
+    //         .session_manager
+    //         .register_callback(&request.session_id, tool.id(), tool.description.clone())
+    //         .await
+    //         .map_err(|e| {
+    //             (
+    //                 StatusCode::INTERNAL_SERVER_ERROR,
+    //                 Json(ErrorResponse {
+    //                     error: ErrorInfo {
+    //                         code: "INTERNAL_ERROR".to_string(),
+    //                         message: format!("Failed to register tool with session: {e}"),
+    //                         details: None,
+    //                     },
+    //                 }),
+    //             )
+    //         })?;
 
-    Ok(Json(RegisterLocalToolsResponse { registered }))
+    //     registered += 1;
+    // }
+
+    // Ok(Json(RegisterLocalToolsResponse { registered }))
 }
 
 /// Register MCP servers dynamically at runtime
@@ -305,35 +315,37 @@ pub(crate) async fn register_servers(
 }
 
 async fn register_mcp_server(state: &AppState, server: &McpServerConfig) -> Result<(), String> {
-    // Parse and validate URL
-    let url = url::Url::parse(&server.url).map_err(|e| format!("Invalid URL: {e}"))?;
+    todo!();
 
-    // Create ServerConfig
-    let mut server_config = pctx_config::server::ServerConfig::new(server.name.clone(), url);
+    // // Parse and validate URL
+    // let url = url::Url::parse(&server.url).map_err(|e| format!("Invalid URL: {e}"))?;
 
-    // Add auth if provided
-    if let Some(auth) = &server.auth {
-        server_config.auth = serde_json::from_value(auth.clone())
-            .map_err(|e| format!("Invalid auth config: {e}"))?;
-    }
+    // // Create ServerConfig
+    // let mut server_config = pctx_config::server::ServerConfig::new(server.name.clone(), url);
 
-    // Connect to MCP server and register tools
-    let mut code_mode = state.code_mode.lock().await;
+    // // Add auth if provided
+    // if let Some(auth) = &server.auth {
+    //     server_config.auth = serde_json::from_value(auth.clone())
+    //         .map_err(|e| format!("Invalid auth config: {e}"))?;
+    // }
 
-    code_mode
-        .add_server(&server_config)
-        .await
-        .map_err(|e| format!("Failed to add MCP server: {e}"))?;
+    // // Connect to MCP server and register tools
+    // let mut code_mode = state.code_mode.lock().await;
 
-    info!(
-        "Successfully registered MCP server '{}' with {} tools",
-        server.name,
-        code_mode
-            .tool_sets
-            .iter()
-            .find(|ts| ts.name == server.name)
-            .map_or(0, |ts| ts.tools.len())
-    );
+    // code_mode
+    //     .add_server(&server_config)
+    //     .await
+    //     .map_err(|e| format!("Failed to add MCP server: {e}"))?;
+
+    // info!(
+    //     "Successfully registered MCP server '{}' with {} tools",
+    //     server.name,
+    //     code_mode
+    //         .tool_sets
+    //         .iter()
+    //         .find(|ts| ts.name == server.name)
+    //         .map_or(0, |ts| ts.tools.len())
+    // );
 
     Ok(())
 }
