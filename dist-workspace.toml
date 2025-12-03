@@ -14,7 +14,8 @@ windows-archive = ".zip"
 # The archive format to use for non-windows builds (defaults .tar.xz)
 unix-archive = ".tar.gz"
 # Whether dist should create a Github Release or use an existing draft
-create-release = true
+# Temporarily disabled for testing Windows build
+create-release = false
 # Whether CI should trigger releases with dispatches instead of tag pushes
 dispatch-releases = true
 # Which phase dist should use to create the GitHub release
@@ -22,11 +23,14 @@ github-release = "announce"
 # Path that installers should place binaries in
 install-path = "~/.local/bin"
 # Which actions to run on pull requests
-pr-run-mode = "plan"
+# Temporarily set to "upload" to test Windows build on PRs
+pr-run-mode = "upload"
 # Whether CI should include auto-generated code to build local artifacts
 build-local-artifacts = true
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]
+# Temporarily testing Windows only
+targets = ["x86_64-pc-windows-msvc"]
+# targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Where to host releases
 hosting = "github"
 # Whether to install an updater program
@@ -40,4 +44,6 @@ npm-scope = "@portofcontext"
 # A GitHub repo to push Homebrew formulas to
 tap = "portofcontext/homebrew-tap"
 # Publish jobs to run in CI
-publish-jobs = ["homebrew", "npm"]
+# Temporarily disabled for testing Windows build
+# publish-jobs = ["homebrew", "npm"]
+publish-jobs = []
