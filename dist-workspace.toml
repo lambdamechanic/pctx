@@ -9,6 +9,8 @@ cargo-dist-version = "0.30.2"
 allow-dirty = ["ci"]
 # CI backends to support
 ci = "github"
+# NOTE: NASM is manually installed in release.yml for Windows builds (required by aws-lc-sys)
+# This can't be automated via cargo-dist system-dependencies yet
 # The installers to generate for each app
 installers = ["shell", "npm", "homebrew"]
 # The archive format to use for windows builds (defaults .zip)
