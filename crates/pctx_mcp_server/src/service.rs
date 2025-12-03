@@ -147,9 +147,8 @@ impl PctxMcpService {
                 .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
 
             rt.block_on(async {
-                let callbacks = pctx_code_execution_runtime::CallbackRegistry::default();
                 code_mode
-                    .execute(&code, callbacks)
+                    .execute(&code)
                     .await
                     .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
             })

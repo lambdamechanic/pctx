@@ -71,15 +71,6 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
         }
     }
 
-    // Clean up registered tool callbacks from CallbackRegistry
-    let sessions_guard = state.session_manager.sessions().read().await;
-    if let Some(session) = sessions_guard.get(&session_id) {
-        for tool_name in session.registered_callbacks.keys() {
-            state.callback_registry.remove(tool_name);
-            debug!("Removed callback for tool: {}", tool_name);
-        }
-    }
-
     state.session_manager.remove_session(&session_id).await;
 
     info!("WebSocket connection closed for session {}", session_id);

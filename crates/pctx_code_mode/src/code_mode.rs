@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use codegen::{Tool, ToolSet};
-use pctx_code_execution_runtime::CallbackRegistry;
+use pctx_code_execution_runtime::{CallbackFn, CallbackRegistry};
 use pctx_config::server::ServerConfig;
 use serde_json::json;
 use tracing::{debug, warn};
@@ -14,14 +14,14 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct CodeMode {
     // Codegen interfaces
     pub tool_sets: Vec<codegen::ToolSet>,
 
     // configurations
     pub servers: Vec<ServerConfig>,
-    pub callbacks: Vec<CallbackConfig>,
+    pub callbacks: Vec<(CallbackConfig, CallbackFn)>,
 }
 
 impl CodeMode {
@@ -104,22 +104,12 @@ impl CodeMode {
         GetFunctionDetailsOutput { code, functions }
     }
 
-    pub async fn execute(&self, code: &str, callbacks: CallbackRegistry) -> Result<ExecuteOutput> {
+    pub async fn execute(&self, code: &str) -> Result<ExecuteOutput> {
         debug!(
             code_from_llm = %code,
             code_length = code.len(),
             "Received code to execute"
         );
-
-        // confirm that there is a callback present in the registry for each callback config
-        for c in &self.callbacks {
-            if !callbacks.has(&c.id()) {
-                return Err(Error::Message(format!(
-                    "Missing callback in registry for {}",
-                    c.id()
-                )));
-            }
-        }
 
         // generate the full script to be executed
         let namespaces: Vec<String> = self
@@ -141,10 +131,17 @@ impl CodeMode {
 
         debug!("Executing code in sandbox");
 
+        let callback_registry = CallbackRegistry::default();
+        for (cfg, callback) in &self.callbacks {
+            callback_registry
+                .add(&cfg.id(), callback.clone())
+                .map_err(|e| Error::Message(e.to_string()))?;
+        }
+
         let options = pctx_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
             .with_servers(self.servers.clone())
-            .with_callbacks(callbacks);
+            .with_callbacks(callback_registry);
 
         let execution_res = pctx_executor::execute(&to_execute, options).await?;
 
@@ -233,49 +230,46 @@ impl CodeMode {
     }
 
     // Generates a Tool and add it to the correct Toolset from the given callback config
-    pub fn add_callback(&mut self, callback: &CallbackConfig) -> Result<()> {
+    pub fn add_callback(&mut self, cfg: &CallbackConfig, callback: CallbackFn) -> Result<()> {
         // find the correct toolset & check for clashes
-        let tool_set = if let Some(exists) = self
-            .tool_sets
-            .iter_mut()
-            .find(|s| s.name == callback.namespace)
-        {
-            exists
-        } else {
-            self.tool_sets
-                .push(ToolSet::new(&callback.namespace, "", vec![]));
-            self.tool_sets
-                .iter_mut()
-                .find(|s| s.name == callback.namespace)
-                .unwrap()
-        };
+        let tool_set =
+            if let Some(exists) = self.tool_sets.iter_mut().find(|s| s.name == cfg.namespace) {
+                exists
+            } else {
+                self.tool_sets
+                    .push(ToolSet::new(&cfg.namespace, "", vec![]));
+                self.tool_sets
+                    .iter_mut()
+                    .find(|s| s.name == cfg.namespace)
+                    .unwrap()
+            };
 
-        if tool_set.tools.iter().any(|t| t.name == callback.name) {
+        if tool_set.tools.iter().any(|t| t.name == cfg.name) {
             return Err(Error::Message(format!(
                 "ToolSet `{}` already has a tool with name `{}`. Tool names must be unique within tool sets",
-                &tool_set.name, &callback.name
+                &tool_set.name, &cfg.name
             )));
         }
 
         // convert callback config into tool
-        let input_schema = if let Some(i) = &callback.input_schema {
+        let input_schema = if let Some(i) = &cfg.input_schema {
             Some(
                 serde_json::from_value::<codegen::RootSchema>(json!(i)).map_err(|e| {
                     Error::Message(format!(
                         "Failed parsing inputSchema as json schema for tool `{}`: {e}",
-                        &callback.name
+                        &cfg.name
                     ))
                 })?,
             )
         } else {
             None
         };
-        let output_schema = if let Some(o) = &callback.output_schema {
+        let output_schema = if let Some(o) = &cfg.output_schema {
             Some(
                 serde_json::from_value::<codegen::RootSchema>(json!(o)).map_err(|e| {
                     Error::Message(format!(
                         "Failed parsing outputSchema as json schema for tool `{}`: {e}",
-                        &callback.name
+                        &cfg.name
                     ))
                 })?,
             )
@@ -283,15 +277,15 @@ impl CodeMode {
             None
         };
         let tool = Tool::new_callback(
-            &callback.name,
-            callback.description.clone(),
+            &cfg.name,
+            cfg.description.clone(),
             input_schema.unwrap(), // TODO: optional input schemas
             output_schema,
         )?;
 
         // add tool & it's configuration
         tool_set.tools.push(tool);
-        self.callbacks.push(callback.clone());
+        self.callbacks.push((cfg.clone(), callback));
 
         Ok(())
     }

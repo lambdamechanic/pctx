@@ -6,7 +6,6 @@ pub mod websocket;
 
 use std::sync::Arc;
 
-use pctx_code_execution_runtime::CallbackRegistry;
 use pctx_code_mode::CodeMode;
 use session::SessionManager;
 
@@ -15,7 +14,6 @@ use session::SessionManager;
 pub struct AppState {
     pub session_manager: Arc<SessionManager>,
     pub code_mode: Arc<tokio::sync::Mutex<CodeMode>>,
-    pub callback_registry: CallbackRegistry,
 }
 
 impl AppState {
@@ -23,7 +21,6 @@ impl AppState {
         Self {
             session_manager: Arc::new(SessionManager::new()),
             code_mode: Arc::new(tokio::sync::Mutex::new(code_mode)),
-            callback_registry: CallbackRegistry::default(),
         }
     }
 }

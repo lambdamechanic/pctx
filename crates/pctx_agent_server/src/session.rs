@@ -98,19 +98,6 @@ pub enum ExecuteCodeError {
     NoExecutor,
 }
 
-/// Callback for executing code - takes code string, returns execution result
-pub type CodeExecutorFn = Arc<
-    dyn Fn(
-            String,
-        ) -> std::pin::Pin<
-            Box<
-                dyn std::future::Future<Output = Result<ExecuteCodeResult, ExecuteCodeError>>
-                    + Send,
-            >,
-        > + Send
-        + Sync,
->;
-
 /// Error types for session operations
 #[derive(Debug, thiserror::Error)]
 pub enum RegistercallbackError {

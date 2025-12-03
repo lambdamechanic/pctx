@@ -121,7 +121,6 @@ pub(crate) async fn execute_code(
 
     // Clone the CodeMode Arc to move into spawn_blocking
     let code_mode = Arc::clone(&state.code_mode);
-    let callback_registry = state.callback_registry.clone();
     let code = request.code;
 
     // Use spawn_blocking with current-thread runtime for Deno's unsync operations
@@ -137,7 +136,7 @@ pub(crate) async fn execute_code(
         rt.block_on(async {
             let code_mode_guard = code_mode.lock().await;
             code_mode_guard
-                .execute(&code, callback_registry)
+                .execute(&code)
                 .await
                 .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
         })
@@ -231,25 +230,8 @@ pub(crate) async fn register_tools(
             })
         });
 
-        // Register callback in CallbackRegistry
-        state
-            .callback_registry
-            .add(&tool.id(), callback)
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: ErrorInfo {
-                            code: "INTERNAL_ERROR".to_string(),
-                            message: format!("Failed to register callback: {e}"),
-                            details: None,
-                        },
-                    }),
-                )
-            })?;
-
         let mut code_mode = state.code_mode.lock().await;
-        code_mode.add_callback(tool).map_err(|e| {
+        code_mode.add_callback(tool, callback).map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
