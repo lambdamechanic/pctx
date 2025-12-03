@@ -2,23 +2,17 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::session::OutgoingMessage;
-use axum::{
-    Json,
-    extract::State,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
+use axum::{Json, extract::State, http::StatusCode};
 use pctx_code_execution_runtime::CallbackFn;
 use pctx_code_mode::model::{
     ExecuteInput, ExecuteOutput, GetFunctionDetailsInput, GetFunctionDetailsOutput,
     ListFunctionsOutput,
 };
 use tracing::{error, info};
-use utoipa;
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::types::{
+use crate::model::{
     ErrorInfo, ErrorResponse, HealthResponse, McpServerConfig, RegisterLocalToolsRequest,
     RegisterLocalToolsResponse, RegisterMcpServersRequest, RegisterMcpServersResponse,
 };
@@ -32,24 +26,24 @@ use crate::types::{
         (status = 200, description = "Service is healthy", body = HealthResponse)
     )
 )]
-pub async fn health() -> Json<HealthResponse> {
+pub(crate) async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
     })
 }
 
-/// List all available tools from both local and MCP registrations
+/// List all available code mode functions from both server and tool registrations
 #[utoipa::path(
     post,
-    path = "/code-mode/list-functions",
+    path = "/code-mode/functions/list",
     tag = "CodeMode",
     responses(
-        (status = 200, description = "List of all registered tools", body = ListFunctionsOutput),
+        (status = 200, description = "List of all code mode functions as source code & structured output", body = ListFunctionsOutput),
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn list_functions(
+pub(crate) async fn list_functions(
     State(state): State<AppState>,
 ) -> Result<Json<ListFunctionsOutput>, (StatusCode, Json<ErrorResponse>)> {
     info!("Listing tools");
@@ -63,7 +57,7 @@ pub async fn list_functions(
 /// Get detailed information about a specific function
 #[utoipa::path(
     post,
-    path = "/code-mode/get-function-details",
+    path = "/code-mode/functions/details",
     tag = "CodeMode",
     request_body = GetFunctionDetailsInput,
     responses(
@@ -72,7 +66,7 @@ pub async fn list_functions(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn get_function_details(
+pub(crate) async fn get_function_details(
     State(state): State<AppState>,
     Json(request): Json<GetFunctionDetailsInput>,
 ) -> Result<Json<GetFunctionDetailsOutput>, (StatusCode, Json<ErrorResponse>)> {
@@ -116,7 +110,7 @@ pub async fn get_function_details(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn execute_code(
+pub(crate) async fn execute_code(
     State(state): State<AppState>,
     Json(request): Json<ExecuteInput>,
 ) -> Result<Json<ExecuteOutput>, (StatusCode, Json<ErrorResponse>)> {
@@ -181,7 +175,7 @@ pub async fn execute_code(
 
     Ok(axum::Json(output))
 }
-/// Register local tools that will be called via WebSocket callbacks
+/// Register tools that will be called via WebSocket callbacks
 #[utoipa::path(
     post,
     path = "/register/tools",
@@ -193,12 +187,12 @@ pub async fn execute_code(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn register_tools(
+pub(crate) async fn register_tools(
     State(state): State<AppState>,
     Json(request): Json<RegisterLocalToolsRequest>,
 ) -> Result<Json<RegisterLocalToolsResponse>, (StatusCode, Json<ErrorResponse>)> {
     info!(
-        "Registering {} local tools for session {}",
+        "Registering {} tools for session {}",
         request.tools.len(),
         request.session_id
     );
@@ -255,7 +249,7 @@ pub async fn register_tools(
             })?;
 
         let mut code_mode = state.code_mode.lock().await;
-        code_mode.add_callback(&tool).map_err(|e| {
+        code_mode.add_callback(tool).map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
@@ -303,7 +297,7 @@ pub async fn register_tools(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn register_servers(
+pub(crate) async fn register_servers(
     State(state): State<AppState>,
     Json(request): Json<RegisterMcpServersRequest>,
 ) -> Json<RegisterMcpServersResponse> {
@@ -314,7 +308,7 @@ pub async fn register_servers(
 
     for server in &request.servers {
         match register_mcp_server(&state, server).await {
-            Ok(_) => {
+            Ok(()) => {
                 registered += 1;
                 info!("Successfully registered MCP server: {}", server.name);
             }
@@ -330,7 +324,7 @@ pub async fn register_servers(
 
 async fn register_mcp_server(state: &AppState, server: &McpServerConfig) -> Result<(), String> {
     // Parse and validate URL
-    let url = url::Url::parse(&server.url).map_err(|e| format!("Invalid URL: {}", e))?;
+    let url = url::Url::parse(&server.url).map_err(|e| format!("Invalid URL: {e}"))?;
 
     // Create ServerConfig
     let mut server_config = pctx_config::server::ServerConfig::new(server.name.clone(), url);
@@ -360,34 +354,4 @@ async fn register_mcp_server(state: &AppState, server: &McpServerConfig) -> Resu
     );
 
     Ok(())
-}
-
-/// API error type
-#[derive(Debug)]
-pub enum ApiError {
-    NotFound(String),
-    Internal(String),
-    ExecutionError(String),
-    BadRequest(String),
-}
-
-impl IntoResponse for ApiError {
-    fn into_response(self) -> Response {
-        let (status, code, message) = match self {
-            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, "NOT_FOUND", msg),
-            ApiError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", msg),
-            ApiError::ExecutionError(msg) => (StatusCode::BAD_REQUEST, "EXECUTION_ERROR", msg),
-            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg),
-        };
-
-        let body = Json(ErrorResponse {
-            error: ErrorInfo {
-                code: code.to_string(),
-                message,
-                details: None,
-            },
-        });
-
-        (status, body).into_response()
-    }
 }

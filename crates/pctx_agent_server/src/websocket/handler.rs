@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
-use super::protocol::*;
+use super::protocol::{JsonRpcNotification, SessionCreatedParams};
 use crate::AppState;
 
 /// Handle WebSocket upgrade
@@ -74,7 +74,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     // Clean up registered tool callbacks from CallbackRegistry
     let sessions_guard = state.session_manager.sessions().read().await;
     if let Some(session) = sessions_guard.get(&session_id) {
-        for (tool_name, _info) in &session.registered_callbacks {
+        for tool_name in session.registered_callbacks.keys() {
             state.callback_registry.remove(tool_name);
             debug!("Removed callback for tool: {}", tool_name);
         }
@@ -85,7 +85,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     info!("WebSocket connection closed for session {}", session_id);
 }
 
-/// Handle outgoing WebSocket messages (execute_tool requests from server)
+/// Handle outgoing WebSocket messages (`execute_tool` requests from server)
 async fn write_messages(
     mut sender: SplitSink<WebSocket, Message>,
     mut rx: mpsc::UnboundedReceiver<OutgoingMessage>,
@@ -111,7 +111,7 @@ async fn write_messages(
     }
 }
 
-/// Handle incoming WebSocket messages (execute_tool responses from client)
+/// Handle incoming WebSocket messages (`execute_tool` responses from client)
 async fn read_messages(mut receiver: SplitStream<WebSocket>, session_id: String, state: AppState) {
     while let Some(result) = receiver.next().await {
         match result {
@@ -136,7 +136,7 @@ async fn handle_message(msg: Message, session_id: &str, state: &AppState) -> Res
 
             // Parse as JSON-RPC response (client responding to execute_tool)
             let response: Value =
-                serde_json::from_str(&text).map_err(|e| format!("Failed to parse JSON: {}", e))?;
+                serde_json::from_str(&text).map_err(|e| format!("Failed to parse JSON: {e}"))?;
 
             // Extract the id from the response
             let id = response
@@ -162,7 +162,7 @@ async fn handle_message(msg: Message, session_id: &str, state: &AppState) -> Res
                 .session_manager
                 .handle_execution_response(&id, result)
                 .await
-                .map_err(|_| "Failed to resolve execution".to_string())?;
+                .map_err(|()| "Failed to resolve execution".to_string())?;
 
             Ok(())
         }

@@ -61,7 +61,7 @@
         }
       }
     },
-    "/code-mode/get-function-details": {
+    "/code-mode/functions/details": {
       "post": {
         "tags": [
           "CodeMode"
@@ -112,16 +112,16 @@
         }
       }
     },
-    "/code-mode/list-functions": {
+    "/code-mode/functions/list": {
       "post": {
         "tags": [
           "CodeMode"
         ],
-        "summary": "List all available tools from both local and MCP registrations",
+        "summary": "List all available code mode functions from both server and tool registrations",
         "operationId": "list_functions",
         "responses": {
           "200": {
-            "description": "List of all registered tools",
+            "description": "List of all code mode functions as source code & structured output",
             "content": {
               "application/json": {
                 "schema": {
@@ -210,7 +210,7 @@
         "tags": [
           "registration"
         ],
-        "summary": "Register local tools that will be called via WebSocket callbacks",
+        "summary": "Register tools that will be called via WebSocket callbacks",
         "operationId": "register_tools",
         "requestBody": {
           "content": {
@@ -492,7 +492,7 @@
       },
       "RegisterLocalToolsRequest": {
         "type": "object",
-        "description": "Request to register local tools",
+        "description": "Request to register tools",
         "required": [
           "session_id",
           "tools"
@@ -511,7 +511,7 @@
       },
       "RegisterLocalToolsResponse": {
         "type": "object",
-        "description": "Response after registering local tools",
+        "description": "Response to registering tools",
         "required": [
           "registered"
         ],

@@ -9,18 +9,19 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    AppState, routes,
-    types::{
+    AppState,
+    model::{
         ErrorInfo, ErrorResponse, HealthResponse, McpServerConfig, RegisterLocalToolsRequest,
         RegisterLocalToolsResponse, RegisterMcpServersRequest, RegisterMcpServersResponse,
     },
-    websocket,
+    routes, websocket,
 };
 use pctx_code_mode::model::{
     CallbackConfig, ExecuteInput, ExecuteOutput, FunctionDetails, GetFunctionDetailsInput,
     GetFunctionDetailsOutput, ListFunctionsOutput, ListedFunction,
 };
 
+#[allow(clippy::needless_for_each)]
 #[derive(OpenApi)]
 #[openapi(
     paths(
@@ -64,20 +65,21 @@ use pctx_code_mode::model::{
 pub struct ApiDoc;
 
 /// Start the agent server
+///
+/// # Errors
+///
+/// This function will return an error if axum fails binding to the provided host/port
 pub async fn start_server(host: &str, port: u16, state: AppState) -> Result<()> {
     let app = create_router(state);
 
     let addr = format!("{host}:{port}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
-    info!("🚀 PCTX Agent Server listening on http://{}", addr);
-    info!("   OpenAPI documentation: http://{}/swagger-ui/", addr);
+    info!("🚀 PCTX Agent Server listening on http://{addr}");
+    info!("   OpenAPI documentation: http://{addr}/swagger-ui/");
     info!("");
     info!("Use REST API to register tools and MCP servers dynamically.");
-    info!(
-        "WebSocket endpoint at ws://{}/ws for local tool callbacks.",
-        addr
-    );
+    info!("WebSocket endpoint at ws://{addr}/ws for tool callbacks.",);
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
@@ -92,9 +94,9 @@ pub fn create_router(state: AppState) -> Router {
         // Health check
         .route("/health", get(routes::health))
         // Tools endpoints
-        .route("/code-mode/list-functions", post(routes::list_functions))
+        .route("/code-mode/functions/list", post(routes::list_functions))
         .route(
-            "/code-mode/get-function-details",
+            "/code-mode/functions/details",
             post(routes::get_function_details),
         )
         .route("/code-mode/execute", post(routes::execute_code))
@@ -131,8 +133,8 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        () = ctrl_c => {},
+        () = terminate => {},
     }
 
     info!("Shutdown signal received, cleaning up...");

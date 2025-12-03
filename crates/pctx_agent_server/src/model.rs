@@ -22,14 +22,14 @@ pub struct ErrorInfo {
     pub details: Option<String>,
 }
 
-/// Request to register local tools
+/// Request to register tools
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterLocalToolsRequest {
     pub session_id: String,
     pub tools: Vec<pctx_code_mode::model::CallbackConfig>,
 }
 
-/// Response after registering local tools
+/// Response to registering tools
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RegisterLocalToolsResponse {
     pub registered: usize,

@@ -9,10 +9,10 @@ use axum::http::StatusCode;
 use futures::StreamExt;
 use pctx_agent_server::{
     AppState,
-    server::create_router,
-    types::{
+    model::{
         ErrorResponse, HealthResponse, RegisterLocalToolsResponse, RegisterMcpServersResponse,
     },
+    server::create_router,
 };
 use pctx_code_mode::model::{ExecuteOutput, GetFunctionDetailsOutput};
 use pctx_code_mode::{CodeMode, model::ListFunctionsOutput};
@@ -98,7 +98,7 @@ async fn test_full_workflow_websocket_registration_and_list() {
 
     // 4. List tools via REST API
     let list_response = client
-        .post(format!("{http_url}/code-mode/list-functions"))
+        .post(format!("{http_url}/code-mode/functions/list"))
         .json(&json!({}))
         .send()
         .await
@@ -324,7 +324,7 @@ async fn test_multiple_websocket_sessions_isolated() {
 
     // List all tools - should see both
     let list_response = client
-        .post(format!("{http_url}/code-mode/list-functions"))
+        .post(format!("{http_url}/code-mode/functions/list"))
         .json(&json!({}))
         .send()
         .await
@@ -422,7 +422,7 @@ async fn test_get_function_details_returns_code_field() {
         panic!("Expected session_created notification");
     };
 
-    // Register a local tool with JSON schema
+    // Register a tool with JSON schema
     let client = reqwest::Client::new();
     let register_response = client
         .post(format!("{http_url}/register/tools"))
@@ -446,7 +446,7 @@ async fn test_get_function_details_returns_code_field() {
 
     assert_eq!(register_response.status(), StatusCode::OK);
     let details_response = client
-        .post(format!("{http_url}/code-mode/get-function-details"))
+        .post(format!("{http_url}/code-mode/functions/details"))
         .json(&json!({"functions": ["TestTools.myFunction"]}))
         .send()
         .await

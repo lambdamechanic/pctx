@@ -8,8 +8,8 @@ use axum::{
 use http_body_util::BodyExt;
 use pctx_agent_server::{
     AppState,
+    model::{ErrorResponse, HealthResponse, RegisterMcpServersResponse},
     server::create_router,
-    types::{ErrorResponse, HealthResponse, RegisterMcpServersResponse},
 };
 use pctx_code_mode::{
     CodeMode,
@@ -70,7 +70,7 @@ async fn test_list_tools_empty() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/code-mode/list-functions")
+                .uri("/code-mode/functions/list")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&request_body).unwrap()))
                 .unwrap(),

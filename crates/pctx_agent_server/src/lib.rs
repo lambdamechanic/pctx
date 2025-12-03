@@ -1,7 +1,7 @@
-pub mod routes;
+pub mod model;
+mod routes;
 pub mod server;
-pub mod session;
-pub mod types;
+mod session;
 pub mod websocket;
 
 use std::sync::Arc;
