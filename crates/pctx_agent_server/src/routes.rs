@@ -395,7 +395,7 @@ pub(crate) async fn register_servers(
         match register_mcp_server(&code_mode_lock, server).await {
             Ok(()) => {
                 registered += 1;
-                info!("Successfully registered MCP server: {}", server.name);
+                debug!("Successfully registered MCP server: {}", server.name);
             }
             Err(e) => {
                 error!("Failed to register MCP server {}: {}", server.name, e);

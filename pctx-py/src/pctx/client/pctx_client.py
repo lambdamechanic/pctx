@@ -4,96 +4,40 @@ PCTX Client
 Main client for executing code with both MCP tools and local Python tools.
 """
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
+from urllib.parse import urlparse
+
+from httpx import AsyncClient
+from pctx.client.models import (
+    GetFunctionDetailsOutput,
+    ListFunctionsOutput,
+    ServerConfig,
+    ToolConfig,
+)
+from pctx.tools.tool import Tool
+from pytest import Session
 
 from .websocket_client import WebSocketClient
-from .mcp_client import McpClient
-from .exceptions import ConnectionError
 
 
-class PctxClient:
+class Pctx:
     """
     PCTX Client
 
     Execute TypeScript/JavaScript code with access to both MCP tools and local Python tools.
-
-    Example:
-        ```python
-        # Define local tools
-        def get_data(params):
-            return {"data": [1, 2, 3]}
-
-        async def fetch_user(params):
-            user_id = params.get("user_id")
-            return {"id": user_id, "name": "John"}
-
-        local_tools = [
-            {
-                "namespace": "MyTools",
-                "name": "getData",
-                "callback": get_data,
-                "description": "Get sample data"
-            },
-            {
-                "namespace": "MyTools",
-                "name": "fetchUser",
-                "callback": fetch_user
-            }
-        ]
-
-        # Initialize client with local tools
-        async with PctxClient(
-            ws_url="ws://localhost:8080/local-tools",
-            local_tools=local_tools,
-            mcps=["http://localhost:8080/mcp"]  # Optional MCP servers
-        ) as client:
-            # Execute code that uses both MCP and local tools
-            result = await client.execute('''
-                async function run() {
-                    // Use MCP tool
-                    const notionResults = await Notion.apiPostSearch({query: "test"});
-
-                    // Use local Python tool
-                    const localData = await MyTools.getData({});
-                    const user = await MyTools.fetchUser({user_id: 123});
-
-                    return {notionResults, localData, user};
-                }
-            ''')
-        ```
     """
 
     def __init__(
         self,
-        url: str,
-        local_tools: Optional[List[Dict[str, Any]]] = None,
-        mcp_servers: Optional[List[Dict[str, Any]]] = None,
-        timeout: float = 5.0,
+        tools: dict[str, list[Tool]] | None = None,
+        servers: list[ServerConfig] | None = None,
+        url: str = "http://localhost:8080",
     ):
         """
         Initialize the PCTX client.
-
-        Args:
-            url: Base server URL (e.g., "http://localhost:8080" or "ws://localhost:8080")
-                 The client will automatically derive:
-                 - WebSocket URL: ws://host/local-tools
-                 - MCP URL: http://host/mcp (automatically registered)
-            local_tools: Optional list of local tool definitions. Each dict should have:
-                - namespace: str - Tool namespace (e.g., "MyTools")
-                - name: str - Tool name (e.g., "getData")
-                - callback: Callable - Python function to call
-                - description: Optional[str] - Tool description
-                - input_schema: Optional[Dict] - JSON schema for validation
-                - output_schema: Optional[Dict] - JSON schema for validation
-            mcp_servers: Optional list of additional MCP servers to register. Each dict should have:
-                - name: str - Unique name for the MCP server
-                - url: str - MCP server URL
-                - auth: Optional[Dict] - Authentication config (e.g., {"bearer": {"token": "..."}})
-            timeout: Request timeout in seconds
         """
-        # Parse and normalize the URL
-        from urllib.parse import urlparse
 
+        # Parse and normalize the URL
         parsed = urlparse(url)
 
         # Determine the base host and port
@@ -112,16 +56,12 @@ class PctxClient:
 
         ws_scheme = "wss" if http_scheme == "https" else "ws"
 
-        # Build the endpoint URLs
-        self.ws_url = f"{ws_scheme}://{host}/local-tools"
-        self.mcp_url = f"{http_scheme}://{host}/mcp"
+        self._ws_client = WebSocketClient(url=f"{ws_scheme}://{host}/ws")
+        self._client = AsyncClient(base_url=f"{http_scheme}://{host}")
+        self._session_id: str | None = None
 
-        self.timeout = timeout
-        self.local_tools_config = local_tools or []
-        self.mcp_servers_config = mcp_servers or []
-
-        self.ws_client: Optional[WebSocketClient] = None
-        self.mcp_clients: List[McpClient] = []
+        self._tools = tools or {}
+        self._servers = servers or []
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -134,148 +74,84 @@ class PctxClient:
 
     async def connect(self):
         """Connect to WebSocket, register local tools, and register MCP servers."""
+        if self._session_id is not None:
+            await self.disconnect()
+
+        connect_res = await self._client.post("/code-mode/session/create")
+        connect_res.raise_for_status()
+        self._session_id = connect_res.json()["session_id"]
+        self._client.headers = {"x-code-mode-session": self._session_id or ""}
+
         # Connect WebSocket client
-        self.ws_client = WebSocketClient(self.ws_url)
-        await self.ws_client.connect()
+        await self._ws_client.connect(self._session_id or "")
 
         # Register all local tools
-        for tool_config in self.local_tools_config:
-            await self.ws_client.register_tool(
-                namespace=tool_config["namespace"],
-                name=tool_config["name"],
-                callback=tool_config["callback"],
-                description=tool_config.get("description"),
-                input_schema=tool_config.get("input_schema"),
-                output_schema=tool_config.get("output_schema"),
-            )
+        configs: list[ToolConfig] = []
+        for namespace, tools in self._tools.items():
+            if len(tools) == 0:
+                continue
 
-        # Register additional MCP servers via WebSocket
-        for mcp_config in self.mcp_servers_config:
-            await self.ws_client.register_mcp(
-                name=mcp_config["name"],
-                url=mcp_config["url"],
-                auth=mcp_config.get("auth"),
+            configs.extend(
+                [
+                    {
+                        "name": t.name,
+                        "namespace": namespace,
+                        "description": t.description,
+                        "input_schema": t.input_schema.model_json_schema()
+                        if t.input_schema
+                        else None,
+                        "output_schema": t.output_schema.model_json_schema()
+                        if t.output_schema
+                        else None,
+                    }
+                    for t in tools
+                ]
             )
+        print("registering...")
+        await self._register_tools(configs)
+        await self._register_servers(self._servers)
 
-        # Connect to the main MCP endpoint for direct HTTP calls
-        mcp_client = McpClient(self.mcp_url, self.timeout)
-        await mcp_client.connect()
-        self.mcp_clients.append(mcp_client)
+        # Register additional MCP servers
 
     async def disconnect(self):
         """Disconnect from all endpoints."""
-        if self.ws_client:
-            await self.ws_client.disconnect()
-            self.ws_client = None
-
-        for mcp_client in self.mcp_clients:
-            await mcp_client.close()
-        self.mcp_clients = []
+        await self._ws_client.disconnect()
+        close_res = await self._client.post("/code-mode/session/close")
+        close_res.raise_for_status()
+        self._session_id = None
 
     # ========== Main execution method ==========
 
-    async def execute(self, code: str) -> Dict[str, Any]:
-        """
-        Execute TypeScript/JavaScript code with access to both MCP tools and local tools.
-
-        The code must contain an `async function run()` that returns a value.
-
-        Within the code, you can:
-        - Call MCP tools like: `await Notion.apiPostSearch({query: "test"})`
-        - Call local Python tools like: `await MyTools.getData({})`
-
-        Args:
-            code: TypeScript/JavaScript code to execute (must contain `async function run()`)
-
-        Returns:
-            Execution result dict with structure:
-            {
-                "success": bool,
-                "output": any,  # The return value from run()
-                "stdout": str,
-                "stderr": str
-            }
-
-        Raises:
-            ExecutionError: If execution fails
-            ConnectionError: If not connected
-        """
-        if not self.mcp_clients:
-            raise ConnectionError(
-                "Client not connected. Use async with or call connect()"
+    async def list_functions(self) -> ListFunctionsOutput:
+        if self._session_id is None:
+            raise Session(
+                "No code mode session exists, run Pctx(...).connect() before calling"
             )
+        list_res = await self._client.post("/code-mode/functions/list")
+        list_res.raise_for_status()
 
-        # Execute via the main MCP client
-        result = await self.mcp_clients[0].execute(code)
+        return list_res.json()
 
-        # Normalize the result to have 'value' key for backward compatibility
-        if "output" in result and "value" not in result:
-            result["value"] = result["output"]
-
-        return result
-
-    # ========== Optional tool registration after initialization ==========
-
-    async def register_local_tool(
-        self,
-        namespace: str,
-        name: str,
-        callback: Callable,
-        description: Optional[str] = None,
-        input_schema: Optional[Dict[str, Any]] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
-    ):
-        """
-        Register an additional local tool after initialization.
-
-        Most tools should be registered via the local_tools parameter in __init__.
-        Use this method only when you need to dynamically add tools.
-
-        Args:
-            namespace: Tool namespace (e.g., "MyTools")
-            name: Tool name (e.g., "getData")
-            callback: Python function to call when tool is invoked
-            description: Optional tool description
-            input_schema: Optional JSON schema for input validation
-            output_schema: Optional JSON schema for output validation
-
-        Raises:
-            ConnectionError: If not connected
-        """
-        if not self.ws_client:
-            raise ConnectionError("Client not connected")
-
-        await self.ws_client.register_tool(
-            namespace=namespace,
-            name=name,
-            callback=callback,
-            description=description,
-            input_schema=input_schema,
-            output_schema=output_schema,
+    async def get_function_details(
+        self, functions: list[str]
+    ) -> GetFunctionDetailsOutput:
+        if self._session_id is None:
+            raise Session(
+                "No code mode session exists, run Pctx(...).connect() before calling"
+            )
+        list_res = await self._client.post(
+            "/code-mode/functions/details", json={"functions": functions}
         )
+        list_res.raise_for_status()
 
-    # ========== Utility methods ==========
+        return list_res.json()
 
-    def list_local_tools(self) -> List[str]:
-        """
-        List all registered local tools.
+    # ========== Registrations ==========
 
-        Returns:
-            List of tool names in format "namespace.name"
-        """
-        if not self.ws_client:
-            return []
-        return list(self.ws_client.tools.keys())
+    async def _register_tools(self, configs: list[ToolConfig]):
+        res = await self._client.post("/register/tools", json={"tools": configs})
+        res.raise_for_status()
 
-    async def list_mcp_functions(self) -> List[Dict[str, Any]]:
-        """
-        List all available functions from registered MCP servers.
-
-        Returns:
-            List of function metadata dicts
-        """
-        all_functions = []
-        for mcp_client in self.mcp_clients:
-            functions = await mcp_client.list_functions()
-            all_functions.extend(functions)
-        return all_functions
+    async def _register_servers(self, configs: list[ServerConfig]):
+        res = await self._client.post("/register/servers", json={"servers": configs})
+        res.raise_for_status()

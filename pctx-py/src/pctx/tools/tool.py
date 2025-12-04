@@ -20,11 +20,11 @@ class Tool(BaseModel):
     Longer-form text which instructs the model how/why/when to use the tool.
     """
 
-    input_schema: Annotated[BaseModel, SkipValidation] = Field(
+    input_schema: Annotated[type[BaseModel] | None, SkipValidation] = Field(
         default=None, description="The tool schema."
     )
 
-    output_schema: Annotated[BaseModel | None, SkipValidation] = Field(
+    output_schema: Annotated[type[BaseModel] | None, SkipValidation] = Field(
         default=None, description="The return type schema."
     )
 
@@ -151,7 +151,8 @@ def create_output_schema(
     # Check if return type is already a BaseModel subclass
     try:
         if isinstance(return_annotation, type) and issubclass(
-            return_annotation, BaseModel
+            return_annotation,  # type: ignore
+            BaseModel,
         ):
             return return_annotation
     except TypeError:

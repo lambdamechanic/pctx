@@ -7,6 +7,12 @@ class PctxError(Exception):
     pass
 
 
+class SessionError(PctxError):
+    """Raised when WebSocket connection fails."""
+
+    pass
+
+
 class ConnectionError(PctxError):
     """Raised when WebSocket connection fails."""
 
