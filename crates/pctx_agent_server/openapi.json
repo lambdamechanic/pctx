@@ -21,7 +21,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExecuteInput"
+                "$ref": "#/components/schemas/ExecuteRequest"
               }
             }
           },
@@ -43,7 +43,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ErrorData"
                 }
               }
             }
@@ -53,7 +53,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ErrorData"
                 }
               }
             }
@@ -72,7 +72,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GetFunctionDetailsInput"
+                "$ref": "#/components/schemas/GetFunctionDetailsRequest"
               }
             }
           },
@@ -94,7 +94,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ErrorData"
                 }
               }
             }
@@ -104,7 +104,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ErrorData"
                 }
               }
             }
@@ -119,6 +119,16 @@
         ],
         "summary": "List all available code mode functions from both server and tool registrations",
         "operationId": "list_functions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListFunctionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "List of all code mode functions as source code & structured output",
@@ -135,7 +145,89 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/code-mode/session/close": {
+      "post": {
+        "tags": [
+          "CodeMode"
+        ],
+        "summary": "Close a `CodeMode` session",
+        "operationId": "close_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session closed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseSessionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/code-mode/session/create": {
+      "post": {
+        "tags": [
+          "CodeMode"
+        ],
+        "summary": "Create a new `CodeMode` session",
+        "operationId": "create_session",
+        "responses": {
+          "200": {
+            "description": "Session created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSessionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
                 }
               }
             }
@@ -197,7 +289,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ErrorData"
                 }
               }
             }
@@ -216,7 +308,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RegisterLocalToolsRequest"
+                "$ref": "#/components/schemas/RegisterToolsRequest"
               }
             }
           },
@@ -228,7 +320,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RegisterLocalToolsResponse"
+                  "$ref": "#/components/schemas/RegisterToolsResponse"
                 }
               }
             }
@@ -238,7 +330,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ErrorData"
                 }
               }
             }
@@ -248,7 +340,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ErrorData"
                 }
               }
             }
@@ -282,7 +374,51 @@
           "output_schema": {}
         }
       },
-      "ErrorInfo": {
+      "CloseSessionRequest": {
+        "type": "object",
+        "description": "Request to close a CodeMode session",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CloseSessionResponse": {
+        "type": "object",
+        "description": "Response after closing a CodeMode session",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateSessionResponse": {
+        "type": "object",
+        "description": "Response after creating a new CodeMode session",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "invalid_session",
+          "internal",
+          "execution"
+        ]
+      },
+      "ErrorData": {
         "type": "object",
         "required": [
           "code",
@@ -290,7 +426,7 @@
         ],
         "properties": {
           "code": {
-            "type": "string"
+            "$ref": "#/components/schemas/ErrorCode"
           },
           "details": {
             "type": [
@@ -300,18 +436,6 @@
           },
           "message": {
             "type": "string"
-          }
-        }
-      },
-      "ErrorResponse": {
-        "type": "object",
-        "description": "Error response",
-        "required": [
-          "error"
-        ],
-        "properties": {
-          "error": {
-            "$ref": "#/components/schemas/ErrorInfo"
           }
         }
       },
@@ -351,6 +475,24 @@
             "description": "Success of executed code"
           }
         }
+      },
+      "ExecuteRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ExecuteInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "session_id"
+            ],
+            "properties": {
+              "session_id": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       },
       "FunctionDetails": {
         "allOf": [
@@ -414,6 +556,24 @@
           }
         }
       },
+      "GetFunctionDetailsRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/GetFunctionDetailsInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "session_id"
+            ],
+            "properties": {
+              "session_id": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
       "HealthResponse": {
         "type": "object",
         "description": "Health check response",
@@ -433,15 +593,30 @@
       "ListFunctionsOutput": {
         "type": "object",
         "required": [
-          "functions"
+          "functions",
+          "code"
         ],
         "properties": {
+          "code": {
+            "type": "string"
+          },
           "functions": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ListedFunction"
             },
             "description": "Available functions"
+          }
+        }
+      },
+      "ListFunctionsRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
           }
         }
       },
@@ -490,7 +665,46 @@
           }
         }
       },
-      "RegisterLocalToolsRequest": {
+      "RegisterMcpServersRequest": {
+        "type": "object",
+        "description": "Request to register MCP servers",
+        "required": [
+          "session_id",
+          "servers"
+        ],
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServerConfig"
+            }
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterMcpServersResponse": {
+        "type": "object",
+        "description": "Response after registering MCP servers",
+        "required": [
+          "registered",
+          "failed"
+        ],
+        "properties": {
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "registered": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "RegisterToolsRequest": {
         "type": "object",
         "description": "Request to register tools",
         "required": [
@@ -509,48 +723,13 @@
           }
         }
       },
-      "RegisterLocalToolsResponse": {
+      "RegisterToolsResponse": {
         "type": "object",
         "description": "Response to registering tools",
         "required": [
           "registered"
         ],
         "properties": {
-          "registered": {
-            "type": "integer",
-            "minimum": 0
-          }
-        }
-      },
-      "RegisterMcpServersRequest": {
-        "type": "object",
-        "description": "Request to register MCP servers",
-        "required": [
-          "servers"
-        ],
-        "properties": {
-          "servers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/McpServerConfig"
-            }
-          }
-        }
-      },
-      "RegisterMcpServersResponse": {
-        "type": "object",
-        "description": "Response after registering MCP servers",
-        "required": [
-          "registered",
-          "failed"
-        ],
-        "properties": {
-          "failed": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "registered": {
             "type": "integer",
             "minimum": 0
