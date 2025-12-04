@@ -60,6 +60,7 @@ reqwest = { version = "0.12", features = ["json"] }
 serial_test = "3.0"
 axum-test = { version = "^18.4.1", features = ["ws"] }
 similar-asserts = { version = "1.7.0", features = ["serde"] }
+insta = { version = "1.44.3", features = ["json"] }
 
 [lints]
 workspace = true

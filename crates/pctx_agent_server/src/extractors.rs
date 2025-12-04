@@ -6,6 +6,8 @@ use axum::{
 };
 use uuid::Uuid;
 
+pub static CODE_MODE_SESSION_HEADER: &str = "x-code-mode-session";
+
 /// Extractor for the x-code-mode-session header
 ///
 /// This extractor will parse the `x-code-mode-session` header value as a UUID.
@@ -16,15 +18,15 @@ use uuid::Uuid;
 /// ```rust
 /// use axum::{Router, routing::get};
 ///
-/// async fn handler(CodeModeSessionId(session_id): CodeModeSessionId) {
+/// async fn handler(CodeModeSession(session_id): CodeModeSession) {
 ///     println!("Session ID: {}", session_id);
 /// }
 ///
 /// let app = Router::new().route("/", get(handler));
 /// ```
-pub struct CodeModeSessionId(pub Uuid);
+pub struct CodeModeSession(pub Uuid);
 
-impl<S> FromRequestParts<S> for CodeModeSessionId
+impl<S> FromRequestParts<S> for CodeModeSession
 where
     S: Send + Sync,
 {
@@ -68,6 +70,6 @@ where
             )
         })?;
 
-        Ok(CodeModeSessionId(session_id))
+        Ok(CodeModeSession(session_id))
     }
 }

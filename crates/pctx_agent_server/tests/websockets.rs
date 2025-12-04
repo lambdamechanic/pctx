@@ -5,10 +5,11 @@ mod utils;
 use axum_test::WsMessage;
 use serde_json::json;
 use similar_asserts::{assert_eq, assert_serde_eq};
-use utils::create_test_server_with_session;
 use uuid::Uuid;
 
-use crate::utils::{connect_websocket, create_session, create_test_server};
+use crate::utils::{
+    connect_websocket, create_session, create_test_server, create_test_server_with_session,
+};
 
 /// Tests opening a websocket connection returns a connected message with a session id
 #[tokio::test]

@@ -1,4 +1,3 @@
-use pctx_code_mode::model::{ExecuteInput, GetFunctionDetailsInput};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
@@ -9,30 +8,6 @@ use uuid::Uuid;
 pub struct HealthResponse {
     pub status: String,
     pub version: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ListFunctionsRequest {
-    #[schema(value_type = String)]
-    pub session_id: Uuid,
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct GetFunctionDetailsRequest {
-    #[schema(value_type = String)]
-    pub session_id: Uuid,
-
-    #[serde(flatten)]
-    pub input: GetFunctionDetailsInput,
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ExecuteRequest {
-    #[schema(value_type = String)]
-    pub session_id: Uuid,
-
-    #[serde(flatten)]
-    pub input: ExecuteInput,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -52,8 +27,6 @@ pub enum ErrorCode {
 /// Request to register tools
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterToolsRequest {
-    #[schema(value_type = String)]
-    pub session_id: Uuid,
     pub tools: Vec<pctx_code_mode::model::CallbackConfig>,
 }
 

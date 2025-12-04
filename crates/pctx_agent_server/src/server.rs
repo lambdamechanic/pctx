@@ -12,8 +12,7 @@ use crate::{
     AppState,
     model::{
         CloseSessionRequest, CloseSessionResponse, CreateSessionResponse, ErrorData,
-        ExecuteRequest, GetFunctionDetailsRequest, HealthResponse, ListFunctionsRequest,
-        McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
+        HealthResponse, McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
         RegisterToolsRequest, RegisterToolsResponse,
     },
     routes, websocket,
@@ -44,16 +43,13 @@ use pctx_code_mode::model::{
             CloseSessionRequest,
             CloseSessionResponse,
             // List functions
-            ListFunctionsRequest,
             ListFunctionsOutput,
             ListedFunction,
             // Get function details
-            GetFunctionDetailsRequest,
             GetFunctionDetailsInput,
             GetFunctionDetailsOutput,
             FunctionDetails,
             // Execute
-            ExecuteRequest,
             ExecuteInput,
             ExecuteOutput,
             // Tool registration
