@@ -39,8 +39,6 @@ pub struct RegisterToolsResponse {
 /// Request to register MCP servers
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterMcpServersRequest {
-    #[schema(value_type = String)]
-    pub session_id: Uuid,
     pub servers: Vec<McpServerConfig>,
 }
 
@@ -61,22 +59,40 @@ pub struct RegisterMcpServersResponse {
     pub failed: Vec<String>,
 }
 
-/// Response after creating a new CodeMode session
+/// Response after creating a new `CodeMode` session
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateSessionResponse {
     #[schema(value_type = String)]
     pub session_id: Uuid,
 }
-
-/// Request to close a CodeMode session
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct CloseSessionRequest {
-    #[schema(value_type = String)]
-    pub session_id: Uuid,
-}
-
-/// Response after closing a CodeMode session
+/// Response after closing a `CodeMode` session
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CloseSessionResponse {
     pub success: bool,
+}
+
+/// Messages that can be sent to a WebSocket client
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WsMessage {
+    Notification(WsNotification),
+    ExecuteTool(WsExecuteTool),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WsNotification {
+    pub name: String,
+    pub data: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WsExecuteTool {
+    pub id: Uuid,
+    pub namespace: String,
+    pub name: String,
+    pub args: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WsExecuteToolResult {
+    pub output: Option<serde_json::Value>,
 }

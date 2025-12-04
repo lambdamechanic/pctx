@@ -1,6 +1,7 @@
 use crate::{
     extractors::CodeModeSession,
-    state::ws_manager::{WsExecuteToolResult, WsMessage, WsNotification, WsSession},
+    model::{WsExecuteToolResult, WsMessage, WsNotification},
+    state::ws_manager::WsSession,
 };
 use axum::{
     extract::{

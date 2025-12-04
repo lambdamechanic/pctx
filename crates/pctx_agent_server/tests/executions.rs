@@ -3,7 +3,7 @@ mod utils;
 use crate::utils::{callback_tools, connect_websocket, create_test_server_with_session};
 use pctx_agent_server::{
     CODE_MODE_SESSION_HEADER,
-    state::ws_manager::{WsExecuteTool, WsExecuteToolResult},
+    model::{WsExecuteTool, WsExecuteToolResult},
 };
 use pctx_code_mode::model::CallbackConfig;
 use rmcp::model::{JsonRpcRequest, JsonRpcResponse, Request as JsonRpcRequestData};

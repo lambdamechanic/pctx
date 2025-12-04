@@ -2,24 +2,24 @@
 
 use std::sync::Arc;
 
-use axum::{Router, routing::get};
 use axum_test::{TestResponse, TestServer};
-use pctx_agent_server::{AppState, model::CreateSessionResponse, server::create_router, websocket};
+use pctx_agent_server::{AppState, model::CreateSessionResponse, server::create_router};
 use pctx_code_execution_runtime::CallbackFn;
 use pctx_code_mode::{CodeMode, model::CallbackConfig};
 use serde::Deserialize;
 use serde_json::json;
-use tokio::net::TcpListener;
 use uuid::Uuid;
 
-pub fn create_test_server() -> TestServer {
+#[allow(unused)]
+pub(crate) fn create_test_server() -> TestServer {
     TestServer::builder()
         .http_transport()
         .build(create_router(AppState::default()))
         .expect("Failed starting test server")
 }
 
-pub async fn create_test_server_with_session() -> (Uuid, TestServer) {
+#[allow(unused)]
+pub(crate) async fn create_test_server_with_session() -> (Uuid, TestServer) {
     let state = AppState::default();
     let session_id = Uuid::new_v4();
     state
@@ -35,22 +35,27 @@ pub async fn create_test_server_with_session() -> (Uuid, TestServer) {
     )
 }
 
-pub async fn connect_websocket(server: &TestServer, session_id: Uuid) -> TestResponse {
+#[allow(unused)]
+pub(crate) async fn connect_websocket(server: &TestServer, session_id: Uuid) -> TestResponse {
     server
         .get_websocket("/ws")
         .add_header("x-code-mode-session", session_id.to_string())
         .await
 }
 
-pub async fn create_session(server: &TestServer) -> Uuid {
+#[allow(unused)]
+pub(crate) async fn create_session(server: &TestServer) -> Uuid {
     let res: CreateSessionResponse = server.post("/code-mode/session/create").await.json();
     res.session_id
 }
 
-pub fn callback_tools() -> Vec<(CallbackConfig, CallbackFn)> {
+#[allow(unused)]
+pub(crate) fn callback_tools() -> Vec<(CallbackConfig, CallbackFn)> {
     #[derive(Deserialize)]
     struct MathArgs {
+        #[allow(unused)]
         a: isize,
+        #[allow(unused)]
         b: isize,
     }
     let input_schema = json!({

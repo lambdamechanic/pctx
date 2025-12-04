@@ -3,7 +3,7 @@ pub mod model;
 mod routes;
 pub mod server;
 // mod session;
-pub mod state;
+mod state;
 pub mod websocket;
 
 pub use extractors::CODE_MODE_SESSION_HEADER;

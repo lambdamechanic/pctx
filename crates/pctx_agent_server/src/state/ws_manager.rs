@@ -1,9 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
-use serde::{Deserialize, Serialize};
 use tokio::sync::{RwLock, mpsc as tokio_mpsc};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
+
+use crate::model::{WsExecuteTool, WsExecuteToolResult, WsMessage};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExecuteCallbackError {
@@ -88,6 +89,12 @@ impl WsManager {
     }
 }
 
+type PendingExecutionsMap = Arc<
+    RwLock<
+        HashMap<Uuid, std::sync::mpsc::Sender<Result<WsExecuteToolResult, rmcp::model::ErrorData>>>,
+    >,
+>;
+
 /// WebSocket session representing a connected client
 #[derive(Clone)]
 pub struct WsSession {
@@ -96,14 +103,7 @@ pub struct WsSession {
     /// Channel to send messages to the client
     pub sender: tokio_mpsc::UnboundedSender<WsMessage>,
     /// Pending execution requests waiting for responses
-    pending_executions: Arc<
-        RwLock<
-            HashMap<
-                Uuid,
-                std::sync::mpsc::Sender<Result<WsExecuteToolResult, rmcp::model::ErrorData>>,
-            >,
-        >,
-    >,
+    pending_executions: PendingExecutionsMap,
 }
 impl WsSession {
     pub fn new(sender: tokio_mpsc::UnboundedSender<WsMessage>, code_mode_session_id: Uuid) -> Self {
@@ -175,30 +175,4 @@ impl WsSession {
             Err(())
         }
     }
-}
-
-/// Messages that can be sent to a WebSocket client
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum WsMessage {
-    Notification(WsNotification),
-    ExecuteTool(WsExecuteTool),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WsNotification {
-    pub name: String,
-    pub data: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WsExecuteTool {
-    pub id: Uuid,
-    pub namespace: String,
-    pub name: String,
-    pub args: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WsExecuteToolResult {
-    pub output: Option<serde_json::Value>,
 }

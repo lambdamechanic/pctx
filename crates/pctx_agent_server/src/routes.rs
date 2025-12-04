@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::state::ws_manager::WsExecuteTool;
 use axum::{Json, extract::State, http::StatusCode};
 use pctx_code_execution_runtime::CallbackFn;
 use pctx_code_mode::{
@@ -12,15 +11,16 @@ use pctx_code_mode::{
     },
 };
 use serde_json::json;
+use tokio::sync::RwLock;
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::AppState;
 use crate::extractors::CodeModeSession;
 use crate::model::{
-    CloseSessionRequest, CloseSessionResponse, CreateSessionResponse, ErrorCode, ErrorData,
-    HealthResponse, McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
-    RegisterToolsRequest, RegisterToolsResponse,
+    CloseSessionResponse, CreateSessionResponse, ErrorCode, ErrorData, HealthResponse,
+    McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse, RegisterToolsRequest,
+    RegisterToolsResponse, WsExecuteTool,
 };
 
 pub(crate) type ApiResult<T> = Result<T, (StatusCode, Json<ErrorData>)>;
@@ -70,7 +70,9 @@ pub(crate) async fn create_session(
     post,
     path = "/code-mode/session/close",
     tag = "CodeMode",
-    request_body = CloseSessionRequest,
+    params(
+        ("x-code-mode-session" = String, Header, description = "Current code mode session")
+    ),
     responses(
         (status = 200, description = "Session closed successfully", body = CloseSessionResponse),
         (status = 404, description = "Session not found", body = ErrorData),
@@ -79,24 +81,24 @@ pub(crate) async fn create_session(
 )]
 pub(crate) async fn close_session(
     State(state): State<AppState>,
-    Json(request): Json<CloseSessionRequest>,
+    CodeModeSession(session_id): CodeModeSession,
 ) -> ApiResult<Json<CloseSessionResponse>> {
-    info!("Closing CodeMode session: {}", request.session_id);
+    info!("Closing CodeMode session: {session_id}");
 
-    let existed = state.code_mode_manager.delete(request.session_id).await;
+    let existed = state.code_mode_manager.delete(session_id).await;
 
     if existed.is_none() {
         return Err((
             StatusCode::NOT_FOUND,
             Json(ErrorData {
                 code: ErrorCode::InvalidSession,
-                message: format!("Code mode session {} does not exist", request.session_id),
+                message: format!("Code mode session {session_id} does not exist"),
                 details: None,
             }),
         ));
     }
 
-    info!("Closed CodeMode session: {}", request.session_id);
+    info!("Closed CodeMode session: {session_id}");
 
     Ok(Json(CloseSessionResponse { success: true }))
 }
@@ -106,6 +108,9 @@ pub(crate) async fn close_session(
     post,
     path = "/code-mode/functions/list",
     tag = "CodeMode",
+    params(
+        ("x-code-mode-session" = String, Header, description = "Current code mode session")
+    ),
     responses(
         (status = 200, description = "List of all code mode functions as source code & structured output", body = ListFunctionsOutput),
         (status = 500, description = "Internal server error", body = ErrorData)
@@ -136,6 +141,9 @@ pub(crate) async fn list_functions(
     post,
     path = "/code-mode/functions/details",
     tag = "CodeMode",
+    params(
+        ("x-code-mode-session" = String, Header, description = "Current code mode session")
+    ),
     request_body = GetFunctionDetailsInput,
     responses(
         (status = 200, description = "Function details", body = GetFunctionDetailsOutput),
@@ -178,6 +186,9 @@ pub(crate) async fn get_function_details(
     post,
     path = "/code-mode/execute",
     tag = "CodeMode",
+    params(
+        ("x-code-mode-session" = String, Header, description = "Current code mode session")
+    ),
     request_body = ExecuteInput,
     responses(
         (status = 200, description = "Code executed successfully", body = ExecuteOutput),
@@ -258,6 +269,9 @@ pub(crate) async fn execute_code(
     post,
     path = "/register/tools",
     tag = "registration",
+    params(
+        ("x-code-mode-session" = String, Header, description = "Current code mode session")
+    ),
     request_body = RegisterToolsRequest,
     responses(
         (status = 200, description = "Tools registered successfully", body = RegisterToolsResponse),
@@ -275,7 +289,14 @@ pub(crate) async fn register_tools(
         request.tools.len(),
     );
 
-    let code_mode_lock = state.code_mode_manager.get(session_id).await.unwrap();
+    let code_mode_lock = state.code_mode_manager.get(session_id).await.ok_or((
+        StatusCode::NOT_FOUND,
+        Json(ErrorData {
+            code: ErrorCode::InvalidSession,
+            message: format!("Code mode session {session_id} does not exist"),
+            details: None,
+        }),
+    ))?;
     let ws_session_lock = state
         .ws_manager
         .get_for_code_mode_session(session_id)
@@ -339,6 +360,9 @@ pub(crate) async fn register_tools(
     post,
     path = "/register/servers",
     tag = "registration",
+    params(
+        ("x-code-mode-session" = String, Header, description = "Current code mode session")
+    ),
     request_body = RegisterMcpServersRequest,
     responses(
         (status = 200, description = "MCP servers registration result", body = RegisterMcpServersResponse),
@@ -347,15 +371,28 @@ pub(crate) async fn register_tools(
 )]
 pub(crate) async fn register_servers(
     State(state): State<AppState>,
+    CodeModeSession(session_id): CodeModeSession,
     Json(request): Json<RegisterMcpServersRequest>,
-) -> Json<RegisterMcpServersResponse> {
-    info!("Registering {} MCP servers", request.servers.len());
+) -> ApiResult<Json<RegisterMcpServersResponse>> {
+    info!(
+        "Registering {} MCP servers in session {session_id}",
+        request.servers.len()
+    );
+
+    let code_mode_lock = state.code_mode_manager.get(session_id).await.ok_or((
+        StatusCode::NOT_FOUND,
+        Json(ErrorData {
+            code: ErrorCode::InvalidSession,
+            message: format!("Code mode session {session_id} does not exist"),
+            details: None,
+        }),
+    ))?;
 
     let mut registered = 0;
     let mut failed = Vec::new();
 
     for server in &request.servers {
-        match register_mcp_server(&state, server).await {
+        match register_mcp_server(&code_mode_lock, server).await {
             Ok(()) => {
                 registered += 1;
                 info!("Successfully registered MCP server: {}", server.name);
@@ -367,41 +404,41 @@ pub(crate) async fn register_servers(
         }
     }
 
-    Json(RegisterMcpServersResponse { registered, failed })
+    Ok(Json(RegisterMcpServersResponse { registered, failed }))
 }
 
-async fn register_mcp_server(state: &AppState, server: &McpServerConfig) -> Result<(), String> {
-    todo!();
+async fn register_mcp_server(
+    code_mode_lock: &Arc<RwLock<CodeMode>>,
+    server: &McpServerConfig,
+) -> Result<(), String> {
+    // Parse and validate URL
+    let url = url::Url::parse(&server.url).map_err(|e| format!("Invalid URL: {e}"))?;
 
-    // // Parse and validate URL
-    // let url = url::Url::parse(&server.url).map_err(|e| format!("Invalid URL: {e}"))?;
+    // Create ServerConfig
+    let mut server_config = pctx_config::server::ServerConfig::new(server.name.clone(), url);
 
-    // // Create ServerConfig
-    // let mut server_config = pctx_config::server::ServerConfig::new(server.name.clone(), url);
+    // Add auth if provided
+    if let Some(auth) = &server.auth {
+        server_config.auth = serde_json::from_value(auth.clone())
+            .map_err(|e| format!("Invalid auth config: {e}"))?;
+    }
 
-    // // Add auth if provided
-    // if let Some(auth) = &server.auth {
-    //     server_config.auth = serde_json::from_value(auth.clone())
-    //         .map_err(|e| format!("Invalid auth config: {e}"))?;
-    // }
+    let mut code_mode = code_mode_lock.write().await;
 
-    // // Connect to MCP server and register tools
-    // let mut code_mode = state.code_mode.lock().await;
+    code_mode
+        .add_server(&server_config)
+        .await
+        .map_err(|e| format!("Failed to add MCP server: {e}"))?;
 
-    // code_mode
-    //     .add_server(&server_config)
-    //     .await
-    //     .map_err(|e| format!("Failed to add MCP server: {e}"))?;
-
-    // info!(
-    //     "Successfully registered MCP server '{}' with {} tools",
-    //     server.name,
-    //     code_mode
-    //         .tool_sets
-    //         .iter()
-    //         .find(|ts| ts.name == server.name)
-    //         .map_or(0, |ts| ts.tools.len())
-    // );
+    info!(
+        "Successfully registered MCP server '{}' with {} tools",
+        server.name,
+        code_mode
+            .tool_sets
+            .iter()
+            .find(|ts| ts.name == server.name)
+            .map_or(0, |ts| ts.tools.len())
+    );
 
     Ok(())
 }

@@ -11,9 +11,9 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::{
     AppState,
     model::{
-        CloseSessionRequest, CloseSessionResponse, CreateSessionResponse, ErrorData,
-        HealthResponse, McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
-        RegisterToolsRequest, RegisterToolsResponse,
+        CloseSessionResponse, CreateSessionResponse, ErrorData, HealthResponse, McpServerConfig,
+        RegisterMcpServersRequest, RegisterMcpServersResponse, RegisterToolsRequest,
+        RegisterToolsResponse,
     },
     routes, websocket,
 };
@@ -40,7 +40,6 @@ use pctx_code_mode::model::{
             HealthResponse,
             // Session management
             CreateSessionResponse,
-            CloseSessionRequest,
             CloseSessionResponse,
             // List functions
             ListFunctionsOutput,

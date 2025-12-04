@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::state::{code_mode_manager::CodeModeManager, ws_manager::WsManager};
 
-pub mod code_mode_manager;
-pub mod ws_manager;
+pub(crate) mod code_mode_manager;
+pub(crate) mod ws_manager;
 
 /// Shared application state
 #[derive(Clone, Default)]

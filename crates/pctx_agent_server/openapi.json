@@ -21,7 +21,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExecuteRequest"
+                "$ref": "#/components/schemas/ExecuteInput"
               }
             }
           },
@@ -72,7 +72,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GetFunctionDetailsRequest"
+                "$ref": "#/components/schemas/GetFunctionDetailsInput"
               }
             }
           },
@@ -119,16 +119,6 @@
         ],
         "summary": "List all available code mode functions from both server and tool registrations",
         "operationId": "list_functions",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ListFunctionsRequest"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "description": "List of all code mode functions as source code & structured output",
@@ -160,16 +150,17 @@
         ],
         "summary": "Close a `CodeMode` session",
         "operationId": "close_session",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CloseSessionRequest"
-              }
+        "parameters": [
+          {
+            "name": "x-code-mode-session",
+            "in": "header",
+            "description": "Current code mode session",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
-          },
-          "required": true
-        },
+          }
+        ],
         "responses": {
           "200": {
             "description": "Session closed successfully",
@@ -374,18 +365,6 @@
           "output_schema": {}
         }
       },
-      "CloseSessionRequest": {
-        "type": "object",
-        "description": "Request to close a CodeMode session",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
       "CloseSessionResponse": {
         "type": "object",
         "description": "Response after closing a CodeMode session",
@@ -476,24 +455,6 @@
           }
         }
       },
-      "ExecuteRequest": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ExecuteInput"
-          },
-          {
-            "type": "object",
-            "required": [
-              "session_id"
-            ],
-            "properties": {
-              "session_id": {
-                "type": "string"
-              }
-            }
-          }
-        ]
-      },
       "FunctionDetails": {
         "allOf": [
           {
@@ -556,24 +517,6 @@
           }
         }
       },
-      "GetFunctionDetailsRequest": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/GetFunctionDetailsInput"
-          },
-          {
-            "type": "object",
-            "required": [
-              "session_id"
-            ],
-            "properties": {
-              "session_id": {
-                "type": "string"
-              }
-            }
-          }
-        ]
-      },
       "HealthResponse": {
         "type": "object",
         "description": "Health check response",
@@ -606,17 +549,6 @@
               "$ref": "#/components/schemas/ListedFunction"
             },
             "description": "Available functions"
-          }
-        }
-      },
-      "ListFunctionsRequest": {
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
-          "session_id": {
-            "type": "string"
           }
         }
       },
@@ -708,13 +640,9 @@
         "type": "object",
         "description": "Request to register tools",
         "required": [
-          "session_id",
           "tools"
         ],
         "properties": {
-          "session_id": {
-            "type": "string"
-          },
           "tools": {
             "type": "array",
             "items": {
