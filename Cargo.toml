@@ -35,6 +35,8 @@ opt-level = 3
 lto = "fat"
 codegen-units = 1
 strip = true
+# Reduce debug info to avoid Windows PDB size limits (LNK1318 error) in build scripts
+debug = 0
 
 # The profile that 'dist' will build with
 [profile.dist]
