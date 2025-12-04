@@ -1,8 +1,25 @@
 # Windows-specific linker configuration to avoid PDB errors
 [target.x86_64-pc-windows-msvc]
-# Use /DEBUG:NONE to completely disable PDB generation in debug builds
-# This avoids LNK1318 errors when too many PDBs are generated in parallel
-rustflags = ["-C", "link-args=/DEBUG:NONE"]
+# Disable incremental compilation and debug info to avoid LNK1318 PDB size limits
+rustflags = [
+    "-C", "incremental=off",
+    "-C", "debuginfo=0",
+]
+
+# Disable LTO for build scripts to avoid Windows PDB size limits (LNK1318)
+# Build scripts that use large dependencies (like V8/deno_core) generate
+# enormous object files when compiled with LTO, exceeding Windows linker limits
+[profile.release.build-override]
+opt-level = 0
+lto = false
+debug = false
+incremental = false
+
+[profile.dist.build-override]
+opt-level = 0
+lto = false
+debug = false
+incremental = false
 
 [alias]
 pctx = "run -p pctx --"
