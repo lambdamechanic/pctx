@@ -32,11 +32,14 @@ too_many_lines = "allow"
 
 [profile.release]
 opt-level = 3
-lto = "fat"
+# Use thin LTO to reduce PDB size on Windows (fat LTO creates massive PDB files)
+lto = "thin"
 codegen-units = 1
 strip = true
 # Reduce debug info to avoid Windows PDB size limits (LNK1318 error) in build scripts
 debug = 0
+# Completely disable PDB generation on Windows to avoid linker limits
+split-debuginfo = "off"
 
 # The profile that 'dist' will build with
 [profile.dist]
@@ -44,6 +47,7 @@ inherits = "release"
 lto = "thin"
 # Reduce debug info to avoid Windows PDB size limits (LNK1318 error)
 debug = 0
+split-debuginfo = "off"
 
 
 # [profile.dev.package."*"]
