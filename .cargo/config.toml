@@ -2,10 +2,25 @@
 [target.x86_64-pc-windows-msvc]
 # Disable incremental compilation and debug info to avoid LNK1318 PDB size limits
 # Use /DEBUG:NONE to completely disable PDB generation
+# /NODEFAULTLIB:libcmt to suppress LNK4098 warning
 rustflags = [
     "-C", "incremental=off",
     "-C", "debuginfo=0",
     "-C", "link-arg=/DEBUG:NONE",
+    "-C", "link-arg=/NODEFAULTLIB:libcmt",
+    "-C", "link-arg=/INCREMENTAL:NO",
+    "-C", "link-arg=/PDB:NONE",
+]
+
+# Apply same flags to build scripts to prevent PDB errors during build script compilation
+[target.x86_64-pc-windows-msvc.build]
+rustflags = [
+    "-C", "incremental=off",
+    "-C", "debuginfo=0",
+    "-C", "link-arg=/DEBUG:NONE",
+    "-C", "link-arg=/NODEFAULTLIB:libcmt",
+    "-C", "link-arg=/INCREMENTAL:NO",
+    "-C", "link-arg=/PDB:NONE",
 ]
 
 # Reduce optimization for build scripts to avoid Windows PDB size limits (LNK1318)
@@ -15,11 +30,13 @@ rustflags = [
 opt-level = 0
 debug = false
 incremental = false
+split-debuginfo = "off"
 
 [profile.dist.build-override]
 opt-level = 0
 debug = false
 incremental = false
+split-debuginfo = "off"
 
 [alias]
 pctx = "run -p pctx --"
