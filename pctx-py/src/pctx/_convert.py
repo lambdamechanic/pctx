@@ -2,19 +2,21 @@ import inspect
 from collections.abc import Callable
 from typing import Any, overload
 
-from pctx.tools.tool import Tool
+from pctx._tool import Tool
 
 
 @overload
 def tool(
     name_or_callable: str,
     *args: Any,
+    namespace: str = "tools",
     description: str | None = None,
 ) -> Callable[[Callable], Tool]: ...
 @overload
 def tool(
     name_or_callable: Callable,
     *args: Any,
+    namespace: str = "tools",
     description: str | None = None,
 ) -> Tool: ...
 
@@ -22,6 +24,7 @@ def tool(
 def tool(
     name_or_callable: str | Callable,
     *args: Any,
+    namespace: str = "tools",
     description: str | None = None,
 ) -> Tool | Callable[[Callable], Tool]:
     """
@@ -50,7 +53,11 @@ def tool(
                 func = fn
 
             return Tool.from_func(
-                func=func, coroutine=coroutine, name=tool_name, description=tool_desc
+                func=func,
+                coroutine=coroutine,
+                name=tool_name,
+                namespace=namespace,
+                description=tool_desc,
             )
 
         return _tool_factory

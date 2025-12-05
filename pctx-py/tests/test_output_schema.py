@@ -1,7 +1,7 @@
 """Tests for create_output_schema"""
 
 from pydantic import BaseModel
-from pctx.tools.tool import create_output_schema
+from pctx._tool import create_output_schema
 
 
 def test_output_schema_simple_type():
@@ -10,9 +10,10 @@ def test_output_schema_simple_type():
     def returns_int() -> int:
         return 42
 
-    Model = create_output_schema("IntOutput", returns_int)
+    Model, wrapped = create_output_schema("IntOutput", returns_int)
 
     # Should wrap in data field
+    assert wrapped
     instance = Model(data=42)
     assert getattr(instance, "data") == 42
 
@@ -29,8 +30,9 @@ def test_output_schema_string_type():
     def returns_str() -> str:
         return "hello"
 
-    Model = create_output_schema("StrOutput", returns_str)
+    Model, wrapped = create_output_schema("StrOutput", returns_str)
 
+    assert wrapped
     instance = Model(data="hello world")
     assert getattr(instance, "data") == "hello world"
 
@@ -44,8 +46,9 @@ def test_output_schema_complex_type():
     def returns_list() -> list[str]:
         return ["a", "b", "c"]
 
-    Model = create_output_schema("ListOutput", returns_list)
+    Model, wrapped = create_output_schema("ListOutput", returns_list)
 
+    assert wrapped
     instance = Model(data=["x", "y", "z"])
     assert getattr(instance, "data") == ["x", "y", "z"]
 
@@ -60,8 +63,9 @@ def test_output_schema_dict_type():
     def returns_dict() -> dict[str, int]:
         return {"a": 1, "b": 2}
 
-    Model = create_output_schema("DictOutput", returns_dict)
+    Model, wrapped = create_output_schema("DictOutput", returns_dict)
 
+    assert wrapped
     instance = Model(data={"x": 10, "y": 20})
     assert getattr(instance, "data") == {"x": 10, "y": 20}
 
@@ -72,7 +76,7 @@ def test_output_schema_no_annotation():
     def no_return_type():
         return "something"
 
-    Model = create_output_schema("NoTypeOutput", no_return_type)
+    Model, _ = create_output_schema("NoTypeOutput", no_return_type)
 
     # Should use Any type
     instance = Model(data="can be anything")
@@ -92,9 +96,10 @@ def test_output_schema_with_pydantic_model():
     def returns_model() -> UserOutput:
         return UserOutput(name="Alice", age=30)
 
-    Model = create_output_schema("UserModelOutput", returns_model)
+    Model, wrapped = create_output_schema("UserModelOutput", returns_model)
 
     # Should be the same class (not wrapped)
+    assert not wrapped
     assert Model is UserOutput
 
     # Can instantiate directly
@@ -117,9 +122,10 @@ def test_output_schema_with_nested_pydantic_model():
     def returns_person() -> Person:
         return Person(name="Alice", address=Address(street="Main St", city="NYC"))
 
-    Model = create_output_schema("PersonOutput", returns_person)
+    Model, wrapped = create_output_schema("PersonOutput", returns_person)
 
     # Should return Person as-is
+    assert not wrapped
     assert Model is Person
 
 
@@ -129,9 +135,10 @@ def test_output_schema_optional_type():
     def returns_optional() -> str | None:
         return None
 
-    Model = create_output_schema("OptionalOutput", returns_optional)
+    Model, wrapped = create_output_schema("OptionalOutput", returns_optional)
 
     # Should wrap in data field
+    assert wrapped
     instance1 = Model(data="value")
     assert getattr(instance1, "data") == "value"
 
@@ -145,8 +152,9 @@ def test_output_schema_union_type():
     def returns_union() -> int | str:
         return 42
 
-    Model = create_output_schema("UnionOutput", returns_union)
+    Model, wrapped = create_output_schema("UnionOutput", returns_union)
 
+    assert wrapped
     instance1 = Model(data=42)
     assert getattr(instance1, "data") == 42
 
@@ -160,8 +168,9 @@ def test_output_schema_bool_type():
     def returns_bool() -> bool:
         return True
 
-    Model = create_output_schema("BoolOutput", returns_bool)
+    Model, wrapped = create_output_schema("BoolOutput", returns_bool)
 
+    assert wrapped
     instance = Model(data=False)
     assert getattr(instance, "data") is False
 
@@ -175,7 +184,8 @@ def test_output_schema_async_function():
     async def async_returns_str() -> str:
         return "async result"
 
-    Model = create_output_schema("AsyncOutput", async_returns_str)
+    Model, wrapped = create_output_schema("AsyncOutput", async_returns_str)
 
+    assert wrapped
     instance = Model(data="test")
     assert getattr(instance, "data") == "test"

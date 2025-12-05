@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from pctx.tools.convert import tool
-from pctx.tools.tool import Tool
+from pctx import tool, Tool
 
 
 # ============================================================================
@@ -78,17 +77,21 @@ def test_registration_with_parameters() -> None:
         return str(a + b)
 
     # Check args_schema includes parameters
-    assert add_numbers.input_schema.model_json_schema() == {
-        "title": "add_numbers_Input",
-        "type": "object",
-        "required": ["a", "b"],
-        "properties": {
-            "a": {"title": "A", "type": "integer"},
-            "b": {"title": "B", "type": "integer"},
-            "c": {"title": "C", "type": "string", "default": "default"},
-        },
-        "additionalProperties": False,
-    }
+    assert (
+        add_numbers.input_schema is not None
+        and add_numbers.input_schema.model_json_schema()
+        == {
+            "title": "add_numbers_Input",
+            "type": "object",
+            "required": ["a", "b"],
+            "properties": {
+                "a": {"title": "A", "type": "integer"},
+                "b": {"title": "B", "type": "integer"},
+                "c": {"title": "C", "type": "string", "default": "default"},
+            },
+            "additionalProperties": False,
+        }
+    )
 
 
 def test_registration_docstring_becomes_description() -> None:
@@ -142,7 +145,7 @@ def test_registration_custom_description_overrides_docstring() -> None:
     assert with_docstring.description == "Custom"
 
 
-def test_registration_multiple_tools_independent() -> None:
+def test_registration_multipletools_independent() -> None:
     """Test that multiple decorated functions are independent"""
 
     @tool
@@ -206,13 +209,13 @@ def test_calling_sync_function_no_parameters() -> None:
     """Test calling sync function with no parameters"""
 
     @tool
-    def sync_tool() -> str:
+    def synctool() -> str:
         """Sync function"""
         return "sync result"
 
-    assert sync_tool.func is not None
-    result = sync_tool.func()
-    assert result == "sync result"
+    assert synctool.func is not None
+    result = synctool.invoke()
+    assert result == {"data": "sync result"}
 
 
 def test_calling_sync_function_with_positional_args() -> None:
@@ -224,8 +227,8 @@ def test_calling_sync_function_with_positional_args() -> None:
         return str(a + b)
 
     assert add_numbers.func is not None
-    result = add_numbers.func(5, 3)
-    assert result == "8"
+    result = add_numbers.invoke(a=5, b=3)
+    assert result == {"data": "8"}
 
 
 def test_calling_sync_function_with_kwargs() -> None:
@@ -239,12 +242,12 @@ def test_calling_sync_function_with_kwargs() -> None:
     assert greet.func is not None
 
     # Test with default
-    result1 = greet.func("Alice")
-    assert result1 == "Hello, Alice!"
+    result1 = greet.invoke(name="Alice")
+    assert result1 == {"data": "Hello, Alice!"}
 
     # Test with custom kwarg
-    result2 = greet.func("Bob", greeting="Hi")
-    assert result2 == "Hi, Bob!"
+    result2 = greet.invoke(name="Bob", greeting="Hi")
+    assert result2 == {"data": "Hi, Bob!"}
 
 
 def test_calling_sync_function_with_mixed_args() -> None:
@@ -258,12 +261,12 @@ def test_calling_sync_function_with_mixed_args() -> None:
     assert process.func is not None
 
     # Test with default multiplier
-    result1 = process.func(3, 4)
-    assert result1 == "14"  # (3 + 4) * 2
+    result1 = process.invoke(x=3, y=4)
+    assert result1 == {"data": "14"}  # (3 + 4) * 2
 
     # Test with custom multiplier
-    result2 = process.func(3, 4, multiplier=3)
-    assert result2 == "21"  # (3 + 4) * 3
+    result2 = process.invoke(x=3, y=4, multiplier=3)
+    assert result2 == {"data": "21"}  # (3 + 4) * 3
 
 
 @pytest.mark.asyncio
@@ -271,13 +274,13 @@ async def test_calling_async_function_no_parameters() -> None:
     """Test calling async function with no parameters"""
 
     @tool
-    async def async_tool() -> str:
+    async def asynctool() -> str:
         """Async function"""
         return "async result"
 
-    assert async_tool.coroutine is not None
-    result = await async_tool.coroutine()
-    assert result == "async result"
+    assert asynctool.coroutine is not None
+    result = await asynctool.ainvoke()
+    assert result == {"data": "async result"}
 
 
 @pytest.mark.asyncio
@@ -292,8 +295,8 @@ async def test_calling_async_function_with_parameters() -> None:
     assert fetch_data.coroutine is not None
 
     # Test with custom timeout
-    result = await fetch_data.coroutine("https://example.com", timeout=60)
-    assert result == "Data from https://example.com with timeout 60"
+    result = await fetch_data.ainvoke(url="https://example.com", timeout=60)
+    assert result == {"data": "Data from https://example.com with timeout 60"}
 
 
 @pytest.mark.asyncio
@@ -308,12 +311,12 @@ async def test_calling_async_function_with_defaults() -> None:
     assert fetch_data.coroutine is not None
 
     # Test with all defaults
-    result1 = await fetch_data.coroutine("https://test.com")
-    assert result1 == "URL: https://test.com, timeout: 30, retries: 3"
+    result1 = await fetch_data.ainvoke(url="https://test.com")
+    assert result1 == {"data": "URL: https://test.com, timeout: 30, retries: 3"}
 
     # Test with partial kwargs
-    result2 = await fetch_data.coroutine("https://test.com", retries=5)
-    assert result2 == "URL: https://test.com, timeout: 30, retries: 5"
+    result2 = await fetch_data.ainvoke(url="https://test.com", retries=5)
+    assert result2 == {"data": "URL: https://test.com, timeout: 30, retries: 5"}
 
 
 def test_calling_sync_function_multiple_calls() -> None:
@@ -329,9 +332,9 @@ def test_calling_sync_function_multiple_calls() -> None:
 
     assert counter.func is not None
 
-    assert counter.func() == "Call 1"
-    assert counter.func() == "Call 2"
-    assert counter.func() == "Call 3"
+    assert counter.invoke() == {"data": "Call 1"}
+    assert counter.invoke() == {"data": "Call 2"}
+    assert counter.invoke() == {"data": "Call 3"}
 
 
 @pytest.mark.asyncio
@@ -348,6 +351,140 @@ async def test_calling_async_function_multiple_calls() -> None:
 
     assert async_counter.coroutine is not None
 
-    assert await async_counter.coroutine() == "Async call 1"
-    assert await async_counter.coroutine() == "Async call 2"
-    assert await async_counter.coroutine() == "Async call 3"
+    assert await async_counter.ainvoke() == {"data": "Async call 1"}
+    assert await async_counter.ainvoke() == {"data": "Async call 2"}
+    assert await async_counter.ainvoke() == {"data": "Async call 3"}
+
+
+# ============================================================================
+# SECTION 3: VALIDATION TESTS
+# Tests for input validation with invoke/ainvoke methods
+# ============================================================================
+
+
+def test_validation_missing_required_parameter() -> None:
+    """Test that missing required parameters raise ValidationError"""
+    from pydantic import ValidationError
+
+    @tool
+    def add_numbers(a: int, b: int) -> str:
+        """Adds two numbers"""
+        return str(a + b)
+
+    # Missing parameter 'b'
+    with pytest.raises(ValidationError) as exc_info:
+        add_numbers.invoke(a=5)
+
+    assert "b" in str(exc_info.value)
+
+
+def test_validation_wrong_type_parameter() -> None:
+    """Test that wrong type parameters raise ValidationError"""
+    from pydantic import ValidationError
+
+    @tool
+    def add_numbers(a: int, b: int) -> str:
+        """Adds two numbers"""
+        return str(a + b)
+
+    # Wrong type for parameter 'b'
+    with pytest.raises(ValidationError) as exc_info:
+        add_numbers.invoke(a=5, b="not_an_int")
+
+    assert (
+        "b" in str(exc_info.value).lower()
+        or "validation" in str(exc_info.value).lower()
+    )
+
+
+def test_validation_extra_parameter() -> None:
+    """Test that extra parameters raise ValidationError"""
+    from pydantic import ValidationError
+
+    @tool
+    def add_numbers(a: int, b: int) -> str:
+        """Adds two numbers"""
+        return str(a + b)
+
+    # Extra parameter 'c' not defined in schema
+    with pytest.raises(ValidationError) as exc_info:
+        add_numbers.invoke(a=5, b=3, c=10)
+
+    assert "extra" in str(exc_info.value).lower() or "c" in str(exc_info.value).lower()
+
+
+def test_validation_valid_input_with_defaults() -> None:
+    """Test that valid input with defaults passes validation"""
+
+    @tool
+    def greet(name: str, greeting: str = "Hello") -> str:
+        """Greets a person"""
+        return f"{greeting}, {name}!"
+
+    # Should not raise any validation error
+    result = greet.invoke(name="Alice")
+    assert result == {"data": "Hello, Alice!"}
+
+
+def test_validation_valid_input_all_parameters() -> None:
+    """Test that valid input with all parameters passes validation"""
+
+    @tool
+    def process(x: int, y: int, multiplier: int = 2) -> str:
+        """Process two numbers"""
+        return str((x + y) * multiplier)
+
+    # Should not raise any validation error
+    result = process.invoke(x=3, y=4, multiplier=5)
+    assert result == {"data": "35"}
+
+
+@pytest.mark.asyncio
+async def test_validation_async_missing_required_parameter() -> None:
+    """Test that async functions validate missing required parameters"""
+    from pydantic import ValidationError
+
+    @tool
+    async def fetch_data(url: str, timeout: int = 30) -> str:
+        """Fetches data from URL"""
+        return f"Data from {url} with timeout {timeout}"
+
+    # Missing required parameter 'url'
+    with pytest.raises(ValidationError) as exc_info:
+        await fetch_data.ainvoke(timeout=60)
+
+    assert "url" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_validation_async_wrong_type_parameter() -> None:
+    """Test that async functions validate parameter types"""
+    from pydantic import ValidationError
+
+    @tool
+    async def fetch_data(url: str, timeout: int = 30) -> str:
+        """Fetches data from URL"""
+        return f"Data from {url} with timeout {timeout}"
+
+    # Wrong type for 'timeout' parameter
+    with pytest.raises(ValidationError) as exc_info:
+        await fetch_data.ainvoke(url="https://example.com", timeout="not_an_int")
+
+    assert (
+        "timeout" in str(exc_info.value).lower()
+        or "validation" in str(exc_info.value).lower()
+    )
+
+
+@pytest.mark.asyncio
+async def test_validation_async_valid_input() -> None:
+    """Test that async functions accept valid input"""
+
+    @tool
+    async def fetch_data(url: str, timeout: int = 30) -> str:
+        """Fetches data from URL"""
+        return f"Data from {url} with timeout {timeout}"
+
+    # Should not raise any validation error
+    result = await fetch_data.ainvoke(url="https://example.com", timeout=60)
+    assert result == {"data": "Data from https://example.com with timeout 60"}

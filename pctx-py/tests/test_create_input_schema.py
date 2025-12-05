@@ -1,10 +1,9 @@
 """Tests for create_input_schema"""
 
-from __future__ import annotations
-
-from pydantic import BaseModel, ValidationError
 import pytest
-from pctx.tools.tool import create_input_schema
+from pydantic import BaseModel, ValidationError
+
+from pctx._tool import create_input_schema
 
 
 def test_simple_function_signature():

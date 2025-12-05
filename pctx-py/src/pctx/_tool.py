@@ -1,18 +1,20 @@
-# from __future__ import annotations
-
-from collections.abc import Awaitable, Callable
 import inspect
 import textwrap
-from typing import Any, Annotated, get_type_hints
+from collections.abc import Awaitable, Callable
+from typing import Annotated, Any, get_type_hints
 
-
-from pydantic import BaseModel, ConfigDict, SkipValidation, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, SkipValidation, create_model
 
 
 class Tool(BaseModel):
     name: str
     """
     Unique name of tool that clearly specifies it's purpose
+    """
+
+    namespace: str
+    """
+    Namespace the tool belongs in
     """
 
     description: str = ""
@@ -27,11 +29,74 @@ class Tool(BaseModel):
     output_schema: Annotated[type[BaseModel] | None, SkipValidation] = Field(
         default=None, description="The return type schema."
     )
+    output_data_wrapped: bool = False
 
     func: Callable[..., str] | None
     """The function to run when the tool is called."""
     coroutine: Callable[..., Awaitable[str]] | None = None
     """The asynchronous version of the function."""
+
+    def invoke(self, **kwargs: Any) -> Any:
+        """
+        Calls the synchronous function with the provided arguments.
+
+        Args:
+            **kwargs: Arguments to pass to the function
+
+        Returns:
+            The result of the function call
+
+        Raises:
+            ValueError: If no synchronous function is available
+        """
+        if self.func is None:
+            msg = f"Tool '{self.name}' has no synchronous function available"
+            raise ValueError(msg)
+
+        self.validate_input(kwargs)
+
+        output = self.func(**kwargs)
+        if self.output_data_wrapped:
+            output = {"data": output}
+
+        self.validate_output(output)
+
+        return output
+
+    async def ainvoke(self, **kwargs: Any) -> Any:
+        """
+        Calls the asynchronous coroutine with the provided arguments.
+
+        Args:
+            **kwargs: Arguments to pass to the coroutine
+
+        Returns:
+            The result of the coroutine call
+
+        Raises:
+            ValueError: If no coroutine is available
+        """
+        if self.coroutine is None:
+            msg = f"Tool '{self.name}' has no asynchronous coroutine available"
+            raise ValueError(msg)
+
+        self.validate_input(kwargs)
+
+        output = await self.coroutine(**kwargs)
+        if self.output_data_wrapped:
+            output = {"data": output}
+
+        self.validate_output(output)
+
+        return output
+
+    def validate_input(self, obj: Any):
+        if self.input_schema is not None:
+            self.input_schema.model_validate(obj)
+
+    def validate_output(self, obj: Any):
+        if self.output_schema is not None:
+            self.output_schema.model_validate(obj)
 
     @classmethod
     def from_func(
@@ -39,6 +104,7 @@ class Tool(BaseModel):
         func: Callable | None = None,
         coroutine: Callable[..., Awaitable[Any]] | None = None,
         name: str | None = None,
+        namespace: str = "tools",
         description: str | None = None,
     ) -> "Tool":
         """
@@ -61,15 +127,19 @@ class Tool(BaseModel):
         name_ = name or source_function.__name__
 
         input_schema = create_input_schema(f"{name_}_Input", source_function)
-        output_schema = create_output_schema(f"{name_}_Output", source_function)
+        output_schema, output_wrapped = create_output_schema(
+            f"{name_}_Output", source_function
+        )
 
         return cls(
             name=name_,
+            namespace=namespace,
             description=_desc,
             func=func,
             coroutine=coroutine,
             input_schema=None if is_empty_schema(input_schema) else input_schema,
             output_schema=None if is_empty_schema(output_schema) else output_schema,
+            output_data_wrapped=output_wrapped,
         )
 
 
@@ -122,7 +192,7 @@ def create_input_schema(
 def create_output_schema(
     model_name: str,
     func: Callable,
-) -> type[BaseModel]:
+) -> tuple[type[BaseModel], bool]:
     """
     Creates pydantic model from function return type annotation.
 
@@ -131,10 +201,10 @@ def create_output_schema(
         func: The function to extract return type from
 
     Returns:
-        A dynamically created Pydantic BaseModel class
+        A tuple of (Pydantic BaseModel class, bool indicating if output was wrapped)
 
-    If the return type is already a BaseModel subclass, it's returned as-is.
-    Otherwise, a wrapper model with a single 'data' field is created.
+    If the return type is already a BaseModel subclass, it's returned as-is with False.
+    Otherwise, a wrapper model with a single 'data' field is created and True is returned.
     """
     # Use get_type_hints to resolve string annotations to actual types
     # This handles cases where the calling code uses "from __future__ import annotations"
@@ -154,7 +224,7 @@ def create_output_schema(
             return_annotation,  # type: ignore
             BaseModel,
         ):
-            return return_annotation
+            return return_annotation, False
     except TypeError:
         # Not a class or can't check subclass
         pass
@@ -162,7 +232,7 @@ def create_output_schema(
     # Wrap the return type in a model with a 'data' field
     fields: dict[str, Any] = {"data": (return_annotation, ...)}
 
-    return create_model(model_name, __config__=_MODEL_CONFIG, **fields)
+    return create_model(model_name, __config__=_MODEL_CONFIG, **fields), True
 
 
 def is_empty_schema(schema: type[BaseModel]) -> bool:

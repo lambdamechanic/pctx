@@ -4,20 +4,20 @@ PCTX Client
 Main client for executing code with both MCP tools and local Python tools.
 """
 
-from typing import Any
 from urllib.parse import urlparse
 
 from httpx import AsyncClient
-from pctx.client.models import (
+from pytest import Session
+
+from pctx.models import (
+    ExecuteOutput,
     GetFunctionDetailsOutput,
     ListFunctionsOutput,
     ServerConfig,
     ToolConfig,
 )
-from pctx.tools.tool import Tool
-from pytest import Session
-
-from .websocket_client import WebSocketClient
+from pctx._tool import Tool
+from pctx._websocket_client import WebSocketClient
 
 
 class Pctx:
@@ -29,7 +29,7 @@ class Pctx:
 
     def __init__(
         self,
-        tools: dict[str, list[Tool]] | None = None,
+        tools: list[Tool] | None = None,
         servers: list[ServerConfig] | None = None,
         url: str = "http://localhost:8080",
     ):
@@ -56,11 +56,11 @@ class Pctx:
 
         ws_scheme = "wss" if http_scheme == "https" else "ws"
 
-        self._ws_client = WebSocketClient(url=f"{ws_scheme}://{host}/ws")
+        self._ws_client = WebSocketClient(url=f"{ws_scheme}://{host}/ws", tools=tools)
         self._client = AsyncClient(base_url=f"{http_scheme}://{host}")
         self._session_id: str | None = None
 
-        self._tools = tools or {}
+        self._tools = tools or []
         self._servers = servers or []
 
     async def __aenter__(self):
@@ -86,27 +86,21 @@ class Pctx:
         await self._ws_client.connect(self._session_id or "")
 
         # Register all local tools
-        configs: list[ToolConfig] = []
-        for namespace, tools in self._tools.items():
-            if len(tools) == 0:
-                continue
+        configs: list[ToolConfig] = [
+            {
+                "name": t.name,
+                "namespace": t.namespace,
+                "description": t.description,
+                "input_schema": t.input_schema.model_json_schema()
+                if t.input_schema
+                else None,
+                "output_schema": t.output_schema.model_json_schema()
+                if t.output_schema
+                else None,
+            }
+            for t in self._tools
+        ]
 
-            configs.extend(
-                [
-                    {
-                        "name": t.name,
-                        "namespace": namespace,
-                        "description": t.description,
-                        "input_schema": t.input_schema.model_json_schema()
-                        if t.input_schema
-                        else None,
-                        "output_schema": t.output_schema.model_json_schema()
-                        if t.output_schema
-                        else None,
-                    }
-                    for t in tools
-                ]
-            )
         print("registering...")
         await self._register_tools(configs)
         await self._register_servers(self._servers)
@@ -120,7 +114,7 @@ class Pctx:
         close_res.raise_for_status()
         self._session_id = None
 
-    # ========== Main execution method ==========
+    # ========== Main code mode methods method ==========
 
     async def list_functions(self) -> ListFunctionsOutput:
         if self._session_id is None:
@@ -145,6 +139,18 @@ class Pctx:
         list_res.raise_for_status()
 
         return list_res.json()
+
+    async def execute(self, code: str, timeout: float = 30.0) -> ExecuteOutput:
+        if self._session_id is None:
+            raise Session(
+                "No code mode session exists, run Pctx(...).connect() before calling"
+            )
+        exec_res = await self._client.post(
+            "/code-mode/execute", json={"code": code}, timeout=timeout
+        )
+        exec_res.raise_for_status()
+
+        return exec_res.json()
 
     # ========== Registrations ==========
 
