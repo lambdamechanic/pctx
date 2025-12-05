@@ -25,7 +25,8 @@ futures = "0.3"
 # Force bundled SQLite to avoid bindgen/libclang issues in CI
 # This forces all transitive dependencies (deno_runtime -> deno_kv -> rusqlite)
 # to use the bundled feature which doesn't require libclang
-rusqlite = { version = "0.37.0", features = ["bundled"] }
+# Must match the version used by deno_runtime (0.34.0) to avoid conflicts
+rusqlite = { version = "=0.34.0", features = ["bundled"] }
 
 [target.'cfg(windows)'.dependencies]
 # Need version 0.59 to match deno_subprocess_windows transitive dependency
