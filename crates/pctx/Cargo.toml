@@ -97,10 +97,8 @@ anyhow = "1.0"
 [target.'cfg(all(not(target_env = "msvc"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "powerpc64")))'.dependencies]
 tikv-jemallocator = "0.6.0"
 
-# [target.'cfg(target_os = "windows")'.dependencies]
-# mimalloc = "0.1.43"
-# # Fix for deno_subprocess_windows missing feature
-# windows-sys = { workspace = true, features = ["Win32_System_SystemInformation"] }
+[target.'cfg(target_os = "windows")'.dependencies]
+mimalloc = "0.1.43"
 
 [dev-dependencies]
 tempfile = "3.8"
@@ -110,6 +108,8 @@ workspace = true
 
 [package.metadata.dist]
 dist = true
+
 # System dependencies needed for rusqlite/libsqlite3-sys build via bindgen
-# bindgen requires libclang and C standard library headers
-system-dependencies = "libclang-dev clang"
+# bindgen requires libclang (version 9.0 or greater) and C standard library headers
+[package.metadata.dist.dependencies.apt]
+libclang-dev = "*"
