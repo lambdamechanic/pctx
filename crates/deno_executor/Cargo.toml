@@ -23,12 +23,12 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 futures = "0.3"
 
-# [target.'cfg(windows)'.dependencies]
-# # Need version 0.59 to match deno_subprocess_windows transitive dependency
-# # and ensure the feature is enabled for it as well
-# windows-sys = { workspace = true, features = [
-#     "Win32_System_SystemInformation",
-# ] }
+[target.'cfg(windows)'.dependencies]
+# Need version 0.59 to match deno_subprocess_windows transitive dependency
+# and ensure the feature is enabled for it as well
+windows-sys = { workspace = true, features = [
+    "Win32_System_SystemInformation",
+] }
 
 [dev-dependencies]
 rustls = { version = "0.23", default-features = false, features = [
