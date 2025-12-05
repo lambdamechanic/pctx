@@ -18,29 +18,29 @@ def subtract(a: float, b: float) -> float:
 async def main():
     p = Pctx(
         tools=[add, subtract],
-        servers=[
-            {
-                "name": "stripe",
-                "url": "https://mcp.stripe.com",
-                "auth": {
-                    "type": "bearer",
-                    "token": "TOKEN",
-                },
-            }
-        ],
+        # servers=[
+        #     {
+        #         "name": "stripe",
+        #         "url": "https://mcp.stripe.com",
+        #         "auth": {
+        #             "type": "bearer",
+        #             "token": "TOKEN",
+        #         },
+        #     }
+        # ],
     )
     print("connecting....")
     await p.connect()
 
     print("+++++++++++ LIST +++++++++++\n")
-    print((await p.list_functions())["code"])
+    print((await p.list_functions()).code)
 
     print("\n\n+++++++++++ DETAILS +++++++++++\n")
-    print((await p.get_function_details(["Stripe.listCustomers"]))["code"])
+    print((await p.get_function_details(["MyMath.add"])).code)
 
     code = """
 async function run() {
-    let value = await Stripe.listCustomers({});
+    let value = await MyMath.add({a: 40, b: 2});
 
     return value;
 }

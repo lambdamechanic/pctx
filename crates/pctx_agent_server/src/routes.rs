@@ -12,7 +12,7 @@ use pctx_code_mode::{
 };
 use serde_json::json;
 use tokio::sync::RwLock;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::AppState;

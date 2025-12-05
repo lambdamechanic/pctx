@@ -90,43 +90,43 @@ class JsonRpcExecuteToolResponse(BaseModel):
 # -------------- Code Mode Outputs --------------
 
 
-class ListedFunction(TypedDict):
+class ListedFunction(BaseModel):
     """Represents a listed function with basic metadata"""
 
     namespace: str
     name: str
-    description: NotRequired[str | None]
+    description: str | None = None
 
 
-class ListFunctionsOutput(TypedDict):
+class ListFunctionsOutput(BaseModel):
     """Output from listing available functions"""
 
     functions: list[ListedFunction]
     code: str
 
 
-class FunctionDetails(TypedDict):
+class FunctionDetails(BaseModel):
     """Detailed information about a function including types"""
 
     namespace: str
     name: str
-    description: NotRequired[str | None]
+    description: str | None = None
     input_type: str
     output_type: str
     types: str
 
 
-class GetFunctionDetailsOutput(TypedDict):
+class GetFunctionDetailsOutput(BaseModel):
     """Output from getting detailed function information"""
 
     functions: list[FunctionDetails]
     code: str
 
 
-class ExecuteOutput(TypedDict):
+class ExecuteOutput(BaseModel):
     """Output from executing TypeScript code"""
 
     success: bool
     stdout: str
     stderr: str
-    output: Any | None
+    output: Any | None = None
