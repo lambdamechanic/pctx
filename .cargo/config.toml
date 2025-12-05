@@ -19,19 +19,16 @@ rustflags = [
 # Reduce optimization for build scripts to avoid Windows PDB size limits (LNK1318)
 # Build scripts that use large dependencies (like V8/deno_core) generate
 # enormous object files when heavily optimized, exceeding Windows linker limits
-[profile.release.build-override]
+# Only apply these settings on Windows to avoid breaking other platforms
+[target.x86_64-pc-windows-msvc.profile.release.build-override]
 opt-level = 0
 debug = 0
 incremental = false
-split-debuginfo = "off"
-codegen-units = 256
 
-[profile.dist.build-override]
+[target.x86_64-pc-windows-msvc.profile.dist.build-override]
 opt-level = 0
 debug = 0
 incremental = false
-split-debuginfo = "off"
-codegen-units = 256
 
 [alias]
 pctx = "run -p pctx --"
