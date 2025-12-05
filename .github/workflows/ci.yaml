@@ -81,6 +81,14 @@ jobs:
         with:
           # Clean up old cache entries to save space
           cache-on-failure: false
+
+      # Install build dependencies for libsqlite3-sys bindgen
+      - name: Install build dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev libc6-dev
+
       # - name: Set Windows build jobs
       #   if: matrix.os == 'windows-latest'
       #   run: echo "CARGO_BUILD_JOBS=1" >> $GITHUB_ENV
