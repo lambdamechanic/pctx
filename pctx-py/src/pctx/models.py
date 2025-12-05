@@ -1,4 +1,5 @@
-from typing import Any, TypedDict, NotRequired, Literal
+from typing import Any, TypedDict, Literal
+from typing_extensions import NotRequired
 from pydantic import BaseModel
 from enum import IntEnum
 

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "Elias Posen", email = "elias@posen.ch" }]
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = ["httpx>=0.28.1", "pydantic>=2.7.2", "websockets>=15.0.1"]
 
 [project.optional-dependencies]
