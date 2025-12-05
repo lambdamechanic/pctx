@@ -108,10 +108,3 @@ workspace = true
 
 [package.metadata.dist]
 dist = true
-
-# System dependencies needed for rusqlite/libsqlite3-sys build via bindgen
-# bindgen requires libclang (version 9.0 or greater) and C standard library headers
-# libc6-dev provides stdarg.h and other C standard library headers
-[package.metadata.dist.dependencies.apt]
-libclang-dev = "*"
-libc6-dev = "*"

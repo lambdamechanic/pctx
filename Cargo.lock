@@ -2347,6 +2347,7 @@ dependencies = [
  "pctx_config",
  "pctx_type_check_runtime",
  "regex",
+ "rusqlite",
  "rustls",
  "serde",
  "serde_json",

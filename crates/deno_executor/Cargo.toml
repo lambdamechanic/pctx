@@ -22,6 +22,10 @@ regex = "1.11"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 futures = "0.3"
+# Force bundled SQLite to avoid bindgen/libclang issues in CI
+# This forces all transitive dependencies (deno_runtime -> deno_kv -> rusqlite)
+# to use the bundled feature which doesn't require libclang
+rusqlite = { version = "0.37.0", features = ["bundled"] }
 
 [target.'cfg(windows)'.dependencies]
 # Need version 0.59 to match deno_subprocess_windows transitive dependency
