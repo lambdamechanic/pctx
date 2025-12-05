@@ -74,14 +74,7 @@ pub struct CloseSessionResponse {
 /// Messages that can be sent to a WebSocket client
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WsMessage {
-    Notification(WsNotification),
     ExecuteTool(WsExecuteTool),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WsNotification {
-    pub name: String,
-    pub data: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

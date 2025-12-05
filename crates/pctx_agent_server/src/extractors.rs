@@ -12,18 +12,6 @@ pub static CODE_MODE_SESSION_HEADER: &str = "x-code-mode-session";
 ///
 /// This extractor will parse the `x-code-mode-session` header value as a UUID.
 /// If the header is missing or invalid, it will return a 400 Bad Request error.
-///
-/// # Example
-///
-/// ```rust
-/// use axum::{Router, routing::get};
-///
-/// async fn handler(CodeModeSession(session_id): CodeModeSession) {
-///     println!("Session ID: {}", session_id);
-/// }
-///
-/// let app = Router::new().route("/", get(handler));
-/// ```
 pub struct CodeModeSession(pub Uuid);
 
 impl<S> FromRequestParts<S> for CodeModeSession

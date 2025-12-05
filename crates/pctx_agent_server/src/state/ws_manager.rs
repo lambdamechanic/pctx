@@ -25,6 +25,11 @@ pub struct WsManager {
 }
 
 impl WsManager {
+    /// Lists current sessions
+    pub async fn list_sessions(&self) -> Vec<Uuid> {
+        self.sessions.read().await.keys().copied().collect()
+    }
+
     /// Add a new session
     pub async fn add(&self, session: WsSession) -> Uuid {
         let session_id = session.id;

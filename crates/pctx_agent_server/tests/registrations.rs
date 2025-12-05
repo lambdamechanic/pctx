@@ -11,7 +11,7 @@ mod utils;
 
 #[tokio::test]
 async fn test_health_endpoint() {
-    let server = create_test_server();
+    let (server, _) = create_test_server();
 
     let res = server.get("/health").await;
 
@@ -24,7 +24,7 @@ async fn test_health_endpoint() {
 
 #[tokio::test]
 async fn test_register_tools() {
-    let (session_id, server) = create_test_server_with_session().await;
+    let (session_id, server, _state) = create_test_server_with_session().await;
     let _ws = connect_websocket(&server, session_id)
         .await
         .into_websocket()
@@ -115,7 +115,7 @@ async fn test_register_tools() {
 
 #[tokio::test]
 async fn test_register_tools_not_shared() {
-    let server = create_test_server();
+    let (server, _) = create_test_server();
     let session_1 = create_session(&server).await;
     let _ws = connect_websocket(&server, session_1)
         .await

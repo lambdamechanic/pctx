@@ -1,6 +1,6 @@
 use crate::{
     extractors::CodeModeSession,
-    model::{WsExecuteToolResult, WsMessage, WsNotification},
+    model::{WsExecuteToolResult, WsMessage},
     state::ws_manager::WsSession,
 };
 use axum::{
@@ -16,7 +16,7 @@ use futures::{
     stream::{SplitSink, SplitStream},
 };
 use rmcp::model::{
-    JsonRpcMessage, JsonRpcNotification, JsonRpcRequest, JsonRpcVersion2_0, NumberOrString,
+    JsonRpcMessage, JsonRpcRequest, JsonRpcVersion2_0, NumberOrString,
     Request as JsonRpcRequestData,
 };
 use serde_json::json;
@@ -89,13 +89,6 @@ async fn handle_socket(socket: WebSocket, state: AppState, code_mode_session: Uu
     );
     state.ws_manager.add(session).await;
 
-    // Send session_created notification
-    let connection_notif = WsMessage::Notification(WsNotification {
-        name: "websocket_session_created".into(),
-        data: json!({"code_mode_session": code_mode_session, "ws_session": ws_session}),
-    });
-    let _ = tx.send(connection_notif);
-
     // Spawn task to handle outgoing messages (notifications/execute_tool requests)
     let mut send_task = tokio::spawn(write_messages(sender, rx));
 
@@ -128,13 +121,6 @@ async fn write_messages(
     while let Some(msg) = rx.recv().await {
         // Convert OutgoingMessage to WebSocket Message
         let message_val = match msg {
-            WsMessage::Notification(notification) => {
-                let jsonrpc_notif = JsonRpcNotification {
-                    jsonrpc: JsonRpcVersion2_0,
-                    notification,
-                };
-                json!(jsonrpc_notif)
-            }
             WsMessage::ExecuteTool(ws_execute_tool) => {
                 let jsonrpc_req = JsonRpcRequest {
                     jsonrpc: JsonRpcVersion2_0,
@@ -229,6 +215,7 @@ async fn handle_message(msg: Message, ws_session: Uuid, state: &AppState) -> Res
         }
         Message::Close(_) => {
             info!("Received close message for session {ws_session}");
+            println!("CLOSING....");
             Ok(())
         }
         Message::Ping(_) | Message::Pong(_) => Ok(()),

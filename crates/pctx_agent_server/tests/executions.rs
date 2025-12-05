@@ -14,7 +14,7 @@ use similar_asserts::assert_serde_eq;
 #[tokio::test]
 #[serial]
 async fn test_exec_code_only() {
-    let (session_id, server) = create_test_server_with_session().await;
+    let (session_id, server, _) = create_test_server_with_session().await;
 
     // Execute simple code without any registered tools
     let exec_res = server
@@ -37,7 +37,7 @@ async fn test_exec_code_only() {
 #[tokio::test]
 #[serial]
 async fn test_exec_code_console_output() {
-    let (session_id, server) = create_test_server_with_session().await;
+    let (session_id, server, _) = create_test_server_with_session().await;
 
     let code = r#"
         async function run() {
@@ -66,7 +66,7 @@ async fn test_exec_code_console_output() {
 #[tokio::test]
 #[serial]
 async fn test_exec_code_syntax_err() {
-    let (session_id, server) = create_test_server_with_session().await;
+    let (session_id, server, _) = create_test_server_with_session().await;
 
     let invalid_code = "
         async function run() {
@@ -96,12 +96,11 @@ async fn test_exec_code_syntax_err() {
 #[tokio::test]
 #[serial]
 async fn test_exec_callbacks() {
-    let (session_id, server) = create_test_server_with_session().await;
+    let (session_id, server, _) = create_test_server_with_session().await;
     let mut ws = connect_websocket(&server, session_id)
         .await
         .into_websocket()
         .await;
-    let _connection_msg = ws.receive_message().await;
 
     // register tools
     let callbacks = callback_tools();

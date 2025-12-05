@@ -11,15 +11,19 @@ use serde_json::json;
 use uuid::Uuid;
 
 #[allow(unused)]
-pub(crate) fn create_test_server() -> TestServer {
-    TestServer::builder()
-        .http_transport()
-        .build(create_router(AppState::default()))
-        .expect("Failed starting test server")
+pub(crate) fn create_test_server() -> (TestServer, AppState) {
+    let state = AppState::default();
+    (
+        TestServer::builder()
+            .http_transport()
+            .build(create_router(state.clone()))
+            .expect("Failed starting test server"),
+        state,
+    )
 }
 
 #[allow(unused)]
-pub(crate) async fn create_test_server_with_session() -> (Uuid, TestServer) {
+pub(crate) async fn create_test_server_with_session() -> (Uuid, TestServer, AppState) {
     let state = AppState::default();
     let session_id = Uuid::new_v4();
     state
@@ -30,8 +34,9 @@ pub(crate) async fn create_test_server_with_session() -> (Uuid, TestServer) {
         session_id,
         TestServer::builder()
             .http_transport()
-            .build(create_router(state))
+            .build(create_router(state.clone()))
             .expect("Failed starting test server"),
+        state,
     )
 }
 
