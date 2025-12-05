@@ -5,12 +5,8 @@ members = ["cargo:."]
 [dist]
 # The preferred dist version to use in CI (Cargo.toml SemVer syntax)
 cargo-dist-version = "0.30.2"
-# Allow custom edits to CI files for testing
-allow-dirty = ["ci"]
 # CI backends to support
 ci = "github"
-# NOTE: NASM is manually installed in release.yml for Windows builds (required by aws-lc-sys)
-# This can't be automated via cargo-dist system-dependencies yet
 # The installers to generate for each app
 installers = ["shell", "npm", "homebrew"]
 # The archive format to use for windows builds (defaults .zip)
@@ -18,8 +14,7 @@ windows-archive = ".zip"
 # The archive format to use for non-windows builds (defaults .tar.xz)
 unix-archive = ".tar.gz"
 # Whether dist should create a Github Release or use an existing draft
-# Temporarily disabled for testing Windows build
-create-release = false
+create-release = true
 # Whether CI should trigger releases with dispatches instead of tag pushes
 dispatch-releases = true
 # Which phase dist should use to create the GitHub release
@@ -27,14 +22,16 @@ github-release = "announce"
 # Path that installers should place binaries in
 install-path = "~/.local/bin"
 # Which actions to run on pull requests
-# Temporarily set to "upload" to test Windows build on PRs
-pr-run-mode = "upload"
+pr-run-mode = "plan"
 # Whether CI should include auto-generated code to build local artifacts
 build-local-artifacts = true
 # Target platforms to build apps for (Rust target-triple syntax)
-# Temporarily testing Windows only
-targets = ["x86_64-pc-windows-msvc"]
-# targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
 # Where to host releases
 hosting = "github"
 # Whether to install an updater program
@@ -48,6 +45,4 @@ npm-scope = "@portofcontext"
 # A GitHub repo to push Homebrew formulas to
 tap = "portofcontext/homebrew-tap"
 # Publish jobs to run in CI
-# Temporarily disabled for testing Windows build
-# publish-jobs = ["homebrew", "npm"]
-publish-jobs = []
+publish-jobs = ["homebrew", "npm"]

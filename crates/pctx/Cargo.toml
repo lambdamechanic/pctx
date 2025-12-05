@@ -108,3 +108,11 @@ workspace = true
 
 [package.metadata.dist]
 dist = true
+
+# System dependencies for cargo-dist to install
+[package.metadata.dist.dependencies.apt]
+libclang-dev = "*"
+libc6-dev = "*"
+
+[package.metadata.dist.dependencies.chocolatey]
+nasm = "*"
