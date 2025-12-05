@@ -16,11 +16,6 @@ rustflags = [
     "-C", "link-arg=/OPT:NOREF",
 ]
 
-# Set environment variable to disable PDB generation on Windows
-[env]
-# Force disable PDB generation for all Windows MSVC builds
-_NO_DEBUG_HEAP = "1"
-
 # Reduce optimization for build scripts to avoid Windows PDB size limits (LNK1318)
 # Build scripts that use large dependencies (like V8/deno_core) generate
 # enormous object files when heavily optimized, exceeding Windows linker limits
