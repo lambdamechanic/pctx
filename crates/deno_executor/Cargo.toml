@@ -26,7 +26,7 @@ futures = "0.3"
 [target.'cfg(windows)'.dependencies]
 # Need version 0.59 to match deno_subprocess_windows transitive dependency
 # and ensure the feature is enabled for it as well
-windows-sys = { workspace = true, features = [
+windows-sys = { version = "0.59", features = [
     "Win32_System_SystemInformation",
 ] }
 
