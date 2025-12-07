@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 
+## [v0.2.2] - 2025-12-07
+
+### Added
+
+- windows cross-compile support through cargo-dist
+
+
 ## [v0.2.1] - 2025-11-25
 
 ### Added
