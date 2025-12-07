@@ -147,6 +147,14 @@ jobs:
       - name: Install dependencies
         run: |
           ${{ matrix.packages_install }}
+      # MANUALLY MAINTAINED: Install NASM for Windows builds (required by aws-lc-sys)
+      # cargo-dist's chocolatey installer doesn't refresh PATH in the current session
+      - name: Install NASM (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install nasm -y
+          echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
       - name: Build artifacts
         run: |
           # Actually do builds and make zips and whatnot

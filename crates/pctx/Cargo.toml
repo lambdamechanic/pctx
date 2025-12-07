@@ -113,6 +113,3 @@ dist = true
 [package.metadata.dist.dependencies.apt]
 libclang-dev = "*"
 libc6-dev = "*"
-
-[package.metadata.dist.dependencies.chocolatey]
-nasm = "*"
