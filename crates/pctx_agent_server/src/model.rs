@@ -1,7 +1,10 @@
+use pctx_code_mode::model::ExecuteOutput;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+// ----------- REST API STRUCTS -----------
 
 /// Health check response
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -71,39 +74,39 @@ pub struct CloseSessionResponse {
     pub success: bool,
 }
 
-/// Messages that can be sent to a WebSocket client
+// ----------- Websocket JRPC Message structs -----------
+
+pub type WsJsonRpcMessage = rmcp::model::JsonRpcMessage<PctxJsonRpcRequest, PctxJsonRpcResponse>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum WsMessage {
-    ExecuteTool(WsExecuteTool),
-    ExecuteCodeResponse(WsExecuteCodeResponse),
+#[serde(tag = "method")]
+pub enum PctxJsonRpcRequest {
+    #[serde(rename = "execute_code")]
+    ExecuteCode { params: ExecuteCodeParams },
+    #[serde(rename = "execute_tool")]
+    ExecuteTool { params: ExecuteToolParams },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WsExecuteTool {
-    pub id: Uuid,
+pub struct ExecuteToolParams {
     pub namespace: String,
     pub name: String,
     pub args: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WsExecuteToolResult {
-    pub output: Option<serde_json::Value>,
-}
-
-/// Execute code request from client
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WsExecuteCodeRequest {
-    pub id: serde_json::Value, // String or Number (JSON-RPC allows both)
+pub struct ExecuteCodeParams {
     pub code: String,
 }
 
-/// Execute code response to client
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WsExecuteCodeResponse {
-    pub id: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<pctx_code_mode::model::ExecuteOutput>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<ErrorData>,
+#[serde(untagged)]
+pub enum PctxJsonRpcResponse {
+    ExecuteCode(ExecuteOutput),
+    ExecuteTool(ExecuteToolResult),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecuteToolResult {
+    pub output: Option<serde_json::Value>,
 }

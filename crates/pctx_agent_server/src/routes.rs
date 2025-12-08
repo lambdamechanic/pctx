@@ -14,9 +14,9 @@ use uuid::Uuid;
 use crate::AppState;
 use crate::extractors::CodeModeSession;
 use crate::model::{
-    CloseSessionResponse, CreateSessionResponse, ErrorCode, ErrorData, HealthResponse,
-    McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse, RegisterToolsRequest,
-    RegisterToolsResponse, WsExecuteTool,
+    CloseSessionResponse, CreateSessionResponse, ErrorCode, ErrorData, ExecuteToolParams,
+    HealthResponse, McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
+    RegisterToolsRequest, RegisterToolsResponse,
 };
 
 pub(crate) type ApiResult<T> = Result<T, (StatusCode, Json<ErrorData>)>;
@@ -237,8 +237,7 @@ pub(crate) async fn register_tools(
                 let ws_session = ws_session_lock_clone.read().await;
 
                 let callback_res = ws_session
-                    .execute_callback(WsExecuteTool {
-                        id: Uuid::new_v4(),
+                    .execute_callback(ExecuteToolParams {
                         namespace: tool_cfg_clone.namespace,
                         name: tool_cfg_clone.name,
                         args,
