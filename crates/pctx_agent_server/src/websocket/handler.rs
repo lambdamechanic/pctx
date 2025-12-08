@@ -1,6 +1,6 @@
 use crate::{
     extractors::CodeModeSession,
-    model::{WsExecuteToolResult, WsMessage},
+    model::{ExecuteCodeParams, PctxJsonRpcRequest, PctxJsonRpcResponse, WsJsonRpcMessage},
     state::ws_manager::WsSession,
 };
 use axum::{
@@ -15,9 +15,9 @@ use futures::{
     SinkExt, StreamExt,
     stream::{SplitSink, SplitStream},
 };
-use rmcp::model::{
-    JsonRpcMessage, JsonRpcRequest, JsonRpcVersion2_0, NumberOrString,
-    Request as JsonRpcRequestData,
+use rmcp::{
+    ErrorData,
+    model::{ErrorCode, JsonRpcMessage, RequestId},
 };
 use serde_json::json;
 use tokio::sync::mpsc;
@@ -68,16 +68,13 @@ pub async fn ws_handler(
 async fn handle_socket(socket: WebSocket, state: AppState, code_mode_session: Uuid) {
     info!("New WebSocket connection with code_mode_session: {code_mode_session}");
 
-    info!(
-        "Verified code mode session {} exists, proceeding with WebSocket setup",
-        code_mode_session
-    );
+    info!("Verified code mode session {code_mode_session} exists, proceeding with WebSocket setup");
 
     // Split socket into sender and receiver
     let (sender, receiver) = socket.split();
 
     // Create an in-process channel for outgoing messages - convert OutgoingMessage to WebSocket Message
-    let (tx, rx) = mpsc::unbounded_channel::<WsMessage>();
+    let (tx, rx) = mpsc::unbounded_channel::<WsJsonRpcMessage>();
 
     // Create session
     let session = WsSession::new(tx.clone(), code_mode_session);
@@ -116,31 +113,14 @@ async fn handle_socket(socket: WebSocket, state: AppState, code_mode_session: Uu
 /// Handle outgoing WebSocket messages (`execute_tool` requests from server)
 async fn write_messages(
     mut sender: SplitSink<WebSocket, Message>,
-    mut rx: mpsc::UnboundedReceiver<WsMessage>,
+    mut rx: mpsc::UnboundedReceiver<WsJsonRpcMessage>,
 ) {
     while let Some(msg) = rx.recv().await {
-        // Convert OutgoingMessage to WebSocket Message
-        let message_val = match msg {
-            WsMessage::ExecuteTool(ws_execute_tool) => {
-                let jsonrpc_req = JsonRpcRequest {
-                    jsonrpc: JsonRpcVersion2_0,
-                    id: NumberOrString::String(ws_execute_tool.id.to_string().into()),
-                    request: JsonRpcRequestData {
-                        method: "execute_tool",
-                        params: json!(ws_execute_tool),
-                        ..Default::default()
-                    },
-                };
-
-                json!(jsonrpc_req)
-            }
-        };
-
         if let Err(e) = sender
-            .send(Message::Text(message_val.to_string().into()))
+            .send(Message::Text(json!(msg).to_string().into()))
             .await
         {
-            error!("Error sending WebSocket message: {}", e);
+            error!("Error sending WebSocket message: {e}");
             break;
         }
     }
@@ -163,6 +143,93 @@ async fn read_messages(mut receiver: SplitStream<WebSocket>, ws_session: Uuid, s
     }
 }
 
+/// Handle an `execute_code` request from the client
+async fn handle_execute_code_request(
+    req_id: RequestId,
+    params: ExecuteCodeParams,
+    ws_session: Uuid,
+    state: &AppState,
+) -> Result<(), String> {
+    // Save the WebSocket session for later response
+    let ws_session_lock = state
+        .ws_manager
+        .sessions
+        .read()
+        .await
+        .get(&ws_session)
+        .cloned()
+        .ok_or_else(|| format!("WebSocket session {ws_session} not found"))?;
+
+    let ws_session_read = ws_session_lock.read().await;
+    let code_mode_session_id = ws_session_read.code_mode_session_id;
+    let sender = ws_session_read.sender.clone();
+    drop(ws_session_read);
+
+    // Get the relevant CodeMode config for the session
+    let Some(code_mode_lock) = state.code_mode_manager.get(code_mode_session_id).await else {
+        let err_res = WsJsonRpcMessage::error(
+            ErrorData {
+                code: ErrorCode::INVALID_PARAMS,
+                message: format!("CodeMode session `{code_mode_session_id}` does not exist").into(),
+                data: None,
+            },
+            req_id,
+        );
+        let _ = sender.send(err_res);
+        return Ok(());
+    };
+
+    debug!("Found CodeMode session with ID: {code_mode_session_id}");
+
+    tokio::spawn(async move {
+        let current_span = tracing::Span::current();
+        let output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
+            let _guard = current_span.enter();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
+            rt.block_on(async {
+                code_mode_lock
+                    .read()
+                    .await
+                    .execute(&params.code)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
+            })
+        })
+        .await;
+
+        let msg = match output {
+            Ok(Ok(exec_output)) => {
+                WsJsonRpcMessage::response(PctxJsonRpcResponse::ExecuteCode(exec_output), req_id)
+            }
+            Ok(Err(e)) => WsJsonRpcMessage::error(
+                ErrorData {
+                    code: ErrorCode::INTERNAL_ERROR,
+                    message: format!("Execution failed: {e}").into(),
+                    data: None,
+                },
+                req_id,
+            ),
+            Err(e) => WsJsonRpcMessage::error(
+                ErrorData {
+                    code: ErrorCode::INTERNAL_ERROR,
+                    message: format!("Task join failed: {e}").into(),
+                    data: None,
+                },
+                req_id,
+            ),
+        };
+
+        if let Err(e) = sender.send(msg) {
+            error!("Failed to send execute_code response: {e}");
+        }
+    });
+
+    Ok(())
+}
+
 /// Handle a single WebSocket message
 /// Messages coming from a client, needs to be routed to the correct `WsSession` for handling.
 async fn handle_message(msg: Message, ws_session: Uuid, state: &AppState) -> Result<(), String> {
@@ -170,44 +237,43 @@ async fn handle_message(msg: Message, ws_session: Uuid, state: &AppState) -> Res
         Message::Text(text) => {
             debug!("Received text message from {ws_session}: {text}");
 
-            // Parse as JSON-RPC response (client responding to execute_tool)
-            let (id, exec_res) = match serde_json::from_str::<
-                JsonRpcMessage<JsonRpcRequestData, WsExecuteToolResult>,
-            >(&text)
-            {
-                Ok(m) => match m {
-                    JsonRpcMessage::Response(res) => {
-                        let id: Uuid = serde_json::from_value(res.id.clone().into_json_value())
-                            .map_err(|_| {
-                                format!(
-                                    "Cannot route execute tool result with invalid uuid: {:?}",
-                                    &res.id
-                                )
-                            })?;
-                        (id, Ok(res.result))
+            let jrpc_msg = serde_json::from_str::<WsJsonRpcMessage>(&text)
+                .map_err(|e| format!("Received invalid JsonRpc message from websocket: {e}"))?;
+
+            match jrpc_msg {
+                JsonRpcMessage::Request(req) => match req.request {
+                    PctxJsonRpcRequest::ExecuteCode { params } => {
+                        debug!("Executing code...");
+                        handle_execute_code_request(req.id, params, ws_session, state).await
                     }
-                    JsonRpcMessage::Error(err) => {
-                        let id: Uuid = serde_json::from_value(err.id.clone().into_json_value())
-                            .map_err(|_| {
-                                format!("Cannot route error with invalid uuid: {:?}", &err.id)
-                            })?;
-                        (id, Err(err.error))
-                    }
-                    JsonRpcMessage::Request(_) | JsonRpcMessage::Notification(_) => {
-                        return Err(format!("Received jsonrpc unsupported message: {m:?}"));
+                    PctxJsonRpcRequest::ExecuteTool { .. } => {
+                        // the server is only responsible for servicing execute_code requests, execute_tool
+                        // is handled by the client
+                        Err(format!("Received unsupported JsonRpc request: {text}"))
                     }
                 },
-                Err(e) => return Err(format!("Failed deserializing ws message as jsonrpc: {e}")),
-            };
-
-            // Resolve the pending execution with this response
-            state
-                .ws_manager
-                .handle_execution_response(id, exec_res)
-                .await
-                .map_err(|()| "Failed to resolve execution".to_string())?;
-
-            Ok(())
+                JsonRpcMessage::Response(res) => match res.result {
+                    PctxJsonRpcResponse::ExecuteTool(result) => state
+                        .ws_manager
+                        .handle_execute_callback_response(res.id, Ok(result))
+                        .await
+                        .map_err(|()| "Failed to handle execute callback response".to_string()),
+                    PctxJsonRpcResponse::ExecuteCode(_) => {
+                        // the server is only responsible for handling execute_tool responses, execute_tool
+                        // responses should be sent to the client
+                        Err(format!("Received unsupported JsonRpc response: {text}"))
+                    }
+                },
+                JsonRpcMessage::Error(err_msg) => state
+                    .ws_manager
+                    .handle_execute_callback_response(err_msg.id, Err(err_msg.error))
+                    .await
+                    .map_err(|()| "Failed to handle execute callback response".to_string()),
+                JsonRpcMessage::Notification(_) => {
+                    info!("Received JsonRpc Notification: {text}");
+                    Ok(())
+                }
+            }
         }
         Message::Binary(_) => {
             warn!("Received binary message, ignoring");

@@ -127,7 +127,7 @@ pub struct ExecuteInput {
     pub code: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, ToSchema)]
 pub struct ExecuteOutput {
     /// Success of executed code
     pub success: bool,

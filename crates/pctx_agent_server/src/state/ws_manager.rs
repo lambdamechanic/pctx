@@ -1,10 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
+use rmcp::model::RequestId;
 use tokio::sync::{RwLock, mpsc as tokio_mpsc};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::model::{WsExecuteTool, WsExecuteToolResult, WsMessage};
+use crate::model::{ExecuteToolParams, ExecuteToolResult, PctxJsonRpcRequest, WsJsonRpcMessage};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExecuteCallbackError {
@@ -21,7 +22,7 @@ pub enum ExecuteCallbackError {
 #[derive(Default)]
 pub struct WsManager {
     /// Active sessions by ID
-    sessions: Arc<RwLock<HashMap<Uuid, Arc<RwLock<WsSession>>>>>,
+    pub(crate) sessions: Arc<RwLock<HashMap<Uuid, Arc<RwLock<WsSession>>>>>,
 }
 
 impl WsManager {
@@ -64,10 +65,10 @@ impl WsManager {
 
     /// Handle a response from a client for a pending execution
     /// Finds the session with the matching `request_id` and delegates to it
-    pub async fn handle_execution_response(
+    pub async fn handle_execute_callback_response(
         &self,
-        request_id: Uuid,
-        result: Result<WsExecuteToolResult, rmcp::model::ErrorData>,
+        request_id: RequestId,
+        result: Result<ExecuteToolResult, rmcp::model::ErrorData>,
     ) -> Result<(), ()> {
         let sessions = self.sessions.read().await;
 
@@ -83,7 +84,7 @@ impl WsManager {
             {
                 // Handle the response on the cloned Arc
                 session_read
-                    .handle_execution_response(request_id, result.clone())
+                    .handle_execute_callback_response(request_id, result.clone())
                     .await?;
                 return Ok(());
             }
@@ -96,7 +97,10 @@ impl WsManager {
 
 type PendingExecutionsMap = Arc<
     RwLock<
-        HashMap<Uuid, std::sync::mpsc::Sender<Result<WsExecuteToolResult, rmcp::model::ErrorData>>>,
+        HashMap<
+            RequestId,
+            std::sync::mpsc::Sender<Result<ExecuteToolResult, rmcp::model::ErrorData>>,
+        >,
     >,
 >;
 
@@ -106,12 +110,15 @@ pub struct WsSession {
     pub id: Uuid,
     pub code_mode_session_id: Uuid,
     /// Channel to send messages to the client
-    pub sender: tokio_mpsc::UnboundedSender<WsMessage>,
+    pub sender: tokio_mpsc::UnboundedSender<WsJsonRpcMessage>,
     /// Pending execution requests waiting for responses
     pending_executions: PendingExecutionsMap,
 }
 impl WsSession {
-    pub fn new(sender: tokio_mpsc::UnboundedSender<WsMessage>, code_mode_session_id: Uuid) -> Self {
+    pub fn new(
+        sender: tokio_mpsc::UnboundedSender<WsJsonRpcMessage>,
+        code_mode_session_id: Uuid,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             sender,
@@ -123,9 +130,9 @@ impl WsSession {
     /// Execute a callback on this session, sending a message and waiting for a response
     pub async fn execute_callback(
         &self,
-        message: WsExecuteTool,
-    ) -> Result<WsExecuteToolResult, ExecuteCallbackError> {
-        let req_id = message.id;
+        params: ExecuteToolParams,
+    ) -> Result<ExecuteToolResult, ExecuteCallbackError> {
+        let req_id = RequestId::String(Uuid::new_v4().to_string().into());
         // Create std::sync::mpsc channel for response
         let (response_tx, response_rx) = std::sync::mpsc::channel();
 
@@ -133,11 +140,14 @@ impl WsSession {
         self.pending_executions
             .write()
             .await
-            .insert(req_id, response_tx);
+            .insert(req_id.clone(), response_tx);
 
         // Send message to client
         self.sender
-            .send(WsMessage::ExecuteTool(message))
+            .send(WsJsonRpcMessage::request(
+                PctxJsonRpcRequest::ExecuteTool { params },
+                req_id.clone(),
+            ))
             .map_err(|_| ExecuteCallbackError::SendFailed)?;
 
         // Wait for response with timeout
@@ -160,10 +170,10 @@ impl WsSession {
     }
 
     /// Handle a response from a client for a pending execution
-    pub async fn handle_execution_response(
+    pub async fn handle_execute_callback_response(
         &self,
-        request_id: Uuid,
-        result: Result<WsExecuteToolResult, rmcp::model::ErrorData>,
+        request_id: RequestId,
+        result: Result<ExecuteToolResult, rmcp::model::ErrorData>,
     ) -> Result<(), ()> {
         let pending_read = self.pending_executions.read().await;
         info!(

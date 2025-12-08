@@ -45,6 +45,15 @@ impl PctxMcpServer {
         }
     }
 
+    /// Serves MCP server with default Ctr + C shutdown signal
+    ///
+    /// # Panics
+    ///
+    /// Panics if the graceful shutdown with Ctr + C fails
+    ///
+    /// # Errors
+    ///
+    /// Errors if there is a failure starting the server on the configured host/port
     pub async fn serve(&self, cfg: &Config, code_mode: pctx_code_mode::CodeMode) -> Result<()> {
         let shutdown_signal = async {
             tokio::signal::ctrl_c()
@@ -55,6 +64,12 @@ impl PctxMcpServer {
             .await
     }
 
+    /// Serves MCP server with provided config, and shutdown signal
+    ///
+    ///
+    /// # Errors
+    ///
+    /// Errors if there is a failure starting the server on the configured host/port
     pub async fn serve_with_shutdown<F>(
         &self,
         cfg: &Config,

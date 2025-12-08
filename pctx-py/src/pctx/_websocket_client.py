@@ -7,22 +7,35 @@ and execute TypeScript code.
 
 import asyncio
 import json
-from typing import Any
+import uuid
+from typing import Any, Union
 
 import pydantic
 import websockets
 from pctx.models import (
     ErrorCode,
     ErrorData,
+    ExecuteCodeParams,
+    ExecuteOutput,
     ExecuteToolResult,
     JsonRpcError,
-    JsonRpcExecuteToolRequest,
-    JsonRpcExecuteToolResponse,
+    ExecuteCodeRequest,
+    ExecuteCodeResponse,
+    ExecuteToolRequest,
+    ExecuteToolResponse,
 )
 from pctx._tool import Tool
 from websockets.asyncio.client import ClientConnection
 
 from .exceptions import ConnectionError
+
+WebSocketMessage = Union[
+    ExecuteCodeRequest,
+    ExecuteCodeResponse,
+    ExecuteToolRequest,
+    ExecuteToolResponse,
+    JsonRpcError,
+]
 
 
 class WebSocketClient:
@@ -43,6 +56,8 @@ class WebSocketClient:
         self.url = url
         self.ws: ClientConnection | None = None
         self.tools = tools or []
+        self._pending_executions: dict[str | int, asyncio.Future] = {}
+        self._request_counter = 0
 
     async def connect(self, code_mode_session: str):
         """
@@ -69,7 +84,7 @@ class WebSocketClient:
             await self.ws.close()
             self.ws = None
 
-    async def _send(self, message: dict[str, Any]):
+    async def _send(self, message: WebSocketMessage):
         """
         Send a message via the websocket
         """
@@ -78,7 +93,50 @@ class WebSocketClient:
                 "Cannot send messages when websocket is not connected"
             )
 
-        await self.ws.send(json.dumps(message))
+        await self.ws.send(message.model_dump_json())
+
+    async def execute_code(self, code: str, timeout: float = 30.0) -> ExecuteOutput:
+        """
+        Execute code via WebSocket instead of REST.
+
+        Args:
+            code: TypeScript/JavaScript code to execute
+            timeout: Timeout in seconds (default 30)
+
+        Returns:
+            ExecuteOutput with success, stdout, stderr, and output
+
+        Raises:
+            ConnectionError: If WebSocket not connected
+            TimeoutError: If execution times out
+            Exception: If execution fails
+        """
+        if self.ws is None:
+            raise ConnectionError("WebSocket not connected")
+
+        # Generate unique request ID
+        request_id = str(uuid.uuid4())
+
+        # Create future for response
+        future: asyncio.Future[dict[str, Any]] = asyncio.Future()
+        self._pending_executions[request_id] = future
+
+        # Send request
+        request = ExecuteCodeRequest(
+            id=request_id, method="execute_code", params=ExecuteCodeParams(code=code)
+        )
+
+        try:
+            await self._send(request)
+
+            # Wait for response with timeout
+            result = await asyncio.wait_for(future, timeout=timeout)
+            return ExecuteOutput.model_validate(result)
+        except asyncio.TimeoutError:
+            self._pending_executions.pop(request_id, None)
+            raise TimeoutError(f"Code execution timed out after {timeout}s")
+        finally:
+            self._pending_executions.pop(request_id, None)
 
     async def _handle_messages(self):
         """Background task to handle incoming WebSocket messages."""
@@ -88,15 +146,29 @@ class WebSocketClient:
             )
 
         try:
-            async for message in self.ws:
+            async for message_data in self.ws:
                 try:
-                    exec_req = JsonRpcExecuteToolRequest.model_validate_json(message)
-                    res = await self._handle_execute(exec_req)
-                    await self._send(res.model_dump(mode="json"))
+                    adapter = pydantic.TypeAdapter(WebSocketMessage)
+                    message: WebSocketMessage = adapter.validate_json(message_data)
+
+                    if isinstance(message, ExecuteToolRequest):
+                        res = await self._handle_execute_tool(message)
+                        await self._send(res)
+                    elif isinstance(message, ExecuteCodeResponse):
+                        future = self._pending_executions.get(message.id)
+                        if future is not None:
+                            future.set_result(message.result)
+                    elif isinstance(message, JsonRpcError):
+                        future = self._pending_executions.get(message.id)
+                        if future is not None:
+                            future.set_exception(
+                                Exception(f"Execution error: {message.error.message}")
+                            )
+
                 except pydantic.ValidationError as e:
-                    print(
-                        f"Failed to decode execution request message: {message} - {e}"
-                    )
+                    print(f"Failed to decode message: {message_data} - {e}")
+                except json.JSONDecodeError as e:
+                    print(f"Failed to parse JSON: {message_data} - {e}")
                 except Exception as e:
                     print(f"Error processing message: {e}")
         except asyncio.CancelledError:
@@ -104,12 +176,17 @@ class WebSocketClient:
         except Exception as e:
             print(f"Message handler error: {e}")
 
-    async def _handle_execute(
-        self, req: JsonRpcExecuteToolRequest
-    ) -> JsonRpcExecuteToolResponse | JsonRpcError:
+    async def _handle_execute_tool(
+        self, req: ExecuteToolRequest
+    ) -> ExecuteToolResponse | JsonRpcError:
         # Find tool to execute
         tool = next(
-            (t for t in self.tools if t.name == req.params.name and t.namespace), None
+            (
+                t
+                for t in self.tools
+                if t.name == req.params.name and t.namespace == req.params.namespace
+            ),
+            None,
         )
         if tool is None:
             return JsonRpcError(
@@ -127,7 +204,7 @@ class WebSocketClient:
             else:
                 output = await tool.ainvoke(**args)
 
-            return JsonRpcExecuteToolResponse(
+            return ExecuteToolResponse(
                 id=req.id, result=ExecuteToolResult(output=output)
             )
         except pydantic.ValidationError as e:

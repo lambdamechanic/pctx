@@ -10,57 +10,6 @@
     "version": "0.1.0"
   },
   "paths": {
-    "/code-mode/execute": {
-      "post": {
-        "tags": [
-          "CodeMode"
-        ],
-        "summary": "Execute TypeScript code with access to registered tools",
-        "operationId": "execute_code",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExecuteInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Code executed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExecuteOutput"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Code execution failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/code-mode/functions/details": {
       "post": {
         "tags": [
@@ -68,6 +17,17 @@
         ],
         "summary": "Get detailed information about a specific function",
         "operationId": "get_function_details",
+        "parameters": [
+          {
+            "name": "x-code-mode-session",
+            "in": "header",
+            "description": "Current code mode session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -119,6 +79,17 @@
         ],
         "summary": "List all available code mode functions from both server and tool registrations",
         "operationId": "list_functions",
+        "parameters": [
+          {
+            "name": "x-code-mode-session",
+            "in": "header",
+            "description": "Current code mode session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "List of all code mode functions as source code & structured output",
@@ -254,6 +225,17 @@
         ],
         "summary": "Register MCP servers dynamically at runtime",
         "operationId": "register_servers",
+        "parameters": [
+          {
+            "name": "x-code-mode-session",
+            "in": "header",
+            "description": "Current code mode session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -295,6 +277,17 @@
         ],
         "summary": "Register tools that will be called via WebSocket callbacks",
         "operationId": "register_tools",
+        "parameters": [
+          {
+            "name": "x-code-mode-session",
+            "in": "header",
+            "description": "Current code mode session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -367,7 +360,7 @@
       },
       "CloseSessionResponse": {
         "type": "object",
-        "description": "Response after closing a CodeMode session",
+        "description": "Response after closing a `CodeMode` session",
         "required": [
           "success"
         ],
@@ -379,7 +372,7 @@
       },
       "CreateSessionResponse": {
         "type": "object",
-        "description": "Response after creating a new CodeMode session",
+        "description": "Response after creating a new `CodeMode` session",
         "required": [
           "session_id"
         ],
@@ -415,43 +408,6 @@
           },
           "message": {
             "type": "string"
-          }
-        }
-      },
-      "ExecuteInput": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "description": "Typescript code to execute.\n\nREQUIRED FORMAT:\nasync function ``run()`` {\n  // YOUR CODE GOES HERE e.g. const result await ``Namespace.method();``\n  // ALWAYS RETURN THE RESULT e.g. return result;\n}\n\nIMPORTANT: Your code should ONLY contain the function definition.\nThe sandbox automatically calls run() and exports the result.\n",
-            "default": ""
-          }
-        }
-      },
-      "ExecuteOutput": {
-        "type": "object",
-        "required": [
-          "success",
-          "stdout",
-          "stderr",
-          "output"
-        ],
-        "properties": {
-          "output": {
-            "type": "object",
-            "description": "Value returned by executed function"
-          },
-          "stderr": {
-            "type": "string",
-            "description": "Standard error of executed code"
-          },
-          "stdout": {
-            "type": "string",
-            "description": "Standard output of executed code"
-          },
-          "success": {
-            "type": "boolean",
-            "description": "Success of executed code"
           }
         }
       },
@@ -601,7 +557,6 @@
         "type": "object",
         "description": "Request to register MCP servers",
         "required": [
-          "session_id",
           "servers"
         ],
         "properties": {
@@ -610,9 +565,6 @@
             "items": {
               "$ref": "#/components/schemas/McpServerConfig"
             }
-          },
-          "session_id": {
-            "type": "string"
           }
         }
       },
