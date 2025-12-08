@@ -22,7 +22,10 @@ github-release = "announce"
 # Path that installers should place binaries in
 install-path = "~/.local/bin"
 # Which actions to run on pull requests
-pr-run-mode = "skip"
+pr-run-mode = "plan"
+# Allow manually maintaining CI with custom modifications
+# Currently: NASM installation for Windows needs PATH update
+allow-dirty = ["ci"]
 # Whether CI should include auto-generated code to build local artifacts
 build-local-artifacts = true
 # Target platforms to build apps for (Rust target-triple syntax)

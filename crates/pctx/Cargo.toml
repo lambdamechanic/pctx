@@ -1,6 +1,6 @@
 [package]
 name = "pctx"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT"
@@ -116,6 +116,3 @@ dist = true
 [package.metadata.dist.dependencies.apt]
 libclang-dev = "*"
 libc6-dev = "*"
-
-[package.metadata.dist.dependencies.chocolatey]
-nasm = "*"
