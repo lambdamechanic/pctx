@@ -8,22 +8,25 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from httpx import AsyncClient
-from pytest import Session
 
 from pctx._tool import Tool
 from pctx._websocket_client import WebSocketClient
+from pctx.exceptions import SessionError
 from pctx.models import (
+    ExecuteInput,
     ExecuteOutput,
+    GetFunctionDetailsInput,
     GetFunctionDetailsOutput,
     ListFunctionsOutput,
     ServerConfig,
     ToolConfig,
 )
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     try:
         from langchain_core.tools import BaseTool as LangchainBaseTool
-
+        from crewai.tools import BaseTool as CrewAiBaseTool
     except ImportError:
         pass
 
@@ -126,7 +129,7 @@ class Pctx:
 
     async def list_functions(self) -> ListFunctionsOutput:
         if self._session_id is None:
-            raise Session(
+            raise SessionError(
                 "No code mode session exists, run Pctx(...).connect() before calling"
             )
         list_res = await self._client.post("/code-mode/functions/list")
@@ -138,7 +141,7 @@ class Pctx:
         self, functions: list[str]
     ) -> GetFunctionDetailsOutput:
         if self._session_id is None:
-            raise Session(
+            raise SessionError(
                 "No code mode session exists, run Pctx(...).connect() before calling"
             )
         list_res = await self._client.post(
@@ -150,7 +153,7 @@ class Pctx:
 
     async def execute(self, code: str, timeout: float = 30.0) -> ExecuteOutput:
         if self._session_id is None:
-            raise Session(
+            raise SessionError(
                 "No code mode session exists, run Pctx(...).connect() before calling"
             )
         return await self._ws_client.execute_code(code, timeout=timeout)
@@ -182,77 +185,123 @@ class Pctx:
                 "LangChain is not installed. Install it with: pip install pctx[langchain]"
             ) from e
 
-        @langchain_tool
-        async def list_functions() -> ListFunctionsOutput:
-            """
-            ALWAYS USE THIS TOOL FIRST to list all available functions organized by namespace.
+        @langchain_tool(description=DEFAULT_LIST_FUNCTIONS_DESCRIPTION)
+        async def list_functions() -> str:
+            return (await self.list_functions()).code
 
-            WORKFLOW:
-            1. Start here - Call this tool to see what functions are available
-            2. Then call get_function_details() for specific functions you need to understand
-            3. Finally call execute() to run your TypeScript code
+        @langchain_tool(description=DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION)
+        async def get_function_details(functions: list[str]) -> str:
+            return (
+                await self.get_function_details(
+                    functions,
+                )
+            ).code
 
-            This returns function signatures without full details.
-            """
-            return await self.list_functions()
-
-        @langchain_tool
-        async def get_function_details(
-            functions: list[str],
-        ) -> GetFunctionDetailsOutput:
-            """
-            Get detailed information about specific functions you want to use.
-
-            WHEN TO USE: After calling list_functions(), use this to learn about parameter types, return values, and usage for specific functions.
-
-            REQUIRED FORMAT: Functions must be specified as 'namespace.functionName' (e.g., 'Namespace.apiPostSearch')
-
-            This tool is lightweight and only returns details for the functions you request, avoiding unnecessary token usage.
-            Only request details for functions you actually plan to use in your code.
-
-            NOTE ON RETURN TYPES:
-            - If a function returns Promise<any>, the MCP server didn't provide an output schema
-            - The actual value is a parsed object (not a string) - access properties directly
-            - Don't use JSON.parse() on the results - they're already JavaScript objects
-            """
-            return await self.get_function_details(
-                functions,
-            )
-
-        @langchain_tool
-        async def execute(code: str, timeout: float = 30) -> ExecuteOutput:
-            """
-            Execute TypeScript code that calls namespaced functions. USE THIS LAST after list_functions() and get_function_details().
-
-            TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
-            To minimize tokens:
-            - Filter/map/reduce data IN YOUR CODE before returning
-            - Only return specific fields you need (e.g., return {id: result.id, count: items.length})
-            - Use console.log() for intermediate results instead of returning everything
-            - Avoid returning full API responses - extract just what you need
-
-            REQUIRED CODE STRUCTURE:
-            async function run() {
-                // Your code here
-                // Call namespace.functionName() - MUST include namespace prefix
-                // Process data here to minimize return size
-                return onlyWhatYouNeed; // Keep this small!
-            }
-
-            IMPORTANT RULES:
-            - Functions MUST be called as 'Namespace.functionName' (e.g., 'Notion.apiPostSearch')
-            - Only functions from list_functions() are available - no fetch(), fs, or other Node/Deno APIs
-            - Variables don't persist between execute() calls - return or log anything you need later
-            - Add console.log() statements between API calls to track progress if errors occur
-            - Code runs in an isolated Deno sandbox with restricted network access
-
-            RETURN TYPE NOTE:
-            - Functions without output schemas show Promise<any> as return type
-            - The actual runtime value is already a parsed JavaScript object, NOT a JSON string
-            - Do NOT call JSON.parse() on results - they're already objects
-            - Access properties directly (e.g., result.data) or inspect with console.log() first
-            - If you see 'Promise<any>', the structure is unknown - log it to see what's returned
-            """
-            return await self.execute(code, timeout=timeout)
+        @langchain_tool(description=DEFAULT_EXECUTE_DESCRIPTION)
+        async def execute(code: str, timeout: float = 30) -> str:
+            return (await self.execute(code, timeout=timeout)).markdown()
 
         return [list_functions, get_function_details, execute]
+
+    def c(self) -> "list[CrewAiBaseTool]":
+        """
+        Expose PCTX code mode tools as crewai tools
+
+        Requires the 'crewai' extra to be installed:
+            pip install pctx[crewai]
+
+        Raises:
+            ImportError: If crewai is not installed.
+        """
+        try:
+            from crewai.tools import BaseTool as CrewAiBaseTool
+        except ImportError as e:
+            raise ImportError(
+                "LangChain is not installed. Install it with: pip install pctx[langchain]"
+            ) from e
+
+        class ListFunctionsTool(CrewAiBaseTool):
+            name: str = "list_functions"
+            description: str = DEFAULT_LIST_FUNCTIONS_DESCRIPTION
+
+            async def _run(_self, *args, **kwargs) -> str:
+                return (await self.list_functions()).code
+
+        class GetFunctionDetailsTool(CrewAiBaseTool):
+            name: str = "get_function_details"
+            description: str = DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION
+            args_schema: type[BaseModel] = GetFunctionDetailsInput
+
+            async def _run(_self, functions: list[str]) -> str:
+                return (await self.get_function_details(functions=functions)).code
+
+        class ExecuteTool(CrewAiBaseTool):
+            name: str = "execute"
+            description: str = DEFAULT_EXECUTE_DESCRIPTION
+            args_schema: type[BaseModel] = ExecuteInput
+
+            async def _run(_self, code: str) -> str:
+                return (await self.execute(code=code)).markdown()
+
+        return [ListFunctionsTool(), GetFunctionDetailsTool(), ExecuteTool()]
+
+
+DEFAULT_LIST_FUNCTIONS_DESCRIPTION = """
+ALWAYS USE THIS TOOL FIRST to list all available functions organized by namespace.
+
+WORKFLOW:
+1. Start here - Call this tool list_functions to see what functions are available with no params
+2. Then call get_function_details() for specific functions you need to understand
+3. Finally call execute() to run your TypeScript code
+
+This returns function signatures without full details.
+"""
+
+DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION = """
+Get detailed information about specific functions you want to use.
+
+WHEN TO USE: After calling list_functions(), use this to learn about parameter types, return values, and usage for specific functions.
+
+REQUIRED FORMAT: Functions must be specified as 'namespace.functionName' (e.g., 'Namespace.apiPostSearch')
+
+This tool is lightweight and only returns details for the functions you request, avoiding unnecessary token usage.
+Only request details for functions you actually plan to use in your code.
+
+NOTE ON RETURN TYPES:
+- If a function returns Promise<any>, the MCP server didn't provide an output schema
+- The actual value is a parsed object (not a string) - access properties directly
+- Don't use JSON.parse() on the results - they're already JavaScript objects
+"""
+
+DEFAULT_EXECUTE_DESCRIPTION = """
+Execute TypeScript code that calls namespaced functions. USE THIS LAST after list_functions() and get_function_details().
+
+TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
+To minimize tokens:
+- Filter/map/reduce data IN YOUR CODE before returning
+- Only return specific fields you need (e.g., return {id: result.id, count: items.length})
+- Use console.log() for intermediate results instead of returning everything
+- Avoid returning full API responses - extract just what you need
+
+REQUIRED CODE STRUCTURE:
+async function run() {
+    // Your code here
+    // Call namespace.functionName() - MUST include namespace prefix
+    // Process data here to minimize return size
+    return onlyWhatYouNeed; // Keep this small!
+}
+
+IMPORTANT RULES:
+- Functions MUST be called as 'Namespace.functionName' (e.g., 'Notion.apiPostSearch')
+- Only functions from list_functions() are available - no fetch(), fs, or other Node/Deno APIs
+- Variables don't persist between execute() calls - return or log anything you need later
+- Add console.log() statements between API calls to track progress if errors occur
+- Code runs in an isolated Deno sandbox with restricted network access
+
+RETURN TYPE NOTE:
+- Functions without output schemas show Promise<any> as return type
+- The actual runtime value is already a parsed JavaScript object, NOT a JSON string
+- Do NOT call JSON.parse() on results - they're already objects
+- Access properties directly (e.g., result.data) or inspect with console.log() first
+- If you see 'Promise<any>', the structure is unknown - log it to see what's returned
+"""

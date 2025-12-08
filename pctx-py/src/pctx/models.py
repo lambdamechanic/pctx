@@ -1,3 +1,4 @@
+import json
 from typing import Any, TypedDict, Literal
 from typing_extensions import NotRequired
 from pydantic import BaseModel
@@ -69,10 +70,18 @@ class FunctionDetails(BaseModel):
     types: str
 
 
+class GetFunctionDetailsInput(BaseModel):
+    functions: list[str]
+
+
 class GetFunctionDetailsOutput(BaseModel):
     """Output from getting detailed function information"""
 
     functions: list[FunctionDetails]
+    code: str
+
+
+class ExecuteInput(BaseModel):
     code: str
 
 
@@ -83,6 +92,21 @@ class ExecuteOutput(BaseModel):
     stdout: str
     stderr: str
     output: Any | None = None
+
+    def markdown(self) -> str:
+        return f"""Code Executed Successfully: {self.success}
+
+# Return Value
+```json
+{json.dumps(self.output)}
+```
+
+# STDOUT
+{self.stdout}
+
+# STDERR
+{self.stderr}
+"""
 
 
 # -------------- Websocket jsonrpc Messages --------------
