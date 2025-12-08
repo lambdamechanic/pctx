@@ -21,7 +21,7 @@ pub enum ExecuteCallbackError {
 #[derive(Default)]
 pub struct WsManager {
     /// Active sessions by ID
-    sessions: Arc<RwLock<HashMap<Uuid, Arc<RwLock<WsSession>>>>>,
+    pub(crate) sessions: Arc<RwLock<HashMap<Uuid, Arc<RwLock<WsSession>>>>>,
 }
 
 impl WsManager {

@@ -134,6 +134,25 @@ async fn write_messages(
 
                 json!(jsonrpc_req)
             }
+            WsMessage::ExecuteCodeResponse(response) => {
+                if let Some(error) = response.error {
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": response.id,
+                        "error": {
+                            "code": error.code,
+                            "message": error.message,
+                            "data": error.details,
+                        }
+                    })
+                } else {
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": response.id,
+                        "result": response.result,
+                    })
+                }
+            }
         };
 
         if let Err(e) = sender
@@ -163,6 +182,111 @@ async fn read_messages(mut receiver: SplitStream<WebSocket>, ws_session: Uuid, s
     }
 }
 
+/// Handle an execute_code request from the client
+async fn handle_execute_code_request(
+    text: String,
+    ws_session: Uuid,
+    state: &AppState,
+) -> Result<(), String> {
+    use crate::model::{ErrorCode, WsExecuteCodeResponse};
+
+    let json_value: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("Failed to parse JSON: {e}"))?;
+
+    let request_id = json_value["id"].clone();
+    let params = json_value["params"]
+        .as_object()
+        .ok_or("Missing params field")?;
+    let code = params["code"]
+        .as_str()
+        .ok_or("Missing code field")?
+        .to_string();
+
+    // Save the WebSocket session for later response
+    let ws_session_lock = state
+        .ws_manager
+        .sessions
+        .read()
+        .await
+        .get(&ws_session)
+        .cloned()
+        .ok_or_else(|| format!("WebSocket session {ws_session} not found"))?;
+
+    let ws_session_read = ws_session_lock.read().await;
+    let code_mode_session_id = ws_session_read.code_mode_session_id;
+    let sender = ws_session_read.sender.clone();
+    drop(ws_session_read);
+
+    let code_mode_lock = match state.code_mode_manager.get(code_mode_session_id).await {
+        Some(lock) => lock,
+        None => {
+            let error_response = WsExecuteCodeResponse {
+                id: request_id,
+                result: None,
+                error: Some(crate::model::ErrorData {
+                    code: ErrorCode::InvalidSession,
+                    message: format!("Code mode session {code_mode_session_id} does not exist"),
+                    details: None,
+                }),
+            };
+            let _ = sender.send(crate::model::WsMessage::ExecuteCodeResponse(error_response));
+            return Ok(());
+        }
+    };
+
+    tokio::spawn(async move {
+        let current_span = tracing::Span::current();
+        let output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
+            let _guard = current_span.enter();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
+            rt.block_on(async {
+                code_mode_lock
+                    .read()
+                    .await
+                    .execute(&code)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
+            })
+        })
+        .await;
+
+        let response = match output {
+            Ok(Ok(exec_output)) => WsExecuteCodeResponse {
+                id: request_id,
+                result: Some(exec_output),
+                error: None,
+            },
+            Ok(Err(e)) => WsExecuteCodeResponse {
+                id: request_id,
+                result: None,
+                error: Some(crate::model::ErrorData {
+                    code: ErrorCode::Execution,
+                    message: format!("Execution failed: {e}"),
+                    details: None,
+                }),
+            },
+            Err(e) => WsExecuteCodeResponse {
+                id: request_id,
+                result: None,
+                error: Some(crate::model::ErrorData {
+                    code: ErrorCode::Internal,
+                    message: format!("Task join failed: {e}"),
+                    details: None,
+                }),
+            },
+        };
+
+        if let Err(e) = sender.send(crate::model::WsMessage::ExecuteCodeResponse(response)) {
+            error!("Failed to send execute_code response: {e}");
+        }
+    });
+
+    Ok(())
+}
+
 /// Handle a single WebSocket message
 /// Messages coming from a client, needs to be routed to the correct `WsSession` for handling.
 async fn handle_message(msg: Message, ws_session: Uuid, state: &AppState) -> Result<(), String> {
@@ -170,42 +294,62 @@ async fn handle_message(msg: Message, ws_session: Uuid, state: &AppState) -> Res
         Message::Text(text) => {
             debug!("Received text message from {ws_session}: {text}");
 
-            // Parse as JSON-RPC response (client responding to execute_tool)
-            let (id, exec_res) = match serde_json::from_str::<
-                JsonRpcMessage<JsonRpcRequestData, WsExecuteToolResult>,
-            >(&text)
-            {
-                Ok(m) => match m {
-                    JsonRpcMessage::Response(res) => {
-                        let id: Uuid = serde_json::from_value(res.id.clone().into_json_value())
-                            .map_err(|_| {
-                                format!(
-                                    "Cannot route execute tool result with invalid uuid: {:?}",
-                                    &res.id
-                                )
-                            })?;
-                        (id, Ok(res.result))
-                    }
-                    JsonRpcMessage::Error(err) => {
-                        let id: Uuid = serde_json::from_value(err.id.clone().into_json_value())
-                            .map_err(|_| {
-                                format!("Cannot route error with invalid uuid: {:?}", &err.id)
-                            })?;
-                        (id, Err(err.error))
-                    }
-                    JsonRpcMessage::Request(_) | JsonRpcMessage::Notification(_) => {
-                        return Err(format!("Received jsonrpc unsupported message: {m:?}"));
-                    }
-                },
-                Err(e) => return Err(format!("Failed deserializing ws message as jsonrpc: {e}")),
-            };
+            let json_value: serde_json::Value =
+                serde_json::from_str(&text).map_err(|e| format!("Failed to parse JSON: {e}"))?;
 
-            // Resolve the pending execution with this response
-            state
-                .ws_manager
-                .handle_execution_response(id, exec_res)
-                .await
-                .map_err(|()| "Failed to resolve execution".to_string())?;
+            // Check if it's a request (has "method" field) or response (has "result" or "error")
+            if json_value.get("method").is_some() {
+                let method = json_value["method"]
+                    .as_str()
+                    .ok_or("Missing method field")?;
+
+                match method {
+                    "execute_code" => {
+                        handle_execute_code_request(text.to_string(), ws_session, state).await?;
+                    }
+                    _ => {
+                        return Err(format!("Unknown method: {method}"));
+                    }
+                }
+            } else {
+                let (id, exec_res) = match serde_json::from_str::<
+                    JsonRpcMessage<JsonRpcRequestData, WsExecuteToolResult>,
+                >(&text)
+                {
+                    Ok(m) => match m {
+                        JsonRpcMessage::Response(res) => {
+                            let id: Uuid = serde_json::from_value(res.id.clone().into_json_value())
+                                .map_err(|_| {
+                                    format!(
+                                        "Cannot route execute tool result with invalid uuid: {:?}",
+                                        &res.id
+                                    )
+                                })?;
+                            (id, Ok(res.result))
+                        }
+                        JsonRpcMessage::Error(err) => {
+                            let id: Uuid = serde_json::from_value(err.id.clone().into_json_value())
+                                .map_err(|_| {
+                                    format!("Cannot route error with invalid uuid: {:?}", &err.id)
+                                })?;
+                            (id, Err(err.error))
+                        }
+                        JsonRpcMessage::Request(_) | JsonRpcMessage::Notification(_) => {
+                            return Err(format!("Received jsonrpc unsupported message: {m:?}"));
+                        }
+                    },
+                    Err(e) => {
+                        return Err(format!("Failed deserializing ws message as jsonrpc: {e}"));
+                    }
+                };
+
+                // Resolve the pending execution with this response
+                state
+                    .ws_manager
+                    .handle_execution_response(id, exec_res)
+                    .await
+                    .map_err(|()| "Failed to resolve execution".to_string())?;
+            }
 
             Ok(())
         }

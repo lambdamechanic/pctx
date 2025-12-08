@@ -1,14 +1,10 @@
 use std::sync::Arc;
-use std::time::Instant;
 
 use axum::{Json, extract::State, http::StatusCode};
 use pctx_code_execution_runtime::CallbackFn;
 use pctx_code_mode::{
     CodeMode,
-    model::{
-        ExecuteInput, ExecuteOutput, GetFunctionDetailsInput, GetFunctionDetailsOutput,
-        ListFunctionsOutput,
-    },
+    model::{GetFunctionDetailsInput, GetFunctionDetailsOutput, ListFunctionsOutput},
 };
 use serde_json::json;
 use tokio::sync::RwLock;
@@ -181,89 +177,6 @@ pub(crate) async fn get_function_details(
     Ok(Json(details))
 }
 
-/// Execute TypeScript code with access to registered tools
-#[utoipa::path(
-    post,
-    path = "/code-mode/execute",
-    tag = "CodeMode",
-    params(
-        ("x-code-mode-session" = String, Header, description = "Current code mode session")
-    ),
-    request_body = ExecuteInput,
-    responses(
-        (status = 200, description = "Code executed successfully", body = ExecuteOutput),
-        (status = 400, description = "Code execution failed", body = ErrorData),
-        (status = 500, description = "Internal server error", body = ErrorData)
-    )
-)]
-pub(crate) async fn execute_code(
-    State(state): State<AppState>,
-    CodeModeSession(session_id): CodeModeSession,
-    Json(request): Json<ExecuteInput>,
-) -> ApiResult<Json<ExecuteOutput>> {
-    info!("Executing code");
-
-    let start = Instant::now();
-    let current_span = tracing::Span::current();
-
-    // Clone the CodeMode Arc to move into spawn_blocking
-    let code_mode_lock = state.code_mode_manager.get(session_id).await.ok_or((
-        StatusCode::NOT_FOUND,
-        Json(ErrorData {
-            code: ErrorCode::InvalidSession,
-            message: format!("Code mode session {session_id} does not exist"),
-            details: None,
-        }),
-    ))?;
-
-    // Use spawn_blocking with current-thread runtime for Deno's unsync operations
-    let output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
-        let _guard = current_span.enter();
-
-        // Create new current-thread runtime for Deno ops
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
-
-        rt.block_on(async {
-            code_mode_lock
-                .read()
-                .await
-                .execute(&request.code)
-                .await
-                .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
-        })
-    })
-    .await
-    .map_err(|e| {
-        error!("Task join failed: {e}");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorData {
-                code: ErrorCode::Internal,
-                message: format!("Execute task join failed: {e}"),
-                details: None,
-            }),
-        )
-    })?
-    .map_err(|e| {
-        error!("Sandbox execution error: {e}");
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorData {
-                code: ErrorCode::Execution,
-                message: format!("Execution failed: {e}"),
-                details: None,
-            }),
-        )
-    })?;
-
-    let execution_time_ms = start.elapsed().as_millis() as u64;
-    info!("Completed execution in {execution_time_ms}ms");
-
-    Ok(axum::Json(output))
-}
 /// Register tools that will be called via WebSocket callbacks
 #[utoipa::path(
     post,

@@ -153,12 +153,7 @@ class Pctx:
             raise Session(
                 "No code mode session exists, run Pctx(...).connect() before calling"
             )
-        exec_res = await self._client.post(
-            "/code-mode/execute", json={"code": code}, timeout=timeout
-        )
-        exec_res.raise_for_status()
-
-        return ExecuteOutput.model_validate(exec_res.json())
+        return await self._ws_client.execute_code(code, timeout=timeout)
 
     # ========== Registrations ==========
 

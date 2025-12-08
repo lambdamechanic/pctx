@@ -10,13 +10,13 @@ pub struct HealthResponse {
     pub version: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ErrorData {
     pub code: ErrorCode,
     pub message: String,
     pub details: Option<String>,
 }
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     InvalidSession,
@@ -75,6 +75,7 @@ pub struct CloseSessionResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WsMessage {
     ExecuteTool(WsExecuteTool),
+    ExecuteCodeResponse(WsExecuteCodeResponse),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,4 +89,21 @@ pub struct WsExecuteTool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WsExecuteToolResult {
     pub output: Option<serde_json::Value>,
+}
+
+/// Execute code request from client
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WsExecuteCodeRequest {
+    pub id: serde_json::Value, // String or Number (JSON-RPC allows both)
+    pub code: String,
+}
+
+/// Execute code response to client
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WsExecuteCodeResponse {
+    pub id: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<pctx_code_mode::model::ExecuteOutput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<ErrorData>,
 }

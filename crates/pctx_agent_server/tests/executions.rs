@@ -15,29 +15,48 @@ use similar_asserts::assert_serde_eq;
 #[serial]
 async fn test_exec_code_only() {
     let (session_id, server, _) = create_test_server_with_session().await;
-
-    // Execute simple code without any registered tools
-    let exec_res = server
-        .post("/code-mode/execute")
-        .add_header(CODE_MODE_SESSION_HEADER, session_id.to_string())
-        .json(&json!({
-            "code": "async function run() { return 1 + 1; }",
-        }))
+    let mut ws = connect_websocket(&server, session_id)
+        .await
+        .into_websocket()
         .await;
 
-    exec_res.assert_status_ok();
-    exec_res.assert_json(&json!({
-        "success": true,
-        "stdout": "",
-        "stderr": "",
-        "output": 2
-    }));
+    // Send execute_code request via WebSocket
+    ws.send_json(&json!({
+        "jsonrpc": "2.0",
+        "id": "test-1",
+        "method": "execute_code",
+        "params": {
+            "code": "async function run() { return 1 + 1; }"
+        }
+    }))
+    .await;
+
+    // Receive response
+    let response: serde_json::Value = ws.receive_json().await;
+
+    assert_serde_eq!(
+        response,
+        json!({
+            "jsonrpc": "2.0",
+            "id": "test-1",
+            "result": {
+                "success": true,
+                "stdout": "",
+                "stderr": "",
+                "output": 2
+            }
+        })
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_exec_code_console_output() {
     let (session_id, server, _) = create_test_server_with_session().await;
+    let mut ws = connect_websocket(&server, session_id)
+        .await
+        .into_websocket()
+        .await;
 
     let code = r#"
         async function run() {
@@ -47,26 +66,43 @@ async fn test_exec_code_console_output() {
         }
     "#;
 
-    // Execute simple code without any registered tools
-    let exec_res = server
-        .post("/code-mode/execute")
-        .add_header(CODE_MODE_SESSION_HEADER, session_id.to_string())
-        .json(&json!({"code": code}))
-        .await;
+    // Send execute_code request via WebSocket
+    ws.send_json(&json!({
+        "jsonrpc": "2.0",
+        "id": "test-2",
+        "method": "execute_code",
+        "params": {
+            "code": code
+        }
+    }))
+    .await;
 
-    exec_res.assert_status_ok();
-    exec_res.assert_json(&json!({
-        "success": true,
-        "stdout": "Test log",
-        "stderr": "Test error",
-        "output": "done"
-    }));
+    // Receive response
+    let response: serde_json::Value = ws.receive_json().await;
+
+    assert_serde_eq!(
+        response,
+        json!({
+            "jsonrpc": "2.0",
+            "id": "test-2",
+            "result": {
+                "success": true,
+                "stdout": "Test log",
+                "stderr": "Test error",
+                "output": "done"
+            }
+        })
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_exec_code_syntax_err() {
     let (session_id, server, _) = create_test_server_with_session().await;
+    let mut ws = connect_websocket(&server, session_id)
+        .await
+        .into_websocket()
+        .await;
 
     let invalid_code = "
         async function run() {
@@ -75,22 +111,33 @@ async fn test_exec_code_syntax_err() {
         }
     ";
 
-    // Execute simple code without any registered tools
-    let exec_res = server
-        .post("/code-mode/execute")
-        .add_header(CODE_MODE_SESSION_HEADER, session_id.to_string())
-        .json(&json!({"code": invalid_code}))
-        .await;
+    // Send execute_code request via WebSocket
+    ws.send_json(&json!({
+        "jsonrpc": "2.0",
+        "id": "test-3",
+        "method": "execute_code",
+        "params": {
+            "code": invalid_code
+        }
+    }))
+    .await;
 
-    exec_res.assert_status_ok();
-    exec_res.assert_json(&json!({
-        "success": false,
-        "stdout": "",
-        "stderr": "ReferenceError: bloop is not defined
-    at run (file:///execute.js:2:3)
-    at file:///execute.js:6:22",
-        "output": null
-    }));
+    // Receive response
+    let response: serde_json::Value = ws.receive_json().await;
+
+    assert_serde_eq!(
+        response,
+        json!({
+            "jsonrpc": "2.0",
+            "id": "test-3",
+            "result": {
+                "success": false,
+                "stdout": "",
+                "stderr": "ReferenceError: bloop is not defined\n    at run (file:///execute.js:2:3)\n    at file:///execute.js:6:22",
+                "output": null
+            }
+        })
+    );
 }
 
 #[tokio::test]
@@ -128,14 +175,16 @@ async fn test_exec_callbacks() {
             return value;
         }";
 
-    // Spawn the execution request as a separate task so we can test websocket messages concurrently
-    let exec_handle = tokio::spawn(async move {
-        server
-            .post("/code-mode/execute")
-            .add_header(CODE_MODE_SESSION_HEADER, session_id.to_string())
-            .json(&json!({"code": code}))
-            .await
-    });
+    // Send execute_code request via WebSocket
+    ws.send_json(&json!({
+        "jsonrpc": "2.0",
+        "id": "test-4",
+        "method": "execute_code",
+        "params": {
+            "code": code
+        }
+    }))
+    .await;
 
     // Confirm websocket handler sequence
     let add_msg: JsonRpcRequest<JsonRpcRequestData<String, WsExecuteTool>> =
@@ -246,12 +295,19 @@ async fn test_exec_callbacks() {
     })
     .await;
 
-    let exec_res = exec_handle.await.unwrap();
-    exec_res.assert_status_ok();
-    exec_res.assert_json(&json!({
-        "success": true,
-        "stdout": "after add: 10\nafter subtract: 5\nafter multiply: 50\nafter divide: 25",
-        "stderr": "",
-        "output": 25
-    }));
+    // Receive the execute_code response
+    let response: serde_json::Value = ws.receive_json().await;
+    assert_serde_eq!(
+        response,
+        json!({
+            "jsonrpc": "2.0",
+            "id": "test-4",
+            "result": {
+                "success": true,
+                "stdout": "after add: 10\nafter subtract: 5\nafter multiply: 50\nafter divide: 25",
+                "stderr": "",
+                "output": 25
+            }
+        })
+    );
 }

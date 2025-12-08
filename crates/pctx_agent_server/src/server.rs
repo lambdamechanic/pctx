@@ -18,8 +18,8 @@ use crate::{
     routes, websocket,
 };
 use pctx_code_mode::model::{
-    CallbackConfig, ExecuteInput, ExecuteOutput, FunctionDetails, GetFunctionDetailsInput,
-    GetFunctionDetailsOutput, ListFunctionsOutput, ListedFunction,
+    CallbackConfig, FunctionDetails, GetFunctionDetailsInput, GetFunctionDetailsOutput,
+    ListFunctionsOutput, ListedFunction,
 };
 
 #[allow(clippy::needless_for_each)]
@@ -31,7 +31,6 @@ use pctx_code_mode::model::{
         routes::close_session,
         routes::list_functions,
         routes::get_function_details,
-        routes::execute_code,
         routes::register_tools,
         routes::register_servers,
     ),
@@ -48,9 +47,6 @@ use pctx_code_mode::model::{
             GetFunctionDetailsInput,
             GetFunctionDetailsOutput,
             FunctionDetails,
-            // Execute
-            ExecuteInput,
-            ExecuteOutput,
             // Tool registration
             RegisterToolsRequest,
             CallbackConfig,
@@ -113,7 +109,6 @@ pub fn create_router(state: AppState) -> Router {
             "/code-mode/functions/details",
             post(routes::get_function_details),
         )
-        .route("/code-mode/execute", post(routes::execute_code))
         .route("/register/tools", post(routes::register_tools))
         .route("/register/servers", post(routes::register_servers))
         // WebSocket endpoint
