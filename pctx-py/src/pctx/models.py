@@ -40,54 +40,6 @@ class ServerConfig(TypedDict):
     auth: NotRequired[BearerAuth | HeadersAuth]
 
 
-# -------------- Websocket jsonrpc Messages --------------
-
-
-class ErrorCode(IntEnum):
-    RESOURCE_NOT_FOUND = -32002
-    INVALID_REQUEST = -32600
-    METHOD_NOT_FOUND = -32601
-    INVALID_PARAMS = -32602
-    INTERNAL_ERROR = -32603
-    PARSE_ERROR = -32700
-
-
-class ErrorData(BaseModel):
-    code: ErrorCode
-    message: str
-    data: dict[str, Any] | None = None
-
-
-class JsonRpcError(BaseModel):
-    jsonrpc: Literal["2.0"] = "2.0"
-    id: str | int
-    error: ErrorData
-
-
-class ExecuteToolParams(BaseModel):
-    id: str | int
-    namespace: str
-    name: str
-    args: dict[str, Any] | None
-
-
-class JsonRpcExecuteToolRequest(BaseModel):
-    jsonrpc: Literal["2.0"] = "2.0"
-    id: str | int
-    method: Literal["execute_tool"]
-    params: ExecuteToolParams
-
-
-class ExecuteToolResult(BaseModel):
-    output: Any | None
-
-
-class JsonRpcExecuteToolResponse(BaseModel):
-    jsonrpc: Literal["2.0"] = "2.0"
-    id: str | int
-    result: ExecuteToolResult
-
-
 # -------------- Code Mode Outputs --------------
 
 
@@ -131,3 +83,60 @@ class ExecuteOutput(BaseModel):
     stdout: str
     stderr: str
     output: Any | None = None
+
+
+# -------------- Websocket jsonrpc Messages --------------
+class JsonRpcBase(BaseModel):
+    jsonrpc: Literal["2.0"] = "2.0"
+    id: str | int
+
+
+class ErrorCode(IntEnum):
+    RESOURCE_NOT_FOUND = -32002
+    INVALID_REQUEST = -32600
+    METHOD_NOT_FOUND = -32601
+    INVALID_PARAMS = -32602
+    INTERNAL_ERROR = -32603
+    PARSE_ERROR = -32700
+
+
+class ErrorData(BaseModel):
+    code: ErrorCode
+    message: str
+    data: dict[str, Any] | None = None
+
+
+class JsonRpcError(JsonRpcBase):
+    error: ErrorData
+
+
+class ExecuteCodeParams(BaseModel):
+    code: str
+
+
+class ExecuteCodeRequest(JsonRpcBase):
+    method: Literal["execute_code"]
+    params: ExecuteCodeParams
+
+
+class ExecuteCodeResponse(JsonRpcBase):
+    result: ExecuteOutput
+
+
+class ExecuteToolParams(BaseModel):
+    namespace: str
+    name: str
+    args: dict[str, Any] | None
+
+
+class ExecuteToolRequest(JsonRpcBase):
+    method: Literal["execute_tool"]
+    params: ExecuteToolParams
+
+
+class ExecuteToolResult(BaseModel):
+    output: Any | None
+
+
+class ExecuteToolResponse(JsonRpcBase):
+    result: ExecuteToolResult
