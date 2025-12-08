@@ -1,0 +1,44 @@
+[package]
+name = "pctx_executor"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT"
+publish = false
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+deno_core = "0.363.0"
+deno_runtime = { version = "0.229.0", features = ["transpile", "hmr"] }
+deno_resolver = "0.52.0"
+node_resolver = "0.59.0"
+sys_traits = "0.1"
+deno_transpiler = { path = "../deno_transpiler" }
+pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
+pctx_type_check_runtime = { path = "../pctx_type_check_runtime" }
+pctx_config = { path = "../pctx_config" }
+tempfile = "3.14"
+regex = "1.11"
+thiserror = { workspace = true }
+tracing = { workspace = true }
+futures = "0.3"
+deno_error = "0.7"
+
+[target.'cfg(windows)'.dependencies]
+# Need version 0.59 to match deno_subprocess_windows transitive dependency
+# and ensure the feature is enabled for it as well
+windows-sys = { version = "0.59", features = [
+    "Win32_System_SystemInformation",
+] }
+
+[dev-dependencies]
+rustls = { version = "0.23", default-features = false, features = [
+    "aws-lc-rs",
+] }
+tokio = { workspace = true, features = ["rt", "macros"] }
+serial_test = "3.0"
+url = "2.5"
+
+[lints]
+workspace = true

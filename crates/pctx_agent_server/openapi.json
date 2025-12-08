@@ -1,0 +1,631 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PCTX Agent Server API",
+    "description": "REST API for PCTX agent mode - dynamic tool and MCP server registration with code execution",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/code-mode/functions/details": {
+      "post": {
+        "tags": [
+          "CodeMode"
+        ],
+        "summary": "Get detailed information about a specific function",
+        "operationId": "get_function_details",
+        "parameters": [
+          {
+            "name": "x-code-mode-session",
+            "in": "header",
+            "description": "Current code mode session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetFunctionDetailsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Function details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetFunctionDetailsOutput"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Function not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/code-mode/functions/list": {
+      "post": {
+        "tags": [
+          "CodeMode"
+        ],
+        "summary": "List all available code mode functions from both server and tool registrations",
+        "operationId": "list_functions",
+        "parameters": [
+          {
+            "name": "x-code-mode-session",
+            "in": "header",
+            "description": "Current code mode session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all code mode functions as source code & structured output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListFunctionsOutput"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/code-mode/session/close": {
+      "post": {
+        "tags": [
+          "CodeMode"
+        ],
+        "summary": "Close a `CodeMode` session",
+        "operationId": "close_session",
+        "parameters": [
+          {
+            "name": "x-code-mode-session",
+            "in": "header",
+            "description": "Current code mode session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session closed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseSessionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/code-mode/session/create": {
+      "post": {
+        "tags": [
+          "CodeMode"
+        ],
+        "summary": "Create a new `CodeMode` session",
+        "operationId": "create_session",
+        "responses": {
+          "200": {
+            "description": "Session created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSessionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health check endpoint",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/register/servers": {
+      "post": {
+        "tags": [
+          "registration"
+        ],
+        "summary": "Register MCP servers dynamically at runtime",
+        "operationId": "register_servers",
+        "parameters": [
+          {
+            "name": "x-code-mode-session",
+            "in": "header",
+            "description": "Current code mode session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterMcpServersRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MCP servers registration result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterMcpServersResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/register/tools": {
+      "post": {
+        "tags": [
+          "registration"
+        ],
+        "summary": "Register tools that will be called via WebSocket callbacks",
+        "operationId": "register_tools",
+        "parameters": [
+          {
+            "name": "x-code-mode-session",
+            "in": "header",
+            "description": "Current code mode session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterToolsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tools registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterToolsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorData"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CallbackConfig": {
+        "type": "object",
+        "required": [
+          "name",
+          "namespace"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "input_schema": {},
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "output_schema": {}
+        }
+      },
+      "CloseSessionResponse": {
+        "type": "object",
+        "description": "Response after closing a `CodeMode` session",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateSessionResponse": {
+        "type": "object",
+        "description": "Response after creating a new `CodeMode` session",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "invalid_session",
+          "internal",
+          "execution"
+        ]
+      },
+      "ErrorData": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "details": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "FunctionDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ListedFunction"
+          },
+          {
+            "type": "object",
+            "required": [
+              "input_type",
+              "output_type",
+              "types"
+            ],
+            "properties": {
+              "input_type": {
+                "type": "string",
+                "description": "typescript input type for the function"
+              },
+              "output_type": {
+                "type": "string",
+                "description": "typescript output type for the function"
+              },
+              "types": {
+                "type": "string",
+                "description": "full typescript type definitions for input/output types"
+              }
+            }
+          }
+        ]
+      },
+      "GetFunctionDetailsInput": {
+        "type": "object",
+        "required": [
+          "functions"
+        ],
+        "properties": {
+          "functions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of functions to get details of."
+          }
+        }
+      },
+      "GetFunctionDetailsOutput": {
+        "type": "object",
+        "required": [
+          "functions",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FunctionDetails"
+            }
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "description": "Health check response",
+        "required": [
+          "status",
+          "version"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "ListFunctionsOutput": {
+        "type": "object",
+        "required": [
+          "functions",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListedFunction"
+            },
+            "description": "Available functions"
+          }
+        }
+      },
+      "ListedFunction": {
+        "type": "object",
+        "required": [
+          "namespace",
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Function description"
+          },
+          "name": {
+            "type": "string",
+            "description": "Function name"
+          },
+          "namespace": {
+            "type": "string",
+            "description": "Namespace the function belongs in"
+          }
+        }
+      },
+      "McpServerConfig": {
+        "type": "object",
+        "required": [
+          "name",
+          "url"
+        ],
+        "properties": {
+          "auth": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterMcpServersRequest": {
+        "type": "object",
+        "description": "Request to register MCP servers",
+        "required": [
+          "servers"
+        ],
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServerConfig"
+            }
+          }
+        }
+      },
+      "RegisterMcpServersResponse": {
+        "type": "object",
+        "description": "Response after registering MCP servers",
+        "required": [
+          "registered",
+          "failed"
+        ],
+        "properties": {
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "registered": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "RegisterToolsRequest": {
+        "type": "object",
+        "description": "Request to register tools",
+        "required": [
+          "tools"
+        ],
+        "properties": {
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CallbackConfig"
+            }
+          }
+        }
+      },
+      "RegisterToolsResponse": {
+        "type": "object",
+        "description": "Response to registering tools",
+        "required": [
+          "registered"
+        ],
+        "properties": {
+          "registered": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "tools",
+      "description": "Tool management and execution endpoints"
+    },
+    {
+      "name": "health",
+      "description": "Health check endpoints"
+    }
+  ]
+}

@@ -1,3 +1,6 @@
+// Metrics infrastructure for future observability
+#![allow(dead_code)]
+
 use opentelemetry::metrics::{Counter, Histogram, Meter};
 use std::sync::OnceLock;
 

@@ -12,6 +12,45 @@ use tracing_subscriber::{Layer, Registry, util::SubscriberInitExt};
 
 use crate::utils::{logger, metrics};
 
+/// Initialize minimal telemetry for agent mode - stdout logging or optional JSONL file
+pub(crate) async fn init_telemetry_minimal(json_l: Option<Utf8PathBuf>) -> Result<()> {
+    let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = Vec::new();
+
+    if let Some(log_file) = json_l {
+        // Log to JSONL file if specified
+        if let Some(parent) = log_file.parent() {
+            fs::create_dir_all(parent).context(format!(
+                "failed creating parent directory of log file {log_file}"
+            ))?;
+        }
+        let write_to =
+            fs::File::create(&log_file).context(format!("failed creating log file: {log_file}"))?;
+
+        let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(format!(
+            "{},tui_markdown=error",
+            logger::default_env_filter("debug")
+        )));
+        layers.push(
+            init_tracing_layer(write_to, &LoggerFormat::Json, false)
+                .with_filter(env_filter)
+                .boxed(),
+        );
+    } else {
+        // Log to stdout with compact format
+        let env_filter = EnvFilter::try_from_default_env()
+            .unwrap_or(EnvFilter::new(logger::default_env_filter("info")));
+        layers.push(
+            init_tracing_layer(std::io::stdout, &LoggerFormat::Compact, true)
+                .with_filter(env_filter)
+                .boxed(),
+        );
+    }
+
+    tracing_subscriber::registry().with(layers).try_init()?;
+
+    Ok(())
+}
+
 pub(crate) async fn init_telemetry(cfg: &Config, json_l: Option<Utf8PathBuf>) -> Result<()> {
     let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = Vec::new();
 

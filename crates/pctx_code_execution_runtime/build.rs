@@ -7,58 +7,34 @@
 use std::env;
 use std::path::PathBuf;
 
-use deno_core::OpState;
 use deno_core::extension;
 use deno_core::snapshot::CreateSnapshotOptions;
 use deno_core::snapshot::create_snapshot;
 
-use pctx_config::server::ServerConfig;
 use rmcp::model::JsonObject;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct CallMCPToolArgs {
-    pub name: String,
-    pub tool: String,
-    #[serde(default)]
-    pub arguments: Option<JsonObject>,
-}
-
-/// Register an MCP server (stub)
-#[deno_core::op2]
-#[serde]
-fn op_register_mcp(_state: &mut OpState, #[serde] _config: ServerConfig) {}
 
 /// Call an MCP tool (async stub)
 #[deno_core::op2(async)]
 #[serde]
 #[allow(clippy::unused_async)]
-async fn op_call_mcp_tool(#[serde] _args: CallMCPToolArgs) -> serde_json::Value {
+async fn op_call_mcp_tool(
+    #[string] _server_name: String,
+    #[string] _tool_name: String,
+    #[serde] _args: Option<JsonObject>,
+) -> serde_json::Value {
     serde_json::Value::Null
 }
 
-/// Check if an MCP server is registered (stub)
-#[deno_core::op2(fast)]
-fn op_mcp_has(_state: &mut OpState, #[string] _name: String) -> bool {
-    false
-}
-
-/// Get an MCP server configuration (stub)
-#[deno_core::op2]
+/// Invoke callback (stub)
+#[deno_core::op2(async)]
 #[serde]
-fn op_mcp_get(_state: &mut OpState, #[string] _name: String) -> Option<ServerConfig> {
-    None
+#[allow(clippy::unused_async)]
+async fn op_invoke_callback(
+    #[string] _id: String,
+    #[serde] _arguments: Option<serde_json::Value>,
+) -> serde_json::Value {
+    serde_json::Value::Null
 }
-
-/// Delete an MCP server configuration (stub)
-#[deno_core::op2(fast)]
-fn op_mcp_delete(_state: &mut OpState, #[string] _name: String) -> bool {
-    false
-}
-
-/// Clear all MCP server configurations (stub)
-#[deno_core::op2(fast)]
-fn op_mcp_clear(_state: &mut OpState) {}
 
 /// Fetch (stub)
 #[deno_core::op2(async)]
@@ -77,12 +53,8 @@ extension!(
     pctx_runtime_snapshot,
     ops = [
         // Op declarations - these will be registered but not executed during snapshot
-        op_register_mcp,
         op_call_mcp_tool,
-        op_mcp_has,
-        op_mcp_get,
-        op_mcp_delete,
-        op_mcp_clear,
+        op_invoke_callback,
         op_fetch,
     ],
     esm_entry_point = "ext:pctx_runtime_snapshot/runtime.js",

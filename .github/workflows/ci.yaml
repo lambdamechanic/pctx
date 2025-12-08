@@ -4,14 +4,16 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Cargo.toml'
-      - 'crates/**'
-      - '.github/workflows/ci.yaml'
+      - "Cargo.toml"
+      - "crates/**"
+      - "python-client/**"
+      - ".github/workflows/ci.yaml"
   pull_request:
     paths:
-      - 'Cargo.toml'
-      - 'crates/**'
-      - '.github/workflows/ci.yaml'
+      - "Cargo.toml"
+      - "crates/**"
+      - "python-client/**"
+      - ".github/workflows/ci.yaml"
   workflow_dispatch:
 
 concurrency:
@@ -63,6 +65,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Install build essentials BEFORE freeing disk space to avoid removal
+      - name: Install build dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
       # Free up disk space on Ubuntu runners
       - name: Free Disk Space (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
@@ -72,7 +79,7 @@ jobs:
           android: true
           dotnet: true
           haskell: true
-          large-packages: true
+          large-packages: false
           docker-images: true
           swap-storage: true
 
@@ -99,3 +106,21 @@ jobs:
       - name: Run tests (Unix)
         # if: matrix.os != 'windows-latest'
         run: cargo test --workspace --locked
+
+  test-pctx-py:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: pctx-py
+        run: uv sync --all-extras --dev
+      - name: Run tests
+        working-directory: pctx-py
+        run: uv run pytest

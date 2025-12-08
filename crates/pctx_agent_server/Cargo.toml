@@ -1,0 +1,67 @@
+[package]
+name = "pctx_agent_server"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "generate-openapi"
+path = "src/bin/generate-openapi.rs"
+
+[dependencies]
+# Local crates
+pctx_code_mode = { path = "../pctx_code_mode" }
+pctx_config = { path = "../pctx_config" }
+pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
+codegen = { path = "../codegen" }
+
+# Web framework
+axum = { workspace = true, features = ["macros", "ws"] }
+tower = "0.5.2"
+tower-http = { version = "^0.6.6", features = ["trace", "request-id", "cors"] }
+tokio = { workspace = true, features = [
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "signal",
+] }
+tokio-tungstenite = "0.28.0"
+futures = "0.3"
+utoipa = { version = "5.3", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+url = "2.5"
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = "0.4"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Errors
+anyhow = "1.0"
+thiserror = "2.0"
+
+# MCP client
+rmcp = { workspace = true, features = [
+    "client",
+    "transport-streamable-http-client",
+] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+http-body-util = "0.1"
+tower = "0.5.2"
+reqwest = { version = "0.12", features = ["json"] }
+serial_test = "3.0"
+axum-test = { version = "^18.4.1", features = ["ws"] }
+similar-asserts = { version = "1.7.0", features = ["serde"] }
+insta = { version = "1.44.3", features = ["json"] }
+test-log = "0.2.19"
+
+[lints]
+workspace = true

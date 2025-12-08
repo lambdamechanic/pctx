@@ -9,3 +9,18 @@
 .claude
 pctx.json
 pctx-dev.jsonl
+.pctx
+
+# Python
+*.pyc
+__pycache__/
+*.so
+*.pyd
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+*.lock
+uv.lock

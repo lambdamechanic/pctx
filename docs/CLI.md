@@ -5,12 +5,15 @@ This document contains the help content for the `pctx` command-line program.
 **Command Overview:**
 
 * [`pctx`↴](#pctx)
-* [`pctx list`↴](#pctx-list)
-* [`pctx add`↴](#pctx-add)
-* [`pctx remove`↴](#pctx-remove)
-* [`pctx start`↴](#pctx-start)
-* [`pctx dev`↴](#pctx-dev)
-* [`pctx init`↴](#pctx-init)
+* [`pctx mcp`↴](#pctx-mcp)
+* [`pctx mcp init`↴](#pctx-mcp-init)
+* [`pctx mcp list`↴](#pctx-mcp-list)
+* [`pctx mcp add`↴](#pctx-mcp-add)
+* [`pctx mcp remove`↴](#pctx-mcp-remove)
+* [`pctx mcp start`↴](#pctx-mcp-start)
+* [`pctx mcp dev`↴](#pctx-mcp-dev)
+* [`pctx agent`↴](#pctx-agent)
+* [`pctx agent dev`↴](#pctx-agent-dev)
 
 ## `pctx`
 
@@ -19,19 +22,19 @@ PCTX aggregates multiple MCP servers into a single endpoint, exposing them as a 
 **Usage:** `pctx [OPTIONS] <COMMAND>`
 
 EXAMPLES:
-  pctx init 
-  pctx add my-server https://mcp.example.com
-  pctx dev
+  # MCP mode (with pctx.json configuration)
+  pctx mcp init 
+  pctx mcp add my-server https://mcp.example.com
+  pctx mcp dev
+
+  # Agent mode (REST API + WebSocket, no config)
+  pctx agent dev
 
 
 ###### **Subcommands:**
 
-* `list` — List MCP servers and test connections
-* `add` — Add an MCP server to configuration
-* `remove` — Remove an MCP server from configuration
-* `start` — Start the PCTX server
-* `dev` — Start the PCTX server with terminal UI
-* `init` — Initialize configuration file
+* `mcp` — MCP server commands (with pctx.json configuration)
+* `agent` — Agent mode commands (REST API + WebSocket, no config file)
 
 ###### **Options:**
 
@@ -43,19 +46,48 @@ EXAMPLES:
 
 
 
-## `pctx list`
+## `pctx mcp`
+
+MCP server commands (with pctx.json configuration)
+
+**Usage:** `pctx mcp <COMMAND>`
+
+###### **Subcommands:**
+
+* `init` — Initialize pctx.json configuration file
+* `list` — List MCP servers and test connections
+* `add` — Add an MCP server to configuration
+* `remove` — Remove an MCP server from configuration
+* `start` — Start the PCTX MCP server
+* `dev` — Start the PCTX MCP server with terminal UI
+
+
+
+## `pctx mcp init`
+
+Initialize pctx.json configuration file.
+
+**Usage:** `pctx mcp init [OPTIONS]`
+
+###### **Options:**
+
+* `-y`, `--yes` — Use default values and skip interactive adding of upstream MCPs
+
+
+
+## `pctx mcp list`
 
 Lists configured MCP servers and tests the connection to each.
 
-**Usage:** `pctx list`
+**Usage:** `pctx mcp list`
 
 
 
-## `pctx add`
+## `pctx mcp add`
 
 Add a new MCP server to the configuration.
 
-**Usage:** `pctx add [OPTIONS] <NAME> <URL>`
+**Usage:** `pctx mcp add [OPTIONS] <NAME> <URL>`
 
 ###### **Arguments:**
 
@@ -74,11 +106,11 @@ Add a new MCP server to the configuration.
 
 
 
-## `pctx remove`
+## `pctx mcp remove`
 
 Remove an MCP server from the configuration.
 
-**Usage:** `pctx remove <NAME>`
+**Usage:** `pctx mcp remove <NAME>`
 
 ###### **Arguments:**
 
@@ -86,11 +118,11 @@ Remove an MCP server from the configuration.
 
 
 
-## `pctx start`
+## `pctx mcp start`
 
-Start the PCTX server (exposes /mcp endpoint).
+Start the PCTX MCP server (exposes /mcp endpoint).
 
-**Usage:** `pctx start [OPTIONS]`
+**Usage:** `pctx mcp start [OPTIONS]`
 
 ###### **Options:**
 
@@ -104,11 +136,11 @@ Start the PCTX server (exposes /mcp endpoint).
 
 
 
-## `pctx dev`
+## `pctx mcp dev`
 
-Start the PCTX server in development mode with an interactive terminal UI with data and logging.
+Start the PCTX MCP server in development mode with an interactive terminal UI with data and logging.
 
-**Usage:** `pctx dev [OPTIONS]`
+**Usage:** `pctx mcp dev [OPTIONS]`
 
 ###### **Options:**
 
@@ -124,15 +156,32 @@ Start the PCTX server in development mode with an interactive terminal UI with d
 
 
 
-## `pctx init`
+## `pctx agent`
 
-Initialize pctx.json configuration file.
+Agent mode commands (REST API + WebSocket, no config file)
 
-**Usage:** `pctx init [OPTIONS]`
+**Usage:** `pctx agent <COMMAND>`
+
+###### **Subcommands:**
+
+* `dev` — Start agent mode (REST API + WebSocket)
+
+
+
+## `pctx agent dev`
+
+Start agent mode with REST API and WebSocket server. No tools preloaded - use REST API to register tools and MCP servers dynamically.
+
+**Usage:** `pctx agent dev [OPTIONS]`
 
 ###### **Options:**
 
-* `-y`, `--yes` — Use default values and skip interactive adding of upstream MCPs
+* `-p`, `--port <PORT>` — Port to run the server on
+
+  Default value: `8080`
+* `--host <HOST>` — Host to bind to
+
+  Default value: `127.0.0.1`
 
 
 
