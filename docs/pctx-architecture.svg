@@ -1,0 +1,238 @@
+<svg width="1200" height="850" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="primaryFlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#002B56;stop-opacity:0.95" />
+      <stop offset="100%" style="stop-color:#184289;stop-opacity:0.95" />
+    </linearGradient>
+    <linearGradient id="tertiaryFlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1E6969;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#184289;stop-opacity:0.9" />
+    </linearGradient>
+    <filter id="softShadow">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.2"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="850" fill="#ffffff"/>
+
+  <!-- AI Agent with Native Tools -->
+  <g filter="url(#softShadow)">
+    <rect x="100" y="40" width="1000" height="210" rx="8" fill="#f8f9fa" stroke="#3C5683" stroke-width="1.5"/>
+
+    <rect x="100" y="40" width="1000" height="55" rx="8" fill="#002B56"/>
+    <text x="600" y="73" font-family="'IBM Plex Mono', monospace" font-size="18" font-weight="600" fill="white" text-anchor="middle">
+      AI Agent Application
+    </text>
+    <text x="600" y="90" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="11" fill="#AFDFFF" text-anchor="middle">
+      Claude · GPT-4 · LangChain · Custom Framework
+    </text>
+
+    <!-- Python -->
+    <rect x="145" y="115" width="195" height="115" rx="6" fill="white" stroke="#184289" stroke-width="1"/>
+    <rect x="145" y="115" width="195" height="28" rx="6" fill="#184289"/>
+    <text x="242" y="135" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500" fill="white" text-anchor="middle">
+      Python
+    </text>
+    <text x="162" y="158" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#002B56">
+      @tool
+    </text>
+    <text x="162" y="173" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#002B56">
+      def search(q: str):
+    </text>
+    <text x="177" y="188" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#002B56">
+          return db.query(q)
+    </text>
+
+    <!-- TypeScript -->
+    <rect x="360" y="115" width="195" height="115" rx="6" fill="white" stroke="#184289" stroke-width="1"/>
+    <rect x="360" y="115" width="195" height="28" rx="6" fill="#184289"/>
+    <text x="457" y="135" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500" fill="white" text-anchor="middle">
+      TypeScript
+    </text>
+    <text x="377" y="158" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#002B56">
+      @tool
+    </text>
+    <text x="377" y="173" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#002B56">
+      function process(data) {
+    </text>
+    <text x="392" y="188" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#002B56">
+          return transform(data)
+    </text>
+
+    <!-- Other Languages -->
+    <rect x="575" y="115" width="195" height="115" rx="6" fill="white" stroke="#1E6969" stroke-width="1"/>
+    <rect x="575" y="115" width="195" height="28" rx="6" fill="#1E6969"/>
+    <text x="672" y="135" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500" fill="white" text-anchor="middle">
+      Any Language
+    </text>
+    <text x="592" y="158" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#002B56" font-weight="500">
+      Language-agnostic
+    </text>
+    <text x="592" y="175" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#012E58">
+      Decorator → Schema
+    </text>
+    <text x="592" y="192" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#012E58">
+      HTTP + WebSocket
+    </text>
+
+    <!-- MCP Servers Registration -->
+    <rect x="790" y="115" width="270" height="115" rx="6" fill="white" stroke="#1E6969" stroke-width="1"/>
+    <rect x="790" y="115" width="270" height="28" rx="6" fill="#1E6969"/>
+    <text x="925" y="135" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500" fill="white" text-anchor="middle">
+      MCP Server Registry
+    </text>
+    <text x="810" y="158" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#002B56">
+      Stripe MCP
+    </text>
+    <text x="810" y="173" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#002B56">
+      Notion MCP
+    </text>
+    <text x="810" y="188" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#002B56">
+      GitHub MCP
+    </text>
+    <text x="810" y="203" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#002B56">
+      Slack MCP · Custom...
+    </text>
+  </g>
+
+  <!-- Flow down -->
+  <line x1="600" y1="250" x2="600" y2="285" stroke="#3C5683" stroke-width="2" stroke-dasharray="4,4"/>
+  <polygon points="600,285 595,275 605,275" fill="#3C5683"/>
+  <polygon points="600,255 595,265 605,265" fill="#3C5683"/>
+
+  <!-- Code Mode Interface -->
+  <rect x="350" y="290" width="500" height="50" rx="6" fill="#AFDFFF" stroke="#3C5683" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="600" y="315" font-family="'IBM Plex Mono', monospace" font-size="13" fill="#002B56" text-anchor="middle" font-weight="500">
+    Code Mode
+  </text>
+  <text x="600" y="333" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="10" fill="#012E58" text-anchor="middle">
+    list · details · execute
+  </text>
+
+  <!-- Flow down -->
+  <line x1="600" y1="340" x2="600" y2="385" stroke="#3C5683" stroke-width="2" stroke-dasharray="4,4"/>
+  <polygon points="600,385 595,375 605,375" fill="#3C5683"/>
+
+  <!-- PCTX Core -->
+  <g filter="url(#softShadow)">
+    <rect x="120" y="390" width="960" height="330" rx="8" fill="#fafbfc" stroke="#3C5683" stroke-width="1.5"/>
+
+    <rect x="120" y="390" width="960" height="40" rx="8" fill="url(#primaryFlow)"/>
+    <text x="600" y="416" font-family="'IBM Plex Mono', monospace" font-size="16" font-weight="600" fill="white" text-anchor="middle">
+      PCTX Core
+    </text>
+
+    <!-- Channels -->
+    <rect x="160" y="450" width="400" height="60" rx="6" fill="white" stroke="#3C5683" stroke-width="1"/>
+    <text x="360" y="472" font-family="'IBM Plex Mono', monospace" font-size="12" fill="#002B56" text-anchor="middle" font-weight="500">
+      HTTP / REST
+    </text>
+    <text x="360" y="493" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="10" fill="#3C5683" text-anchor="middle">
+      Session · Discovery · Execution
+    </text>
+
+    <rect x="620" y="450" width="400" height="60" rx="6" fill="white" stroke="#3C5683" stroke-width="1"/>
+    <text x="820" y="472" font-family="'IBM Plex Mono', monospace" font-size="12" fill="#002B56" text-anchor="middle" font-weight="500">
+      WebSocket
+    </text>
+    <text x="820" y="493" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="10" fill="#3C5683" text-anchor="middle">
+      Tool Callbacks · JSON-RPC
+    </text>
+
+    <!-- Sandbox -->
+    <rect x="160" y="530" width="860" height="170" rx="6" fill="url(#tertiaryFlow)"/>
+    <text x="590" y="558" font-family="'IBM Plex Mono', monospace" font-size="14" fill="white" text-anchor="middle" font-weight="500">
+      TypeScript Execution Sandbox
+    </text>
+    <text x="590" y="576" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="10" fill="#AFDFFF" text-anchor="middle">
+      Deno Runtime · Isolated · Type-Safe
+    </text>
+
+    <rect x="190" y="595" width="245" height="90" rx="4" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+    <text x="312" y="618" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="11" fill="white" text-anchor="middle" font-weight="500">
+      Compilation
+    </text>
+    <text x="210" y="639" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#AFDFFF">
+      • Type checking
+    </text>
+    <text x="210" y="656" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#AFDFFF">
+      • Error feedback
+    </text>
+    <text x="210" y="673" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#AFDFFF">
+      • Optimization
+    </text>
+
+    <rect x="467" y="595" width="245" height="90" rx="4" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+    <text x="589" y="618" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="11" fill="white" text-anchor="middle" font-weight="500">
+      Security
+    </text>
+    <text x="487" y="639" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#AFDFFF">
+      • Network restrictions
+    </text>
+    <text x="487" y="656" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#AFDFFF">
+      • Sandboxed context
+    </text>
+    <text x="487" y="673" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#AFDFFF">
+      • No filesystem
+    </text>
+
+    <rect x="744" y="595" width="245" height="90" rx="4" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+    <text x="866" y="618" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="11" fill="white" text-anchor="middle" font-weight="500">
+      Execution
+    </text>
+    <text x="764" y="639" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#AFDFFF">
+      • Tool resolution
+    </text>
+    <text x="764" y="656" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#AFDFFF">
+      • Async flow
+    </text>
+    <text x="764" y="673" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="9" fill="#AFDFFF">
+      • Result streaming
+    </text>
+  </g>
+
+  <!-- Flow down -->
+  <line x1="360" y1="720" x2="360" y2="770" stroke="#184289" stroke-width="2" stroke-dasharray="4,4"/>
+  <polygon points="360,770 355,760 365,760" fill="#184289"/>
+
+  <line x1="820" y1="720" x2="820" y2="770" stroke="#1E6969" stroke-width="2" stroke-dasharray="4,4"/>
+  <polygon points="820,770 815,760 825,760" fill="#1E6969"/>
+
+  <!-- Local Tools -->
+  <g filter="url(#softShadow)">
+    <rect x="140" y="775" width="440" height="55" rx="6" fill="#184289"/>
+    <text x="360" y="802" font-family="'IBM Plex Mono', monospace" font-size="14" font-weight="600" fill="white" text-anchor="middle">
+      Local Tools
+    </text>
+    <text x="360" y="820" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="10" fill="#AFDFFF" text-anchor="middle">
+      Any Programming Language
+    </text>
+  </g>
+
+  <!-- MCP Servers -->
+  <g filter="url(#softShadow)">
+    <rect x="620" y="775" width="440" height="55" rx="6" fill="#1E6969"/>
+    <text x="840" y="802" font-family="'IBM Plex Mono', monospace" font-size="14" font-weight="600" fill="white" text-anchor="middle">
+      MCP Servers
+    </text>
+    <text x="840" y="820" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="10" fill="#AFDFFF" text-anchor="middle">
+      Stripe · Notion · GitHub · Slack · Custom
+    </text>
+  </g>
+
+  <!-- Bidirectional arrow for local tools -->
+  <line x1="360" y1="775" x2="360" y2="720" stroke="#184289" stroke-width="1.5" stroke-dasharray="3,3"/>
+  <polygon points="360,723 355,733 365,733" fill="#184289"/>
+
+  <!-- Bidirectional arrow for MCP -->
+  <line x1="820" y1="775" x2="820" y2="720" stroke="#1E6969" stroke-width="1.5" stroke-dasharray="3,3"/>
+  <polygon points="820,723 815,733 825,733" fill="#1E6969"/>
+</svg>

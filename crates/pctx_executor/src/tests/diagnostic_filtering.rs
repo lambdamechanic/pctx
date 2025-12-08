@@ -4,8 +4,7 @@ use crate::{ExecuteOptions, execute};
 /// Tests that we ignore typescript errors that are actually okay for execution
 ///
 /// These tests verify that the diagnostic codes in `pctx_type_check_runtime::ignored_codes::IGNORED_DIAGNOSTIC_CODES`
-/// are properly filtered. The ignored codes are synchronized between Rust and JavaScript at build time
-/// using the `rust_js_sync_codegen` crate.
+/// are properly filtered
 
 #[serial]
 #[tokio::test]
