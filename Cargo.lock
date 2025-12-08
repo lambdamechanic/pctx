@@ -6888,7 +6888,7 @@ dependencies = [
 
 [[package]]
 name = "pctx"
-version = "0.2.2"
+version = "0.3.0-rc.1"
 dependencies = [
  "anstyle",
  "anyhow",

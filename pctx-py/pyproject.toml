@@ -1,7 +1,7 @@
 [project]
 name = "pctx"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.1.0-rc.1"
+description = "Python client for using Code Mode via PCTX"
 readme = "README.md"
 authors = [{ name = "Elias Posen", email = "elias@posen.ch" }]
 requires-python = ">=3.10"

@@ -1,0 +1,59 @@
+name: Release Python Package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Get version from pyproject.toml
+        id: get_version
+        working-directory: pctx-py
+        run: |
+          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Releasing version: $VERSION"
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "pctx-py-v${{ steps.get_version.outputs.version }}"
+          git push origin "pctx-py-v${{ steps.get_version.outputs.version }}"
+
+      - name: Build package
+        working-directory: pctx-py
+        run: uv build
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "pctx-py-v${{ steps.get_version.outputs.version }}" \
+            --title "pctx-py v${{ steps.get_version.outputs.version }}" \
+            --notes "Release of pctx Python package version ${{ steps.get_version.outputs.version }}" \
+            pctx-py/dist/*
+
+      - name: Publish to PyPI
+        working-directory: pctx-py
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish --token $UV_PUBLISH_TOKEN
