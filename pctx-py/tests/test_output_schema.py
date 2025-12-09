@@ -1,7 +1,7 @@
 """Tests for create_output_schema"""
 
 from pydantic import BaseModel
-from pctx._tool import create_output_schema
+from pctx_client._tool import create_output_schema
 
 
 def test_output_schema_simple_type():

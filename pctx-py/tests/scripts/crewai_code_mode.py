@@ -3,7 +3,7 @@ import os
 
 from crewai import LLM, Agent
 
-from pctx import Pctx, tool
+from pctx_client import Pctx, tool
 
 
 @tool

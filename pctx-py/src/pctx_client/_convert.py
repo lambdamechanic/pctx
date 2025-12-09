@@ -2,7 +2,7 @@ import inspect
 from collections.abc import Callable
 from typing import Any, overload
 
-from pctx._tool import Tool
+from pctx_client._tool import Tool
 
 
 @overload

@@ -1,5 +1,5 @@
 [project]
-name = "pctx"
+name = "pctx-client"
 version = "0.1.0-rc.1"
 description = "Python client for using Code Mode via PCTX"
 readme = "README.md"

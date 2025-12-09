@@ -3,7 +3,7 @@
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from pctx._tool import create_input_schema
+from pctx_client._tool import create_input_schema
 
 
 def test_simple_function_signature():

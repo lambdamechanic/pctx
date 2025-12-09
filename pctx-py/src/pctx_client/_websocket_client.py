@@ -12,7 +12,7 @@ from typing import Any, Union
 
 import pydantic
 import websockets
-from pctx.models import (
+from pctx_client.models import (
     ErrorCode,
     ErrorData,
     ExecuteCodeParams,
@@ -24,7 +24,7 @@ from pctx.models import (
     ExecuteToolRequest,
     ExecuteToolResponse,
 )
-from pctx._tool import Tool
+from pctx_client._tool import Tool
 from websockets.asyncio.client import ClientConnection
 
 from .exceptions import ConnectionError

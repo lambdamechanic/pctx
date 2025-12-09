@@ -1,6 +1,6 @@
 import asyncio
 import pprint
-from pctx import Pctx, tool
+from pctx_client import Pctx, tool
 
 
 @tool("add", namespace="my_math")

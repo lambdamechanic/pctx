@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from pctx import tool, Tool
+from pctx_client import tool, Tool
 
 
 # ============================================================================

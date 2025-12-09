@@ -5,7 +5,7 @@ import pprint
 from langchain.agents import create_agent
 from langchain_groq import ChatGroq
 
-from pctx import Pctx, tool
+from pctx_client import Pctx, tool
 
 
 @tool

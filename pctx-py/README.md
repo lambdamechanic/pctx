@@ -5,7 +5,7 @@ Python client for using Code Mode via PCTX - execute JavaScript code with access
 ## Installation
 
 ```bash
-pip install pctx
+pip install pctx-client
 ```
 
 ## Quick Start
@@ -26,7 +26,7 @@ npm i -g @portofcontext/pctx
 2. Install Python pctx with the langchain extra
 
 ```
-pip install pctx[langchain]
+pip install pctx-client[langchain] langchain
 ```
 
 3. Start the Code Mode server for agents
@@ -40,7 +40,7 @@ pctx agent start
 ```python
 import asyncio
 
-from pctx import Pctx, tool
+from pctx_client import Pctx, tool
 from langchain.agents import create_agent
 
 # Define your tools

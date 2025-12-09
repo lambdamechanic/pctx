@@ -9,10 +9,10 @@ from urllib.parse import urlparse
 
 from httpx import AsyncClient
 
-from pctx._tool import Tool
-from pctx._websocket_client import WebSocketClient
-from pctx.exceptions import SessionError
-from pctx.models import (
+from pctx_client._tool import Tool
+from pctx_client._websocket_client import WebSocketClient
+from pctx_client.exceptions import SessionError
+from pctx_client.models import (
     ExecuteInput,
     ExecuteOutput,
     GetFunctionDetailsInput,
