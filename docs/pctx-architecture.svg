@@ -136,7 +136,7 @@
       HTTP / REST
     </text>
     <text x="360" y="493" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="10" fill="#3C5683" text-anchor="middle">
-      Session · Discovery · Execution
+      Session · Discovery
     </text>
 
     <rect x="620" y="450" width="400" height="60" rx="6" fill="white" stroke="#3C5683" stroke-width="1"/>
@@ -144,7 +144,7 @@
       WebSocket
     </text>
     <text x="820" y="493" font-family="'Neue Haas Grotesk Display Pro', Arial, sans-serif" font-size="10" fill="#3C5683" text-anchor="middle">
-      Tool Callbacks · JSON-RPC
+      Execution · Tool Callbacks · JSON-RPC
     </text>
 
     <!-- Sandbox -->
