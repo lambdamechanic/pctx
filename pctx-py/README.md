@@ -10,23 +10,26 @@ pip install pctx-client
 
 ## Quick Start
 
-1. Install PCTX server
+1. Install PCTX server (currently release candidate)
 
 ```bash
-# Homebrew
-brew install portofcontext/tap/pctx
-
 # cURL
-curl --proto '=https' --tlsv1.2 -LsSf https://raw.githubusercontent.com/portofcontext/pctx/main/install.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/portofcontext/pctx/releases/download/v0.3.0-rc.1/pctx-installer.sh | sh
 
 # npm
-npm i -g @portofcontext/pctx
+npm install @portofcontext/pctx@0.3.0-rc.1
 ```
 
-2. Install Python pctx with the langchain extra
+2. Install Python pctx with the langchain extra (this example uses a groq model but you can use any model supported by langchain)
 
 ```
-pip install pctx-client[langchain] langchain
+pip install pctx-client[langchain] langchain  langchain-groq
+```
+
+3. Set the Groq API key ([create a free account to get a key](https://groq.com/))
+
+```bash
+export GROQ_API_KEY=*****
 ```
 
 3. Start the Code Mode server for agents
@@ -62,7 +65,7 @@ async def main():
 
     # Define your agent
     agent = create_agent(
-        model="anthropic:claude-sonnet-4-5-20250929", # choose any model supported by langchain!
+        model="groq:openai/gpt-oss-120b", # choose any model supported by langchain!
         tools=p.langchain_tools(),
         system_prompt="You are a helpful assistant",
     )
