@@ -1,3 +1,5 @@
+#![allow(clippy::needless_for_each)] // Caused by #[derive(OpenApi)]
+
 use anyhow::Result;
 use axum::{
     Router,
@@ -22,7 +24,6 @@ use pctx_code_mode::model::{
     ListFunctionsOutput, ListedFunction,
 };
 
-#[allow(clippy::needless_for_each)]
 #[derive(OpenApi)]
 #[openapi(
     paths(

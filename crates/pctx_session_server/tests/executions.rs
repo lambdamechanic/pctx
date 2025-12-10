@@ -1,11 +1,11 @@
 mod utils;
 
 use crate::utils::{callback_tools, connect_websocket, create_test_server_with_session};
-use pctx_agent_server::{
+use pctx_code_mode::model::CallbackConfig;
+use pctx_session_server::{
     CODE_MODE_SESSION_HEADER,
     model::{ExecuteCodeParams, PctxJsonRpcRequest, WsJsonRpcMessage},
 };
-use pctx_code_mode::model::CallbackConfig;
 use rmcp::model::RequestId;
 use serde_json::json;
 use serial_test::serial;

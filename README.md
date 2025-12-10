@@ -49,7 +49,6 @@ For configuration options, see [Configuration Guide](docs/config.md).
 
 <img width="1020" height="757" alt="Screenshot 2025-11-21 at 11 03 20 AM" src="https://github.com/user-attachments/assets/d61be46d-5a4b-40fd-953a-7dc725266e63" />
 
-
 ## What is pctx?
 
 `pctx` sits between AI agents and MCP servers. It aggregates multiple upstream MCP servers, handles authentication, and exposes tools through a unified [Code Mode](#what-is-code-mode) interface. Instead of agents managing connections to individual MCP servers, they connect once to pctx.

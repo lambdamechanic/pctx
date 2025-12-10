@@ -1,7 +1,7 @@
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
-use pctx_agent_server::{AppState, start_server};
+use pctx_session_server::{AppState, start_server};
 use tabled::{
     Table,
     builder::Builder,
