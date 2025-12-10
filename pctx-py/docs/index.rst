@@ -85,7 +85,7 @@ Features
 - **Tool Decorator**: Easily expose Python functions as callable tools
 - **Async Support**: Full async/await support for non-blocking operations
 - **MCP Server Integration**: Connect to MCP servers for extended functionality
-- **Framework Integrations**: Use tools with LangChain, CrewAI, Google ADK, OpenAI Agents SDK, and Pydantic AI
+- **Framework Integrations**: Use tools with LangChain, CrewAI, , OpenAI Agents SDK, and Pydantic AI
 
 Framework Integrations
 ----------------------
@@ -111,16 +111,6 @@ PCTX provides converters for multiple AI agent frameworks:
 .. code-block:: python
 
    tools = pctx.c()
-
-**Google ADK (Agent Development Kit)**
-
-.. code-block:: bash
-
-   pip install pctx[google-genai]
-
-.. code-block:: python
-
-   tools = pctx.google_adk_tools()
 
 **OpenAI Agents SDK**
 

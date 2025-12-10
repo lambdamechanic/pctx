@@ -13,7 +13,6 @@ dependencies = ["httpx>=0.28.1", "pydantic>=2.7.2", "websockets>=15.0.1"]
 [project.optional-dependencies]
 langchain = ["langchain>=1.1.2"]
 crewai = ["crewai>=1.6.1"]
-google-genai = ["google-genai>=0.2.0"]
 openai = ["openai>=1.0.0"]
 pydantic-ai = ["pydantic-ai>=0.0.14"]
 
@@ -33,12 +32,11 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "ipython>=8.26",
-    "langchain-groq>=1.1.0",
     "litellm>=1.80.8",
     # Test dependencies for tool converters
     "langchain>=1.1.2",
+    "langchain-openai>=0.3.0",
     "crewai>=1.6.1",
-    "google-genai>=0.2.0",
     "openai>=1.0.0",
     "pydantic-ai>=0.0.14",
 ]

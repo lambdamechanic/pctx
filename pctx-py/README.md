@@ -145,16 +145,6 @@ pip install pctx[crewai]
 tools = pctx.c()
 ```
 
-### Google ADK (Agent Development Kit)
-
-```bash
-pip install pctx[google-genai]
-```
-
-```python
-tools = pctx.google_adk_tools()
-```
-
 ### OpenAI Agents SDK
 
 ```bash

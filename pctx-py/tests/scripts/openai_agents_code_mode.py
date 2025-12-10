@@ -4,7 +4,7 @@ Example script demonstrating PCTX integration with OpenAI Agents SDK
 This script shows how to use PCTX code mode tools with the OpenAI Agents SDK.
 Requires: pip install pctx[openai]
 
-Set the OPENAI_API_KEY environment variable before running.
+Set the OPENROUTER_API_KEY environment variable before running.
 """
 
 import asyncio
@@ -74,20 +74,34 @@ async def run_agent():
     # Get PCTX tools in OpenAI format
     pctx_tools = code_mode.openai_agents_tools()
 
-    # Initialize OpenAI client
-    client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    # Initialize OpenAI client with OpenRouter
+    client = AsyncOpenAI(
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1"
+    )
 
     # Create a conversation with tools
     messages = [
-        {"role": "system", "content": "You are a helpful assistant with access to code execution tools."},
+        {
+            "role": "system",
+            "content": (
+                "You are a helpful assistant with access to code execution tools. "
+                "You have no information other than what is returned by the tools - you MUST use your tools to answer questions. "
+                "When asked about weather, time, or other information, follow this workflow:\n"
+                "1. First call list_functions to see what functions are available\n"
+                "2. Call get_function_details if you need more information about specific functions\n"
+                "3. Call execute with TypeScript code that calls the appropriate functions\n"
+                "Only write code when you're ready to call the execute tool."
+            ),
+        },
         {"role": "user", "content": "What is the weather and time in San Francisco?"}
     ]
 
-    print("Sending request to OpenAI with PCTX tools...")
+    print("Sending request to OpenRouter with PCTX tools...")
 
     # First API call with tools
     response = await client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="deepseek/deepseek-chat",
         messages=messages,
         tools=pctx_tools,
         tool_choice="auto",
@@ -105,9 +119,9 @@ async def run_agent():
         messages.extend(tool_results)
 
         # Second API call with tool results
-        print("Sending tool results back to OpenAI...")
+        print("Sending tool results back to OpenRouter...")
         second_response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="deepseek/deepseek-chat",
             messages=messages,
         )
 
@@ -120,10 +134,10 @@ async def run_agent():
 
 
 if __name__ == "__main__":
-    if "OPENAI_API_KEY" not in os.environ:
+    if "OPENROUTER_API_KEY" not in os.environ:
         raise EnvironmentError(
-            "OPENAI_API_KEY not set in the environment. "
-            "Get your API key from https://platform.openai.com/api-keys"
+            "OPENROUTER_API_KEY not set in the environment. "
+            "Get your API key from https://openrouter.ai/settings/keys"
         )
 
     asyncio.run(run_agent())

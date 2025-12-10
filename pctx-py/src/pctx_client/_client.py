@@ -12,7 +12,7 @@ from httpx import AsyncClient
 
 from pctx_client._tool import Tool
 from pctx_client._websocket_client import WebSocketClient
-from pctx_client.exceptions import SessionError
+from pctx_client.exceptions import ConnectionError, SessionError
 from pctx_client.models import (
     ExecuteInput,
     ExecuteOutput,
@@ -28,7 +28,6 @@ if TYPE_CHECKING:
     try:
         from langchain_core.tools import BaseTool as LangchainBaseTool
         from crewai.tools import BaseTool as CrewAiBaseTool
-        from google.genai.types import FunctionDeclaration, Tool as GoogleADKTool
         from openai import BaseModel as OpenAIBaseModel
         from pydantic_ai.tools import Tool as PydanticAITool
     except ImportError:
@@ -92,9 +91,33 @@ class Pctx:
         if self._session_id is not None:
             await self.disconnect()
 
-        connect_res = await self._client.post("/code-mode/session/create")
-        connect_res.raise_for_status()
-        self._session_id = connect_res.json()["session_id"]
+        try:
+            connect_res = await self._client.post("/code-mode/session/create")
+            connect_res.raise_for_status()
+        except Exception as e:
+            # Check if this is a connection error (server not running)
+            error_message = str(e).lower()
+            if any(
+                msg in error_message
+                for msg in ["connection", "refused", "failed to connect", "unreachable"]
+            ):
+                raise ConnectionError(
+                    f"Failed to connect to PCTX server at {self._client.base_url}. "
+                    "Please ensure the server is running.\n"
+                    "Start the server with: pctx server start"
+                ) from e
+            # Re-raise other errors as-is
+            raise
+
+        # Parse the session ID from the response
+        try:
+            self._session_id = connect_res.json()["session_id"]
+        except (KeyError, ValueError) as e:
+            raise ConnectionError(
+                f"Received invalid response from PCTX server at {self._client.base_url}. "
+                "The server may be running but not responding correctly."
+            ) from e
+
         self._client.headers = {"x-code-mode-session": self._session_id or ""}
 
         # Connect WebSocket client
@@ -206,7 +229,7 @@ class Pctx:
 
         return [list_functions, get_function_details, execute]
 
-    def c(self) -> "list[CrewAiBaseTool]":
+    def crewai_tools(self) -> "list[CrewAiBaseTool]":
         """
         Expose PCTX code mode tools as crewai tools
 
@@ -220,104 +243,67 @@ class Pctx:
             from crewai.tools import BaseTool as CrewAiBaseTool
         except ImportError as e:
             raise ImportError(
-                "LangChain is not installed. Install it with: pip install pctx[langchain]"
+                "CrewAI is not installed. Install it with: pip install pctx[crewai]"
             ) from e
+
+        import asyncio
+
+        # Capture the current event loop for later use from threads
+        try:
+            main_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            main_loop = None
 
         class ListFunctionsTool(CrewAiBaseTool):
             name: str = "list_functions"
             description: str = DEFAULT_LIST_FUNCTIONS_DESCRIPTION
 
-            async def _run(_self, *args, **kwargs) -> str:
-                return (await self.list_functions()).code
+            def _run(_self) -> str:
+                # When called from CrewAI's thread pool, use the main event loop
+                if main_loop is not None:
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.list_functions(), main_loop
+                    )
+                    return future.result(timeout=30).code
+                else:
+                    # No event loop captured, create a new one
+                    return asyncio.run(self.list_functions()).code
 
         class GetFunctionDetailsTool(CrewAiBaseTool):
             name: str = "get_function_details"
             description: str = DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION
             args_schema: type[BaseModel] = GetFunctionDetailsInput
 
-            async def _run(_self, functions: list[str]) -> str:
-                return (await self.get_function_details(functions=functions)).code
+            def _run(_self, functions: list[str]) -> str:
+                # When called from CrewAI's thread pool, use the main event loop
+                if main_loop is not None:
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.get_function_details(functions=functions), main_loop
+                    )
+                    return future.result(timeout=30).code
+                else:
+                    # No event loop captured, create a new one
+                    return asyncio.run(
+                        self.get_function_details(functions=functions)
+                    ).code
 
         class ExecuteTool(CrewAiBaseTool):
             name: str = "execute"
             description: str = DEFAULT_EXECUTE_DESCRIPTION
             args_schema: type[BaseModel] = ExecuteInput
 
-            async def _run(_self, code: str) -> str:
-                return (await self.execute(code=code)).markdown()
+            def _run(_self, code: str) -> str:
+                # When called from CrewAI's thread pool, use the main event loop
+                if main_loop is not None:
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.execute(code=code), main_loop
+                    )
+                    return future.result(timeout=30).markdown()
+                else:
+                    # No event loop captured, create a new one
+                    return asyncio.run(self.execute(code=code)).markdown()
 
         return [ListFunctionsTool(), GetFunctionDetailsTool(), ExecuteTool()]
-
-    def google_adk_tools(self) -> "list[GoogleADKTool]":
-        """
-        Expose PCTX code mode tools as Google ADK tools
-
-        Requires the 'google-genai' extra to be installed:
-            pip install pctx[google-genai]
-
-        Raises:
-            ImportError: If google-genai is not installed.
-        """
-        try:
-            from google.genai.types import FunctionDeclaration, Tool as GoogleADKTool
-        except ImportError as e:
-            raise ImportError(
-                "Google Generative AI SDK is not installed. Install it with: pip install pctx[google-genai]"
-            ) from e
-
-        # Define function declarations for Google ADK
-        list_functions_declaration = FunctionDeclaration(
-            name="list_functions",
-            description=DEFAULT_LIST_FUNCTIONS_DESCRIPTION,
-            parameters={"type": "object", "properties": {}, "required": []},
-        )
-
-        get_function_details_declaration = FunctionDeclaration(
-            name="get_function_details",
-            description=DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "functions": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of function names in 'namespace.functionName' format",
-                    }
-                },
-                "required": ["functions"],
-            },
-        )
-
-        execute_declaration = FunctionDeclaration(
-            name="execute",
-            description=DEFAULT_EXECUTE_DESCRIPTION,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "code": {
-                        "type": "string",
-                        "description": "TypeScript code to execute",
-                    },
-                    "timeout": {
-                        "type": "number",
-                        "description": "Timeout in seconds (default: 30)",
-                        "default": 30.0,
-                    },
-                },
-                "required": ["code"],
-            },
-        )
-
-        # Create Google ADK Tool with all function declarations
-        tool = GoogleADKTool(
-            function_declarations=[
-                list_functions_declaration,
-                get_function_details_declaration,
-                execute_declaration,
-            ]
-        )
-
-        return [tool]
 
     def openai_agents_tools(self) -> "list[dict]":
         """
