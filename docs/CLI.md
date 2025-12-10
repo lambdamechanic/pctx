@@ -5,6 +5,7 @@ This document contains the help content for the `pctx` command-line program.
 **Command Overview:**
 
 * [`pctx`↴](#pctx)
+* [`pctx start`↴](#pctx-start)
 * [`pctx mcp`↴](#pctx-mcp)
 * [`pctx mcp init`↴](#pctx-mcp-init)
 * [`pctx mcp list`↴](#pctx-mcp-list)
@@ -12,29 +13,27 @@ This document contains the help content for the `pctx` command-line program.
 * [`pctx mcp remove`↴](#pctx-mcp-remove)
 * [`pctx mcp start`↴](#pctx-mcp-start)
 * [`pctx mcp dev`↴](#pctx-mcp-dev)
-* [`pctx agent`↴](#pctx-agent)
-* [`pctx agent dev`↴](#pctx-agent-dev)
 
 ## `pctx`
 
-PCTX aggregates multiple MCP servers into a single endpoint, exposing them as a TypeScript API for AI agents to call via code execution.
+Use PCTX to expose code mode either as a session based server or by aggregating multiple MCP servers into a single code mode MCP server.
 
 **Usage:** `pctx [OPTIONS] <COMMAND>`
 
 EXAMPLES:
-  # MCP mode (with pctx.json configuration)
+  # Code Mode sessions
+  pctx start
+  # Code Mode MCP
   pctx mcp init 
   pctx mcp add my-server https://mcp.example.com
   pctx mcp dev
 
-  # Agent mode (REST API + WebSocket, no config)
-  pctx agent dev
-
+  
 
 ###### **Subcommands:**
 
+* `start` — Start PCTX server for code mode sessions
 * `mcp` — MCP server commands (with pctx.json configuration)
-* `agent` — Agent mode commands (REST API + WebSocket, no config file)
 
 ###### **Options:**
 
@@ -43,6 +42,27 @@ EXAMPLES:
   Default value: `pctx.json`
 * `-q`, `--quiet` — No logging except for errors
 * `-v`, `--verbose` — Verbose logging (-v) or trace logging (-vv)
+
+
+
+## `pctx start`
+
+Starts PCTX server with no pre-configured tools. Use a client library like `pip install pctx-client` to create sessions, register tools, and expose code-mode tools to agent libraries.
+
+**Usage:** `pctx start [OPTIONS]`
+
+###### **Options:**
+
+* `-p`, `--port <PORT>` — Port to listen on
+
+  Default value: `8080`
+* `--host <HOST>` — Host address to bind to (use 0.0.0.0 for external access)
+
+  Default value: `127.0.0.1`
+* `--session-dir <SESSION_DIR>` — Path to session storage directory
+
+  Default value: `.pctx/sessions`
+* `--no-banner` — Don't show the server banner
 
 
 
@@ -153,35 +173,6 @@ Start the PCTX MCP server in development mode with an interactive terminal UI wi
 * `--log-file <LOG_FILE>` — Path to JSONL log file
 
   Default value: `pctx-dev.jsonl`
-
-
-
-## `pctx agent`
-
-Agent mode commands (REST API + WebSocket, no config file)
-
-**Usage:** `pctx agent <COMMAND>`
-
-###### **Subcommands:**
-
-* `dev` — Start agent mode (REST API + WebSocket)
-
-
-
-## `pctx agent dev`
-
-Start agent mode with REST API and WebSocket server. No tools preloaded - use REST API to register tools and MCP servers dynamically.
-
-**Usage:** `pctx agent dev [OPTIONS]`
-
-###### **Options:**
-
-* `-p`, `--port <PORT>` — Port to run the server on
-
-  Default value: `8080`
-* `--host <HOST>` — Host to bind to
-
-  Default value: `127.0.0.1`
 
 
 

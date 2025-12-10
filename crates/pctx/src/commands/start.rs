@@ -1,7 +1,7 @@
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
-use pctx_agent_server::{AppState, start_server};
+use pctx_session_server::{AppState, start_server};
 use tabled::{
     Table,
     builder::Builder,
@@ -17,7 +17,7 @@ use tracing::info;
 
 use crate::utils::styles::fmt_dimmed;
 
-const LOGO: &str = include_str!("../../../../../assets/ascii-logo.txt");
+const LOGO: &str = include_str!("../../../../assets/ascii-logo.txt");
 
 #[derive(Debug, Clone, Parser)]
 pub struct StartCmd {

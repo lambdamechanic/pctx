@@ -1,4 +1,4 @@
-use pctx_agent_server::server::ApiDoc;
+use pctx_session_server::server::ApiDoc;
 use std::fs;
 use std::path::PathBuf;
 use utoipa::OpenApi;

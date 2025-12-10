@@ -1,6 +1,13 @@
 use std::io::Write;
 
-const WHITELISTED_CRATES: &[&str] = &["pctx", "pctx_config", "pctx_executor", "codegen"];
+const WHITELISTED_CRATES: &[&str] = &[
+    "pctx",
+    "pctx_mcp_server",
+    "pctx_session_server",
+    "pctx_config",
+    "pctx_executor",
+    "codegen",
+];
 
 pub(crate) fn default_env_filter(level: &str) -> String {
     let mut filters: Vec<String> = WHITELISTED_CRATES

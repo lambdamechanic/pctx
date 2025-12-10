@@ -116,7 +116,6 @@ class Pctx:
             for t in self._tools
         ]
 
-        print("registering...")
         await self._register_tools(configs)
         await self._register_servers(self._servers)
 

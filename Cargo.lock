@@ -5312,7 +5312,6 @@ checksum = "b5c943d4415edd8153251b6f197de5eb1640e56d84e8d9159bea190421c73698"
 dependencies = [
  "console",
  "once_cell",
- "serde",
  "similar",
 ]
 
@@ -6908,11 +6907,11 @@ dependencies = [
  "opentelemetry 0.31.0",
  "opentelemetry-otlp 0.31.0",
  "opentelemetry_sdk 0.31.0",
- "pctx_agent_server",
  "pctx_code_mode",
  "pctx_config",
  "pctx_executor",
  "pctx_mcp_server",
+ "pctx_session_server",
  "ratatui",
  "rmcp",
  "rustls",
@@ -6931,41 +6930,6 @@ dependencies = [
  "tracing-subscriber",
  "tui-markdown",
  "url",
-]
-
-[[package]]
-name = "pctx_agent_server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum 0.8.7",
- "axum-test",
- "chrono",
- "codegen",
- "futures",
- "http-body-util",
- "insta",
- "pctx_code_execution_runtime",
- "pctx_code_mode",
- "pctx_config",
- "reqwest",
- "rmcp",
- "serde",
- "serde_json",
- "serial_test",
- "similar-asserts",
- "test-log",
- "thiserror 2.0.17",
- "tokio",
- "tokio-test",
- "tokio-tungstenite",
- "tower 0.5.2",
- "tower-http",
- "tracing",
- "url",
- "utoipa",
- "utoipa-swagger-ui",
- "uuid",
 ]
 
 [[package]]
@@ -7076,6 +7040,40 @@ dependencies = [
  "tower 0.5.2",
  "tower-http",
  "tracing",
+]
+
+[[package]]
+name = "pctx_session_server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum 0.8.7",
+ "axum-test",
+ "chrono",
+ "codegen",
+ "futures",
+ "http-body-util",
+ "pctx_code_execution_runtime",
+ "pctx_code_mode",
+ "pctx_config",
+ "reqwest",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "similar-asserts",
+ "test-log",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-test",
+ "tokio-tungstenite",
+ "tower 0.5.2",
+ "tower-http",
+ "tracing",
+ "url",
+ "utoipa",
+ "utoipa-swagger-ui",
+ "uuid",
 ]
 
 [[package]]
