@@ -4,27 +4,23 @@ pub mod utils;
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 
-use crate::utils::{
-    logger::init_cli_logger,
-    telemetry::{init_telemetry, init_telemetry_minimal},
-};
+use crate::utils::{logger::init_cli_logger, telemetry::init_telemetry};
 use pctx_config::Config;
 
 #[derive(Parser)]
 #[command(name = "pctx")]
 #[command(version)]
-#[command(about = "PCTX - Code Mode MCP")]
+#[command(about = "PCTX - Code Mode")]
 #[command(
-    long_about = "PCTX aggregates multiple MCP servers into a single endpoint, exposing them as a TypeScript API \
-for AI agents to call via code execution."
+    long_about = "Use PCTX to expose code mode either as a session based server or by aggregating multiple MCP servers into a single code mode MCP server."
 )]
 #[command(after_help = "EXAMPLES:\n  \
-    # MCP mode (with pctx.json configuration)\n  \
+    # Code Mode sessions\n  \
+    pctx start\n  \
+    # Code Mode MCP\n  \
     pctx mcp init \n  \
     pctx mcp add my-server https://mcp.example.com\n  \
     pctx mcp dev\n\n  \
-    # Agent mode (REST API + WebSocket, no config)\n  \
-    pctx agent start\n\
 ")]
 pub struct Cli {
     #[command(subcommand)]
@@ -63,7 +59,12 @@ impl Cli {
     pub async fn handle(&self) -> anyhow::Result<()> {
         match &self.command {
             Commands::Mcp(mcp_cmd) => self.handle_mcp(mcp_cmd).await,
-            Commands::Agent(agent_cmd) => self.handle_agent(agent_cmd).await,
+            Commands::Start(start_cmd) => {
+                let cfg = Config::load(&self.config).unwrap_or_default();
+                init_telemetry(&cfg, None).await?;
+
+                start_cmd.handle().await
+            }
         }
     }
 
@@ -87,31 +88,20 @@ impl Cli {
 
         Ok(())
     }
-
-    async fn handle_agent(&self, cmd: &AgentCommands) -> anyhow::Result<()> {
-        // Agent mode doesn't need config file
-        match cmd {
-            AgentCommands::Start(start_cmd) => {
-                // Init minimal telemetry with optional JSONL logging
-                init_telemetry_minimal(self.json_l()).await?;
-                start_cmd.handle().await?;
-            }
-        }
-
-        Ok(())
-    }
 }
 
 #[derive(Debug, Subcommand)]
 #[command(styles=utils::styles::get_styles())]
 pub enum Commands {
+    /// Start PCTX server for code mode sessions
+    #[command(
+        long_about = "Starts PCTX server with no pre-configured tools. Use a client library like `pip install pctx-client` to create sessions, register tools, and expose code-mode tools to agent libraries."
+    )]
+    Start(commands::start::StartCmd),
+
     /// MCP server commands (with pctx.json configuration)
     #[command(subcommand)]
     Mcp(McpCommands),
-
-    /// Agent mode commands (REST API + WebSocket, no config file)
-    #[command(subcommand)]
-    Agent(AgentCommands),
 }
 
 #[derive(Debug, Subcommand)]
@@ -141,13 +131,4 @@ pub enum McpCommands {
         long_about = "Start the PCTX MCP server in development mode with an interactive terminal UI with data and logging."
     )]
     Dev(commands::mcp::DevCmd),
-}
-
-#[derive(Debug, Subcommand)]
-pub enum AgentCommands {
-    /// Start agent mode (REST API + WebSocket)
-    #[command(
-        long_about = "Start agent mode with REST API and WebSocket server. No tools preloaded - use REST API to register tools and MCP servers dynamically."
-    )]
-    Start(commands::agent::StartCmd),
 }

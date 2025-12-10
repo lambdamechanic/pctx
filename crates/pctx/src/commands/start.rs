@@ -17,7 +17,7 @@ use tracing::info;
 
 use crate::utils::styles::fmt_dimmed;
 
-const LOGO: &str = include_str!("../../../../../assets/ascii-logo.txt");
+const LOGO: &str = include_str!("../../../../assets/ascii-logo.txt");
 
 #[derive(Debug, Clone, Parser)]
 pub struct StartCmd {
