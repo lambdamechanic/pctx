@@ -1,6 +1,6 @@
 """Tests for create_output_schema"""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 from pctx_client._tool import create_output_schema
 
 
@@ -10,18 +10,9 @@ def test_output_schema_simple_type():
     def returns_int() -> int:
         return 42
 
-    Model, wrapped = create_output_schema("IntOutput", returns_int)
-
-    # Should wrap in data field
-    assert wrapped
-    instance = Model(data=42)
-    assert getattr(instance, "data") == 42
-
-    # Check schema
-    schema = Model.model_json_schema()
-    assert "data" in schema["properties"]
-    assert schema["properties"]["data"]["type"] == "integer"
-    assert schema["required"] == ["data"]
+    typ = create_output_schema(returns_int)
+    adapter = TypeAdapter(typ)
+    assert adapter.json_schema() == {"type": "integer"}
 
 
 def test_output_schema_string_type():
@@ -30,14 +21,9 @@ def test_output_schema_string_type():
     def returns_str() -> str:
         return "hello"
 
-    Model, wrapped = create_output_schema("StrOutput", returns_str)
-
-    assert wrapped
-    instance = Model(data="hello world")
-    assert getattr(instance, "data") == "hello world"
-
-    schema = Model.model_json_schema()
-    assert schema["properties"]["data"]["type"] == "string"
+    typ = create_output_schema(returns_str)
+    adapter = TypeAdapter(typ)
+    assert adapter.json_schema() == {"type": "string"}
 
 
 def test_output_schema_complex_type():
@@ -46,15 +32,9 @@ def test_output_schema_complex_type():
     def returns_list() -> list[str]:
         return ["a", "b", "c"]
 
-    Model, wrapped = create_output_schema("ListOutput", returns_list)
-
-    assert wrapped
-    instance = Model(data=["x", "y", "z"])
-    assert getattr(instance, "data") == ["x", "y", "z"]
-
-    schema = Model.model_json_schema()
-    assert "data" in schema["properties"]
-    assert schema["properties"]["data"]["type"] == "array"
+    typ = create_output_schema(returns_list)
+    adapter = TypeAdapter(typ)
+    assert adapter.json_schema() == {"type": "array", "items": {"type": "string"}}
 
 
 def test_output_schema_dict_type():
@@ -63,11 +43,12 @@ def test_output_schema_dict_type():
     def returns_dict() -> dict[str, int]:
         return {"a": 1, "b": 2}
 
-    Model, wrapped = create_output_schema("DictOutput", returns_dict)
-
-    assert wrapped
-    instance = Model(data={"x": 10, "y": 20})
-    assert getattr(instance, "data") == {"x": 10, "y": 20}
+    typ = create_output_schema(returns_dict)
+    adapter = TypeAdapter(typ)
+    assert adapter.json_schema() == {
+        "type": "object",
+        "additionalProperties": {"type": "integer"},
+    }
 
 
 def test_output_schema_no_annotation():
@@ -76,14 +57,10 @@ def test_output_schema_no_annotation():
     def no_return_type():
         return "something"
 
-    Model, _ = create_output_schema("NoTypeOutput", no_return_type)
-
-    # Should use Any type
-    instance = Model(data="can be anything")
-    assert getattr(instance, "data") == "can be anything"
-
-    instance2 = Model(data=42)
-    assert getattr(instance2, "data") == 42
+    typ = create_output_schema(no_return_type)
+    adapter = TypeAdapter(typ)
+    # Should use Any type - schema is empty dict for Any
+    assert adapter.json_schema() == {}
 
 
 def test_output_schema_with_pydantic_model():
@@ -96,16 +73,28 @@ def test_output_schema_with_pydantic_model():
     def returns_model() -> UserOutput:
         return UserOutput(name="Alice", age=30)
 
-    Model, wrapped = create_output_schema("UserModelOutput", returns_model)
+    typ = create_output_schema(returns_model)
 
-    # Should be the same class (not wrapped)
-    assert not wrapped
-    assert Model is UserOutput
+    # Should be the same type
+    assert typ is UserOutput
 
-    # Can instantiate directly
-    instance = Model(name="Bob", age=25)
-    assert instance.name == "Bob"
-    assert instance.age == 25
+    # Can use with TypeAdapter
+    adapter = TypeAdapter(typ)
+    assert adapter.json_schema() == {
+        "type": "object",
+        "required": ["name", "age"],
+        "title": "UserOutput",
+        "properties": {
+            "age": {
+                "title": "Age",
+                "type": "integer",
+            },
+            "name": {
+                "title": "Name",
+                "type": "string",
+            },
+        },
+    }
 
 
 def test_output_schema_with_nested_pydantic_model():
@@ -122,11 +111,45 @@ def test_output_schema_with_nested_pydantic_model():
     def returns_person() -> Person:
         return Person(name="Alice", address=Address(street="Main St", city="NYC"))
 
-    Model, wrapped = create_output_schema("PersonOutput", returns_person)
+    typ = create_output_schema(returns_person)
 
     # Should return Person as-is
-    assert not wrapped
-    assert Model is Person
+    assert typ is Person
+    adapter = TypeAdapter(typ)
+    assert adapter.json_schema() == {
+        "type": "object",
+        "required": ["name", "address"],
+        "title": "Person",
+        "properties": {
+            "name": {
+                "title": "Name",
+                "type": "string",
+            },
+            "address": {
+                "$ref": "#/$defs/Address",
+            },
+        },
+        "$defs": {
+            "Address": {
+                "properties": {
+                    "city": {
+                        "title": "City",
+                        "type": "string",
+                    },
+                    "street": {
+                        "title": "Street",
+                        "type": "string",
+                    },
+                },
+                "required": [
+                    "street",
+                    "city",
+                ],
+                "title": "Address",
+                "type": "object",
+            },
+        },
+    }
 
 
 def test_output_schema_optional_type():
@@ -135,15 +158,9 @@ def test_output_schema_optional_type():
     def returns_optional() -> str | None:
         return None
 
-    Model, wrapped = create_output_schema("OptionalOutput", returns_optional)
-
-    # Should wrap in data field
-    assert wrapped
-    instance1 = Model(data="value")
-    assert getattr(instance1, "data") == "value"
-
-    instance2 = Model(data=None)
-    assert getattr(instance2, "data") is None
+    typ = create_output_schema(returns_optional)
+    adapter = TypeAdapter(typ)
+    assert adapter.json_schema() == {"anyOf": [{"type": "string"}, {"type": "null"}]}
 
 
 def test_output_schema_union_type():
@@ -152,14 +169,9 @@ def test_output_schema_union_type():
     def returns_union() -> int | str:
         return 42
 
-    Model, wrapped = create_output_schema("UnionOutput", returns_union)
-
-    assert wrapped
-    instance1 = Model(data=42)
-    assert getattr(instance1, "data") == 42
-
-    instance2 = Model(data="hello")
-    assert getattr(instance2, "data") == "hello"
+    typ = create_output_schema(returns_union)
+    adapter = TypeAdapter(typ)
+    assert adapter.json_schema() == {"anyOf": [{"type": "integer"}, {"type": "string"}]}
 
 
 def test_output_schema_bool_type():
@@ -168,14 +180,9 @@ def test_output_schema_bool_type():
     def returns_bool() -> bool:
         return True
 
-    Model, wrapped = create_output_schema("BoolOutput", returns_bool)
-
-    assert wrapped
-    instance = Model(data=False)
-    assert getattr(instance, "data") is False
-
-    schema = Model.model_json_schema()
-    assert schema["properties"]["data"]["type"] == "boolean"
+    typ = create_output_schema(returns_bool)
+    adapter = TypeAdapter(typ)
+    assert adapter.json_schema() == {"type": "boolean"}
 
 
 def test_output_schema_async_function():
@@ -184,8 +191,6 @@ def test_output_schema_async_function():
     async def async_returns_str() -> str:
         return "async result"
 
-    Model, wrapped = create_output_schema("AsyncOutput", async_returns_str)
-
-    assert wrapped
-    instance = Model(data="test")
-    assert getattr(instance, "data") == "test"
+    typ = create_output_schema(async_returns_str)
+    adapter = TypeAdapter(typ)
+    assert adapter.json_schema() == {"type": "string"}

@@ -5,7 +5,14 @@ import textwrap
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, get_type_hints
 
-from pydantic import BaseModel, ConfigDict, Field, SkipValidation, create_model
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SkipValidation,
+    TypeAdapter,
+    create_model,
+)
 
 
 class BaseTool(BaseModel):
@@ -28,10 +35,9 @@ class BaseTool(BaseModel):
         default=None, description="The tool schema."
     )
 
-    output_schema: Annotated[type[BaseModel] | None, SkipValidation] = Field(
+    output_schema: Annotated[Any | None, SkipValidation] = Field(
         default=None, description="The return type schema."
     )
-    output_data_wrapped: bool = False
 
     def validate_input(self, obj: Any):
         if self.input_schema is not None:
@@ -39,7 +45,21 @@ class BaseTool(BaseModel):
 
     def validate_output(self, obj: Any):
         if self.output_schema is not None:
-            self.output_schema.model_validate(obj)
+            adapter = TypeAdapter(self.output_schema)
+            adapter.validate_python(obj)
+
+    def input_json_schema(self) -> dict[str, Any] | None:
+        if self.input_schema is None:
+            return None
+
+        return self.input_schema.model_json_schema()
+
+    def output_json_schema(self) -> dict[str, Any] | None:
+        if self.output_schema is None:
+            return None
+
+        adapter = TypeAdapter(self.output_schema)
+        return adapter.json_schema()
 
     @classmethod
     def from_func(
@@ -62,10 +82,10 @@ class BaseTool(BaseModel):
         name_ = name or func.__name__
 
         in_schema = create_input_schema(f"{name_}_Input", func)
-        out_schema, output_wrapped = create_output_schema(f"{name_}_Output", func)
+        out_schema = create_output_schema(func)
 
         input_schema = None if is_empty_schema(in_schema) else in_schema
-        output_schema = None if is_empty_schema(out_schema) else out_schema
+        output_schema = out_schema
 
         # Create concrete tool classes based on sync vs async
         if asyncio.iscoroutinefunction(func):
@@ -84,7 +104,6 @@ class BaseTool(BaseModel):
                 description=_desc,
                 input_schema=input_schema,
                 output_schema=output_schema,
-                output_data_wrapped=output_wrapped,
             )
         else:
             # Synchronous tool
@@ -102,7 +121,6 @@ class BaseTool(BaseModel):
                 description=_desc,
                 input_schema=input_schema,
                 output_schema=output_schema,
-                output_data_wrapped=output_wrapped,
             )
 
 
@@ -143,8 +161,6 @@ class Tool(BaseTool, ABC):
         self.validate_input(kwargs)
 
         output = self._invoke(**kwargs)
-        if self.output_data_wrapped:
-            output = {"data": output}
 
         self.validate_output(output)
 
@@ -188,8 +204,6 @@ class AsyncTool(BaseTool, ABC):
         self.validate_input(kwargs)
 
         output = await self._ainvoke(**kwargs)
-        if self.output_data_wrapped:
-            output = {"data": output}
 
         self.validate_output(output)
 
@@ -243,21 +257,17 @@ def create_input_schema(
 
 
 def create_output_schema(
-    model_name: str,
     func: Callable,
-) -> tuple[type[BaseModel], bool]:
+) -> Any:
     """
-    Creates pydantic model from function return type annotation.
+    Extracts the return type annotation from a function.
 
     Args:
-        model_name: Name for the generated Pydantic model
+        model_name: Name for the generated Pydantic model (unused, kept for compatibility)
         func: The function to extract return type from
 
     Returns:
-        A tuple of (Pydantic BaseModel class, bool indicating if output was wrapped)
-
-    If the return type is already a BaseModel subclass, it's returned as-is with False.
-    Otherwise, a wrapper model with a single 'data' field is created and True is returned.
+        The return type annotation as a type
     """
     # Use get_type_hints to resolve string annotations to actual types
     # This handles cases where the calling code uses "from __future__ import annotations"
@@ -271,21 +281,7 @@ def create_output_schema(
             sig.return_annotation if sig.return_annotation is not sig.empty else Any
         )
 
-    # Check if return type is already a BaseModel subclass
-    try:
-        if isinstance(return_annotation, type) and issubclass(
-            return_annotation,  # type: ignore
-            BaseModel,
-        ):
-            return return_annotation, False
-    except TypeError:
-        # Not a class or can't check subclass
-        pass
-
-    # Wrap the return type in a model with a 'data' field
-    fields: dict[str, Any] = {"data": (return_annotation, ...)}
-
-    return create_model(model_name, __config__=_MODEL_CONFIG, **fields), True
+    return return_annotation
 
 
 def is_empty_schema(schema: type[BaseModel]) -> bool:

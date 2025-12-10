@@ -102,12 +102,8 @@ class Pctx:
                 "name": t.name,
                 "namespace": t.namespace,
                 "description": t.description,
-                "input_schema": t.input_schema.model_json_schema()
-                if t.input_schema
-                else None,
-                "output_schema": t.output_schema.model_json_schema()
-                if t.output_schema
-                else None,
+                "input_schema": t.input_json_schema(),
+                "output_schema": t.output_json_schema(),
             }
             for t in self._tools
         ]
