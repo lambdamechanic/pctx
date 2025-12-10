@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from httpx import AsyncClient
 
-from pctx_client._tool import Tool
+from pctx_client._tool import AsyncTool, Tool
 from pctx_client._websocket_client import WebSocketClient
 from pctx_client.exceptions import SessionError
 from pctx_client.models import (
@@ -40,7 +40,7 @@ class Pctx:
 
     def __init__(
         self,
-        tools: list[Tool] | None = None,
+        tools: list[Tool | AsyncTool] | None = None,
         servers: list[ServerConfig] | None = None,
         url: str = "http://localhost:8080",
     ):

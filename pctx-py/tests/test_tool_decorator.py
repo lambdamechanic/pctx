@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from pctx_client import tool, Tool
+from pydantic import ValidationError
 
+from pctx_client import Tool, tool
+from pctx_client._tool import AsyncTool
 
 # ============================================================================
 # SECTION 1: REGISTRATION TESTS
@@ -23,8 +25,6 @@ def test_registration_basic_sync_function() -> None:
     assert isinstance(simple_function, Tool)
     assert simple_function.name == "simple_function"
     assert simple_function.description == "A simple test function"
-    assert simple_function.func is not None
-    assert simple_function.coroutine is None
     assert simple_function.input_schema is None
 
 
@@ -36,11 +36,9 @@ def test_registration_basic_async_function() -> None:
         """An async test function"""
         return "async result"
 
-    assert isinstance(async_function, Tool)
+    assert isinstance(async_function, AsyncTool)
     assert async_function.name == "async_function"
     assert async_function.description == "An async test function"
-    assert async_function.func is None
-    assert async_function.coroutine is not None
     assert async_function.input_schema is None
 
 
@@ -158,10 +156,10 @@ def test_registration_multipletools_independent() -> None:
         """Second tool"""
         return "two"
 
+    assert isinstance(tool_one, Tool)
+    assert isinstance(tool_two, Tool)
     assert tool_one.name == "tool_one"
     assert tool_two.name == "tool_two"
-    assert tool_one.func is not None
-    assert tool_two.func is not None
     assert tool_one.description == "First tool"
     assert tool_two.description == "Second tool"
 
@@ -213,7 +211,7 @@ def test_calling_sync_function_no_parameters() -> None:
         """Sync function"""
         return "sync result"
 
-    assert synctool.func is not None
+    assert isinstance(synctool, Tool)
     result = synctool.invoke()
     assert result == {"data": "sync result"}
 
@@ -226,7 +224,7 @@ def test_calling_sync_function_with_positional_args() -> None:
         """Adds two numbers"""
         return str(a + b)
 
-    assert add_numbers.func is not None
+    assert isinstance(add_numbers, Tool)
     result = add_numbers.invoke(a=5, b=3)
     assert result == {"data": "8"}
 
@@ -239,7 +237,7 @@ def test_calling_sync_function_with_kwargs() -> None:
         """Greets a person"""
         return f"{greeting}, {name}!"
 
-    assert greet.func is not None
+    assert isinstance(greet, Tool)
 
     # Test with default
     result1 = greet.invoke(name="Alice")
@@ -258,7 +256,7 @@ def test_calling_sync_function_with_mixed_args() -> None:
         """Process two numbers"""
         return str((x + y) * multiplier)
 
-    assert process.func is not None
+    assert isinstance(process, Tool)
 
     # Test with default multiplier
     result1 = process.invoke(x=3, y=4)
@@ -278,7 +276,7 @@ async def test_calling_async_function_no_parameters() -> None:
         """Async function"""
         return "async result"
 
-    assert asynctool.coroutine is not None
+    assert isinstance(asynctool, AsyncTool)
     result = await asynctool.ainvoke()
     assert result == {"data": "async result"}
 
@@ -292,7 +290,7 @@ async def test_calling_async_function_with_parameters() -> None:
         """Fetches data from URL"""
         return f"Data from {url} with timeout {timeout}"
 
-    assert fetch_data.coroutine is not None
+    assert isinstance(fetch_data, AsyncTool)
 
     # Test with custom timeout
     result = await fetch_data.ainvoke(url="https://example.com", timeout=60)
@@ -308,7 +306,7 @@ async def test_calling_async_function_with_defaults() -> None:
         """Fetches data from URL"""
         return f"URL: {url}, timeout: {timeout}, retries: {retries}"
 
-    assert fetch_data.coroutine is not None
+    assert isinstance(fetch_data, AsyncTool)
 
     # Test with all defaults
     result1 = await fetch_data.ainvoke(url="https://test.com")
@@ -330,7 +328,7 @@ def test_calling_sync_function_multiple_calls() -> None:
         call_count += 1
         return f"Call {call_count}"
 
-    assert counter.func is not None
+    assert isinstance(counter, Tool)
 
     assert counter.invoke() == {"data": "Call 1"}
     assert counter.invoke() == {"data": "Call 2"}
@@ -349,7 +347,7 @@ async def test_calling_async_function_multiple_calls() -> None:
         call_count += 1
         return f"Async call {call_count}"
 
-    assert async_counter.coroutine is not None
+    assert isinstance(async_counter, AsyncTool)
 
     assert await async_counter.ainvoke() == {"data": "Async call 1"}
     assert await async_counter.ainvoke() == {"data": "Async call 2"}
@@ -364,12 +362,13 @@ async def test_calling_async_function_multiple_calls() -> None:
 
 def test_validation_missing_required_parameter() -> None:
     """Test that missing required parameters raise ValidationError"""
-    from pydantic import ValidationError
 
     @tool
     def add_numbers(a: int, b: int) -> str:
         """Adds two numbers"""
         return str(a + b)
+
+    assert isinstance(add_numbers, Tool)
 
     # Missing parameter 'b'
     with pytest.raises(ValidationError) as exc_info:
@@ -380,12 +379,13 @@ def test_validation_missing_required_parameter() -> None:
 
 def test_validation_wrong_type_parameter() -> None:
     """Test that wrong type parameters raise ValidationError"""
-    from pydantic import ValidationError
 
     @tool
     def add_numbers(a: int, b: int) -> str:
         """Adds two numbers"""
         return str(a + b)
+
+    assert isinstance(add_numbers, Tool)
 
     # Wrong type for parameter 'b'
     with pytest.raises(ValidationError) as exc_info:
@@ -399,12 +399,13 @@ def test_validation_wrong_type_parameter() -> None:
 
 def test_validation_extra_parameter() -> None:
     """Test that extra parameters raise ValidationError"""
-    from pydantic import ValidationError
 
     @tool
     def add_numbers(a: int, b: int) -> str:
         """Adds two numbers"""
         return str(a + b)
+
+    assert isinstance(add_numbers, Tool)
 
     # Extra parameter 'c' not defined in schema
     with pytest.raises(ValidationError) as exc_info:
@@ -421,6 +422,8 @@ def test_validation_valid_input_with_defaults() -> None:
         """Greets a person"""
         return f"{greeting}, {name}!"
 
+    assert isinstance(greet, Tool)
+
     # Should not raise any validation error
     result = greet.invoke(name="Alice")
     assert result == {"data": "Hello, Alice!"}
@@ -434,6 +437,8 @@ def test_validation_valid_input_all_parameters() -> None:
         """Process two numbers"""
         return str((x + y) * multiplier)
 
+    assert isinstance(process, Tool)
+
     # Should not raise any validation error
     result = process.invoke(x=3, y=4, multiplier=5)
     assert result == {"data": "35"}
@@ -442,12 +447,13 @@ def test_validation_valid_input_all_parameters() -> None:
 @pytest.mark.asyncio
 async def test_validation_async_missing_required_parameter() -> None:
     """Test that async functions validate missing required parameters"""
-    from pydantic import ValidationError
 
     @tool
     async def fetch_data(url: str, timeout: int = 30) -> str:
         """Fetches data from URL"""
         return f"Data from {url} with timeout {timeout}"
+
+    assert isinstance(fetch_data, AsyncTool)
 
     # Missing required parameter 'url'
     with pytest.raises(ValidationError) as exc_info:
@@ -459,12 +465,13 @@ async def test_validation_async_missing_required_parameter() -> None:
 @pytest.mark.asyncio
 async def test_validation_async_wrong_type_parameter() -> None:
     """Test that async functions validate parameter types"""
-    from pydantic import ValidationError
 
     @tool
     async def fetch_data(url: str, timeout: int = 30) -> str:
         """Fetches data from URL"""
         return f"Data from {url} with timeout {timeout}"
+
+    assert isinstance(fetch_data, AsyncTool)
 
     # Wrong type for 'timeout' parameter
     with pytest.raises(ValidationError) as exc_info:
@@ -484,6 +491,8 @@ async def test_validation_async_valid_input() -> None:
     async def fetch_data(url: str, timeout: int = 30) -> str:
         """Fetches data from URL"""
         return f"Data from {url} with timeout {timeout}"
+
+    assert isinstance(fetch_data, AsyncTool)
 
     # Should not raise any validation error
     result = await fetch_data.ainvoke(url="https://example.com", timeout=60)
