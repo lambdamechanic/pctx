@@ -14,6 +14,12 @@ dependencies = ["httpx>=0.28.1", "pydantic>=2.7.2", "websockets>=15.0.1"]
 langchain = ["langchain>=1.1.2"]
 crewai = ["crewai>=1.6.1"]
 
+[project.urls]
+"Homepage" = "https://github.com/portofcontext/pctx"
+"Documentation" = "https://pctx-client.readthedocs.io"
+"Source" = "https://github.com/portofcontext/pctx"
+"Bug Tracker" = "https://github.com/portofcontext/pctx/issues"
+
 [build-system]
 requires = ["uv_build>=0.9.13,<0.10.0"]
 build-backend = "uv_build"
@@ -34,3 +40,11 @@ convention = "google"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.uv]
+dev-dependencies = [
+    "sphinx",
+    "sphinx-autobuild",
+    "sphinx-rtd-theme",
+    "tomli",
+]
