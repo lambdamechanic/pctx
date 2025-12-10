@@ -1,6 +1,6 @@
 [project]
 name = "pctx-client"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 description = "Python client for using Code Mode via PCTX"
 readme = "README.md"
 authors = [
@@ -13,6 +13,9 @@ dependencies = ["httpx>=0.28.1", "pydantic>=2.7.2", "websockets>=15.0.1"]
 [project.optional-dependencies]
 langchain = ["langchain>=1.1.2"]
 crewai = ["crewai>=1.6.1"]
+google-genai = ["google-genai>=0.2.0"]
+openai = ["openai>=1.0.0"]
+pydantic-ai = ["pydantic-ai>=0.0.14"]
 
 [project.urls]
 "Homepage" = "https://github.com/portofcontext/pctx"
@@ -32,6 +35,12 @@ dev = [
     "ipython>=8.26",
     "langchain-groq>=1.1.0",
     "litellm>=1.80.8",
+    # Test dependencies for tool converters
+    "langchain>=1.1.2",
+    "crewai>=1.6.1",
+    "google-genai>=0.2.0",
+    "openai>=1.0.0",
+    "pydantic-ai>=0.0.14",
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -40,11 +49,11 @@ convention = "google"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+filterwarnings = [
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20",
+    "ignore::DeprecationWarning:opentelemetry.*",
+    "ignore:You should use.*instead.*Deprecated since version:DeprecationWarning",
+]
 
 [tool.uv]
-dev-dependencies = [
-    "sphinx",
-    "sphinx-autobuild",
-    "sphinx-rtd-theme",
-    "tomli",
-]
+dev-dependencies = ["sphinx", "sphinx-autobuild", "sphinx-rtd-theme", "tomli"]

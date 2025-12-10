@@ -4,6 +4,7 @@ PCTX Client
 Main client for executing code with both MCP tools and local Python tools.
 """
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
@@ -27,6 +28,9 @@ if TYPE_CHECKING:
     try:
         from langchain_core.tools import BaseTool as LangchainBaseTool
         from crewai.tools import BaseTool as CrewAiBaseTool
+        from google.genai.types import FunctionDeclaration, Tool as GoogleADKTool
+        from openai import BaseModel as OpenAIBaseModel
+        from pydantic_ai.tools import Tool as PydanticAITool
     except ImportError:
         pass
 
@@ -245,20 +249,237 @@ class Pctx:
 
         return [ListFunctionsTool(), GetFunctionDetailsTool(), ExecuteTool()]
 
+    def google_adk_tools(self) -> "list[GoogleADKTool]":
+        """
+        Expose PCTX code mode tools as Google ADK tools
 
-DEFAULT_LIST_FUNCTIONS_DESCRIPTION = """
-ALWAYS USE THIS TOOL FIRST to list all available functions organized by namespace.
+        Requires the 'google-genai' extra to be installed:
+            pip install pctx[google-genai]
+
+        Raises:
+            ImportError: If google-genai is not installed.
+        """
+        try:
+            from google.genai.types import FunctionDeclaration, Tool as GoogleADKTool
+        except ImportError as e:
+            raise ImportError(
+                "Google Generative AI SDK is not installed. Install it with: pip install pctx[google-genai]"
+            ) from e
+
+        # Define function declarations for Google ADK
+        list_functions_declaration = FunctionDeclaration(
+            name="list_functions",
+            description=DEFAULT_LIST_FUNCTIONS_DESCRIPTION,
+            parameters={"type": "object", "properties": {}, "required": []},
+        )
+
+        get_function_details_declaration = FunctionDeclaration(
+            name="get_function_details",
+            description=DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "functions": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of function names in 'namespace.functionName' format",
+                    }
+                },
+                "required": ["functions"],
+            },
+        )
+
+        execute_declaration = FunctionDeclaration(
+            name="execute",
+            description=DEFAULT_EXECUTE_DESCRIPTION,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "TypeScript code to execute",
+                    },
+                    "timeout": {
+                        "type": "number",
+                        "description": "Timeout in seconds (default: 30)",
+                        "default": 30.0,
+                    },
+                },
+                "required": ["code"],
+            },
+        )
+
+        # Create Google ADK Tool with all function declarations
+        tool = GoogleADKTool(
+            function_declarations=[
+                list_functions_declaration,
+                get_function_details_declaration,
+                execute_declaration,
+            ]
+        )
+
+        return [tool]
+
+    def openai_agents_tools(self) -> "list[dict]":
+        """
+        Expose PCTX code mode tools as OpenAI Agents SDK function tools
+
+        Requires the 'openai' extra to be installed:
+            pip install pctx[openai]
+
+        Returns:
+            List of function tool definitions compatible with OpenAI Agents SDK
+
+        Raises:
+            ImportError: If openai is not installed.
+        """
+        try:
+            import openai
+        except ImportError as e:
+            raise ImportError(
+                "OpenAI SDK is not installed. Install it with: pip install pctx[openai]"
+            ) from e
+
+        # OpenAI Agents SDK expects function definitions in a specific format
+        # compatible with the OpenAI function calling API
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_functions",
+                    "description": DEFAULT_LIST_FUNCTIONS_DESCRIPTION,
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_function_details",
+                    "description": DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "functions": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of function names in 'namespace.functionName' format",
+                            }
+                        },
+                        "required": ["functions"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "execute",
+                    "description": DEFAULT_EXECUTE_DESCRIPTION,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "TypeScript code to execute",
+                            },
+                            "timeout": {
+                                "type": "number",
+                                "description": "Timeout in seconds (default: 30)",
+                                "default": 30.0,
+                            },
+                        },
+                        "required": ["code"],
+                    },
+                },
+            },
+        ]
+
+        return tools
+
+    def pydantic_ai_tools(self) -> "list[PydanticAITool]":
+        """
+        Expose PCTX code mode tools as Pydantic AI tools
+
+        Requires the 'pydantic-ai' extra to be installed:
+            pip install pctx[pydantic-ai]
+
+        Raises:
+            ImportError: If pydantic-ai is not installed.
+        """
+        try:
+            from pydantic_ai.tools import Tool as PydanticAITool
+        except ImportError as e:
+            raise ImportError(
+                "Pydantic AI is not installed. Install it with: pip install pctx[pydantic-ai]"
+            ) from e
+
+        # Pydantic AI uses function decorators to create tools
+        # We need to create wrapper functions that call our async methods
+
+        async def list_functions_wrapper() -> str:
+            return (await self.list_functions()).code
+
+        async def get_function_details_wrapper(functions: list[str]) -> str:
+            return (await self.get_function_details(functions)).code
+
+        async def execute_wrapper(code: str, timeout: float = 30.0) -> str:
+            return (await self.execute(code, timeout=timeout)).markdown()
+
+        # Create Pydantic AI tools using the Tool class with explicit descriptions
+        tools = [
+            PydanticAITool(
+                list_functions_wrapper,
+                name="list_functions",
+                description=DEFAULT_LIST_FUNCTIONS_DESCRIPTION,
+            ),
+            PydanticAITool(
+                get_function_details_wrapper,
+                name="get_function_details",
+                description=DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION,
+            ),
+            PydanticAITool(
+                execute_wrapper,
+                name="execute",
+                description=DEFAULT_EXECUTE_DESCRIPTION,
+            ),
+        ]
+
+        return tools
+
+
+def _load_tool_description(name: str) -> str:
+    """Load tool description from markdown file."""
+    # Get the repository root (3 levels up from this file)
+    client_file = Path(__file__)
+    repo_root = client_file.parent.parent.parent.parent
+    tool_descriptions_dir = repo_root / "tool_descriptions"
+    description_file = tool_descriptions_dir / f"{name}.md"
+
+    if description_file.exists():
+        return description_file.read_text().strip()
+    else:
+        # Fallback to hardcoded descriptions if file not found
+        return _FALLBACK_DESCRIPTIONS.get(name, "")
+
+
+# Load descriptions from markdown files
+DEFAULT_LIST_FUNCTIONS_DESCRIPTION = _load_tool_description("list_functions")
+DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION = _load_tool_description(
+    "get_function_details"
+)
+DEFAULT_EXECUTE_DESCRIPTION = _load_tool_description("execute")
+
+# Fallback descriptions if markdown files are not found
+# These should match the markdown files in tool_descriptions/
+_FALLBACK_DESCRIPTIONS = {
+    "list_functions": """ALWAYS USE THIS TOOL FIRST to list all available functions organized by namespace.
 
 WORKFLOW:
-1. Start here - Call this tool list_functions to see what functions are available with no params
+1. Start here - Call this tool to see what functions are available
 2. Then call get_function_details() for specific functions you need to understand
 3. Finally call execute() to run your TypeScript code
 
-This returns function signatures without full details.
-"""
-
-DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION = """
-Get detailed information about specific functions you want to use.
+This returns function signatures without full details.""",
+    "get_function_details": """Get detailed information about specific functions you want to use.
 
 WHEN TO USE: After calling list_functions(), use this to learn about parameter types, return values, and usage for specific functions.
 
@@ -270,11 +491,8 @@ Only request details for functions you actually plan to use in your code.
 NOTE ON RETURN TYPES:
 - If a function returns Promise<any>, the MCP server didn't provide an output schema
 - The actual value is a parsed object (not a string) - access properties directly
-- Don't use JSON.parse() on the results - they're already JavaScript objects
-"""
-
-DEFAULT_EXECUTE_DESCRIPTION = """
-Execute TypeScript code that calls namespaced functions. USE THIS LAST after list_functions() and get_function_details().
+- Don't use JSON.parse() on the results - they're already JavaScript objects""",
+    "execute": """Execute TypeScript code that calls namespaced functions. USE THIS LAST after list_functions() and get_function_details().
 
 TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
 To minimize tokens:
@@ -303,5 +521,5 @@ RETURN TYPE NOTE:
 - The actual runtime value is already a parsed JavaScript object, NOT a JSON string
 - Do NOT call JSON.parse() on results - they're already objects
 - Access properties directly (e.g., result.data) or inspect with console.log() first
-- If you see 'Promise<any>', the structure is unknown - log it to see what's returned
-"""
+- If you see 'Promise<any>', the structure is unknown - log it to see what's returned""",
+}
