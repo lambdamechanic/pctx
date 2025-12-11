@@ -39,6 +39,10 @@ dev = [
     "crewai>=1.6.1",
     "openai>=1.0.0",
     "pydantic-ai>=0.0.14",
+    "sphinx",
+    "sphinx-autobuild",
+    "sphinx-rtd-theme",
+    "tomli",
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -52,6 +56,3 @@ filterwarnings = [
     "ignore::DeprecationWarning:opentelemetry.*",
     "ignore:You should use.*instead.*Deprecated since version:DeprecationWarning",
 ]
-
-[tool.uv]
-dev-dependencies = ["sphinx", "sphinx-autobuild", "sphinx-rtd-theme", "tomli"]
