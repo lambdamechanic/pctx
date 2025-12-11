@@ -131,8 +131,36 @@ print(details.code)
 pip install pctx[langchain]
 ```
 
+```python
+tools = pctx.langchain_tools()
+```
+
 ### CrewAI
 
 ```bash
 pip install pctx[crewai]
+```
+
+```python
+tools = pctx.c()
+```
+
+### OpenAI Agents SDK
+
+```bash
+pip install pctx[openai]
+```
+
+```python
+tools = pctx.openai_agents_tools()
+```
+
+### Pydantic AI
+
+```bash
+pip install pctx[pydantic-ai]
+```
+
+```python
+tools = pctx.pydantic_ai_tools()
 ```

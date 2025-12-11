@@ -22,7 +22,11 @@ async def run_agent():
     code_mode = Pctx(tools=[get_weather, get_time])
     await code_mode.connect()
 
-    llm = LLM(model="groq/openai/gpt-oss-120b")
+    llm = LLM(
+        model="openrouter/deepseek/deepseek-chat",
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1"
+    )
 
     agent = Agent(
         llm=llm,
@@ -38,7 +42,10 @@ async def run_agent():
 
 
 if __name__ == "__main__":
-    if "GROQ_API_KEY" not in os.environ:
-        raise EnvironmentError("GROQ_API_KEY not set in the env")
+    if "OPENROUTER_API_KEY" not in os.environ:
+        raise EnvironmentError(
+            "OPENROUTER_API_KEY not set in the environment. "
+            "Get your API key from https://openrouter.ai/settings/keys"
+        )
 
     asyncio.run(run_agent())
