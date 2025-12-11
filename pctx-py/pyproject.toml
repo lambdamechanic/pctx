@@ -13,7 +13,7 @@ dependencies = ["httpx>=0.28.1", "pydantic>=2.7.2", "websockets>=15.0.1"]
 [project.optional-dependencies]
 langchain = ["langchain>=1.1.2"]
 crewai = ["crewai>=1.6.1"]
-openai = ["openai>=1.0.0"]
+openai = ["openai-agents>=0.6.2"]
 pydantic-ai = ["pydantic-ai>=0.0.14"]
 
 [project.urls]
@@ -37,7 +37,7 @@ dev = [
     "langchain>=1.1.2",
     "langchain-openai>=0.3.0",
     "crewai>=1.6.1",
-    "openai>=1.0.0",
+    "openai-agents>=0.6.2",
     "pydantic-ai>=0.0.14",
 ]
 

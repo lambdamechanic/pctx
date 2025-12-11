@@ -305,7 +305,7 @@ class Pctx:
 
         return [ListFunctionsTool(), GetFunctionDetailsTool(), ExecuteTool()]
 
-    def openai_agents_tools(self) -> "list[dict]":
+    def openai_agents_tools(self) -> "list":
         """
         Expose PCTX code mode tools as OpenAI Agents SDK function tools
 
@@ -313,72 +313,49 @@ class Pctx:
             pip install pctx[openai]
 
         Returns:
-            List of function tool definitions compatible with OpenAI Agents SDK
+            List of function tools compatible with OpenAI Agents SDK
 
         Raises:
             ImportError: If openai is not installed.
         """
         try:
-            import openai
+            from agents import function_tool
         except ImportError as e:
             raise ImportError(
-                "OpenAI SDK is not installed. Install it with: pip install pctx[openai]"
+                "OpenAI Agents SDK is not installed. Install it with: pip install pctx[openai]"
             ) from e
 
-        # OpenAI Agents SDK expects function definitions in a specific format
-        # compatible with the OpenAI function calling API
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "list_functions",
-                    "description": DEFAULT_LIST_FUNCTIONS_DESCRIPTION,
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_function_details",
-                    "description": DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "functions": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of function names in 'namespace.functionName' format",
-                            }
-                        },
-                        "required": ["functions"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "execute",
-                    "description": DEFAULT_EXECUTE_DESCRIPTION,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "code": {
-                                "type": "string",
-                                "description": "TypeScript code to execute",
-                            },
-                            "timeout": {
-                                "type": "number",
-                                "description": "Timeout in seconds (default: 30)",
-                                "default": 30.0,
-                            },
-                        },
-                        "required": ["code"],
-                    },
-                },
-            },
-        ]
+        # OpenAI Agents SDK uses function decorators to create tools
+        # We need to create wrapper functions that call our async methods
 
-        return tools
+
+        async def list_functions_wrapper() -> str:
+            return (await self.list_functions()).code
+
+        async def get_function_details_wrapper(functions: list[str]) -> str:
+            return (await self.get_function_details(functions)).code
+
+        async def execute_wrapper(code: str, timeout: float = 30.0) -> str:
+            return (await self.execute(code, timeout=timeout)).markdown()
+
+        # Set docstrings and apply decorator
+        list_functions_wrapper.__doc__ = DEFAULT_LIST_FUNCTIONS_DESCRIPTION
+        get_function_details_wrapper.__doc__ = f"""{DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION}
+
+Args:
+    functions: List of function names in 'namespace.functionName' format"""
+        execute_wrapper.__doc__ = f"""{DEFAULT_EXECUTE_DESCRIPTION}
+
+Args:
+    code: TypeScript code to execute
+    timeout: Timeout in seconds (default: 30)"""
+
+        # Apply the function_tool decorator
+        list_functions_tool = function_tool(name_override="list_functions")(list_functions_wrapper)
+        get_function_details_tool = function_tool(name_override="get_function_details")(get_function_details_wrapper)
+        execute_tool = function_tool(name_override="execute")(execute_wrapper)
+
+        return [list_functions_tool, get_function_details_tool, execute_tool]
 
     def pydantic_ai_tools(self) -> "list[PydanticAITool]":
         """
