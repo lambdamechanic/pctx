@@ -1,6 +1,6 @@
 # PCTX Python Client
 
-Python client for using Code Mode via PCTX - execute JavaScript code with access to your Python functions.
+Python client for using Code Mode via PCTX - allow agents to execute code with your custom tools and MCP servers.
 
 ## Installation
 
@@ -10,41 +10,47 @@ pip install pctx-client
 
 ## Quick Start
 
-1. Install PCTX server (currently release candidate)
+1. Install PCTX server
 
 ```bash
+# Homebrew
+brew install portofcontext/tap/pctx
+
 # cURL
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/portofcontext/pctx/releases/download/v0.3.0-rc.1/pctx-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://raw.githubusercontent.com/portofcontext/pctx/main/install.sh | sh
 
 # npm
-npm install @portofcontext/pctx@0.3.0-rc.1
+npm i -g @portofcontext/pctx
 ```
 
-2. Install Python pctx with the langchain extra (this example uses a groq model but you can use any model supported by langchain)
+2. Install Python PCTX client with the langchain extra & additional langchain dependencies. (PCTX supports other agent frameworks as well, see [Agent Frameworks](#agent-frameworks))
 
 ```
-pip install pctx-client[langchain] langchain  langchain-groq
+pip install pctx-client[langchain] langchain langchain_openai
 ```
 
-3. Set the Groq API key ([create a free account to get a key](https://groq.com/))
+3. Set the OpenRouter API key ([create an account to get a key](https://openrouter.ai/))
 
 ```bash
-export GROQ_API_KEY=*****
+export OPENROUTER_API_KEY=*****
 ```
 
-3. Start the Code Mode server for agents
+3. Start the Code Mode server
 
 ```bash
-pctx agent start
+pctx start
 ```
 
 4. Define and run `main.py`
 
 ```python
 import asyncio
+import pprint
+import os
 
 from pctx_client import Pctx, tool
 from langchain.agents import create_agent
+from langchain_openai import ChatOpenAI
 
 # Define your tools
 @tool
@@ -59,13 +65,20 @@ def get_time(city: str) -> str:
     return f"It is midnight in {city}!"
 
 
-async def main():
-    # Initialize client with your tools
+async def main(api_key: str):
+    # Initialize pctx client with your tools
     p = Pctx(tools=[get_weather, get_time])
 
     # Define your agent
+    llm = ChatOpenAI(
+        model="deepseek/deepseek-chat",
+        temperature=0,
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        max_retries=2,
+    )
     agent = create_agent(
-        model="groq:openai/gpt-oss-120b", # choose any model supported by langchain!
+        llm,
         tools=p.langchain_tools(),
         system_prompt="You are a helpful assistant",
     )
@@ -81,86 +94,336 @@ async def main():
         }
     )
 
-    print(result)
+    pprint.pprint(result)
 
     # Disconnect when done
     await p.disconnect()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if api_key is None:
+        raise EnvironmentError(
+            "OPENROUTER_API_KEY not set in the environment. "
+            "Get your API key from https://openrouter.ai/settings/keys"
+        )
+
+    asyncio.run(run(api_key))
 ```
 
-## Features
+## Code Mode
 
-- **Tool Decorator**: Easily expose Python functions as callable tools
-- **Async Support**: Full async/await support for non-blocking operations
-- **MCP Server Integration**: Connect to MCP servers for extended functionality
+Code Mode allows AI agents to execute TypeScript code with access to both your custom Python tools and MCP servers. Instead of requiring separate tool calls for each operation, agents can write and execute code that orchestrates multiple function calls, processes data, and returns results - all in a single execution.
 
-## Usage
+The `Pctx` client provides 3 main code mode functions:
 
-### Defining Tools
+1. **`list_functions()`** - Lists all available functions organized by namespace. LLMs are instructed to call this first to discover what functions are available from your registered tools and MCP servers.
 
-Use the `@tool` decorator to expose Python functions:
+2. **`get_function_details(functions)`** - Returns detailed information about specific functions including parameter types, return values. LLMs are instructed to call this after `list_functions()` to understand the required/optional inputs and outputs of Code Mode functions.
+
+3. **`execute(code)`** - Executes TypeScript code in an isolated Deno sandbox. The code can call any namespaced functions (e.g., `Namespace.functionName()`) discovered via `list_functions()`. Returns the execution result with stdout, stderr, and return value.
+
+## Defining Tools
+
+PCTX provides two approaches for defining tools: the `@tool` decorator for simple function-based tools, and `Tool`/`AsyncTool` classes for more complex implementations.
+
+### Decorator Approach
+
+The `@tool` decorator is the simplest way to create tools from functions. It automatically extracts type hints and docstrings to create the tool schema.
+
+#### Basic Example
 
 ```python
-@tool("function_name", namespace="namespace")
-def my_function(arg1: str, arg2: int) -> str:
-    """Function description"""
-    return f"{arg1}: {arg2}"
+from pctx_client import tool
+
+@tool
+def get_weather(city: str) -> str:
+    """Get weather information for a given city."""
+    return f"It's always sunny in {city}!"
+
+
+pctx = Pctx(tools=[get_weather])
 ```
 
-### List Available Functions
+#### Custom Name and Namespace
 
 ```python
-functions = await p.list_functions()
-print(functions.code)
+@tool(
+    name="weather_lookup",
+    namespace="weather_api",
+    description="Fetches current weather conditions for any city"
+)
+def fetch_weather(location: str) -> str:
+    return f"Weather for {location}: Sunny, 72°F"
+
+
+pctx = Pctx(tools=[fetch_weather])
 ```
 
-### Get Function Details
+#### Async Tools
 
 ```python
-details = await p.get_function_details(["Namespace.functionName"])
-print(details.code)
+import asyncio
+
+@tool
+async def fetch_user_data(user_id: int) -> dict[str, str]:
+    """Asynchronously fetch user data from an API."""
+    await asyncio.sleep(0.1)  # Simulate API call
+    return {"id": str(user_id), "name": "John Doe"}
+
+
+pctx = Pctx(tools=[fetch_user_data])
 ```
 
-## Optional Integrations
+#### Nested Types with Pydantic
 
-### LangChain
+```python
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+class Address(BaseModel):
+    street: str
+    city: str
+    zip_code: str = Field(description="5-digit ZIP code")
+    country: str = "USA"
+
+class UserProfile(BaseModel):
+    name: str
+    age: int
+    email: str
+    addresses: List[Address]
+    preferences: Optional[dict[str, bool]] = None
+
+class UpdateResult(BaseModel):
+    success: bool
+    user_id: str
+    updated_fields: List[str]
+    message: str
+
+@tool
+def update_user_profile(
+    user_id: str,
+    profile: UserProfile,
+    notify: bool = True
+) -> UpdateResult:
+    """
+    Update a user's profile with complex nested data.
+
+    This tool demonstrates handling of complex Pydantic models with
+    nested objects, lists, and optional fields.
+    """
+    # Process the update
+    updated_fields = ["name", "age", "email", "addresses"]
+
+    return UpdateResult(
+        success=True,
+        user_id=user_id,
+        updated_fields=updated_fields,
+        message=f"Successfully updated profile for user {user_id}"
+    )
+
+
+pctx = Pctx(tools=[update_user_profile])
+```
+
+### Class-Based Approach
+
+For more control over tool behavior and state, you can subclass `Tool` (synchronous) or `AsyncTool` (asynchronous) and implement the `_invoke` or `_ainvoke` method. When implementing the class based approach you **MUST** define the `input_schema` and `output_schema` attributes to match the `_invoke` or `_ainvoke` method implementation
+
+#### Synchronous Tool Class
+
+```python
+from pctx_client import Tool
+from pydantic import BaseModel
+from typing import Any, Literal
+
+class CalculatorInput(BaseModel):
+    operation: Literal["add", "subtract", "multiply", "divide"]
+    x: float
+    y: float
+
+class Calculator(Tool):
+    name: str = "calculator"
+    namespace: str = "math"
+    description: str = "Performs basic arithmetic operations"
+    input_schema: type[BaseModel] = CalculatorInput
+    output_schema: type[float] = float
+
+    def _invoke(
+        self,
+        operation: Literal["add", "subtract", "multiply", "divide"],
+        x: float,
+        y: float,
+    ) -> float:
+        """Execute the calculation based on the operation."""
+        if operation == "add":
+            return x + y
+        elif operation == "subtract":
+            return x - y
+        elif operation == "multiply":
+            return x * y
+        elif operation == "divide":
+            return x / y
+        else:
+            raise ValueError(f"Unknown operation: {operation}")
+
+
+
+pctx = Pctx(tools=[Calculator()])
+```
+
+#### Asynchronous Tool Class
+
+```python
+from pctx_client import AsyncTool
+from pydantic import BaseModel, Field
+import httpx
+from typing import List
+
+class SearchQuery(BaseModel):
+    query: str = Field(description="The search term")
+    max_results: int = Field(default=10, description="Maximum results to return")
+    filters: dict[str, str] = Field(default_factory=dict)
+
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+    score: float
+
+class SearchResponse(BaseModel):
+    results: List[SearchResult]
+    total_count: int
+    query_time_ms: float
+
+class WebSearchTool(AsyncTool):
+    name: str = "web_search"
+    namespace: str = "search"
+    description: str = "Search the web and return relevant results"
+    input_schema: type[BaseModel] = SearchQuery
+    output_schema: type[SearchResponse] = SearchResponse
+
+    async def _ainvoke(
+        self,
+        query: str,
+        max_results: int = 10,
+        filters: dict[str, str] = {}
+    ) -> SearchResponse:
+        """Perform an asynchronous web search."""
+        # Simulate async API call
+        async with httpx.AsyncClient() as client:
+            # Mock implementation
+            results = [
+                SearchResult(
+                    title=f"Result {i} for '{query}'",
+                    url=f"https://example.com/result{i}",
+                    snippet=f"This is a snippet for result {i}",
+                    score=0.9 - (i * 0.1)
+                )
+                for i in range(1, min(max_results, 5) + 1)
+            ]
+
+            return SearchResponse(
+                results=results,
+                total_count=len(results),
+                query_time_ms=45.2
+            )
+
+
+pctx = Pctx(tools=[WebSearchTool()])
+```
+
+#### Stateful Tool with Initialization
+
+```python
+from pctx_client import Tool
+from pydantic import BaseModel
+from typing import List
+
+class QueryInput(BaseModel):
+    sql: str
+    params: dict[str, Any] = {}
+
+class DatabaseTool(Tool):
+    name: str = "database_query"
+    namespace: str = "db"
+    description: str = "Execute SQL queries against the database"
+    input_schema: type[BaseModel] = QueryInput
+    output_schema: type[List[dict]] = List[dict]
+
+    # Custom fields for state
+    connection_string: str
+    max_rows: int = 1000
+
+    def __init__(self, connection_string: str, **kwargs):
+        super().__init__(connection_string=connection_string, **kwargs)
+        # Initialize database connection
+        self._setup_connection()
+
+    def _setup_connection(self):
+        """Set up database connection (mock)."""
+        print(f"Connected to database: {self.connection_string}")
+
+    def _invoke(self, sql: str, params: dict[str, Any] = {}) -> List[dict]:
+        """Execute the SQL query."""
+        # Mock database query
+        return [
+            {"id": 1, "name": "Alice"},
+            {"id": 2, "name": "Bob"}
+        ]
+
+
+pctx = Pctx(
+    tools=[
+        DatabaseTool(connection_string="postgresql://localhost/mydb"),
+    ],
+)
+```
+
+### Registering Tools with PCTX
+
+Once you've defined your tools, register them with the `Pctx` client:
+
+```python
+from pctx_client import Pctx
+
+# Register decorator-based tools
+p = Pctx(tools=[get_weather, update_user_profile, fetch_user_data])
+
+# Register class-based tools (pass instances)
+calc = Calculator()
+search = WebSearchTool()
+db = DatabaseTool(connection_string="postgresql://localhost/mydb")
+
+p = Pctx(tools=[calc, search, db])
+
+# Mix both approaches
+p = Pctx(tools=[get_weather, calc, search, fetch_user_data])
+```
+
+## Agent Frameworks
+
+- `langchain`: Export PCTX's Code Mode tools as [LangChain tools](https://docs.langchain.com/oss/python/langchain/tools)
 
 ```bash
-pip install pctx[langchain]
+pip install pctx-client[langchain]
 ```
 
-```python
-tools = pctx.langchain_tools()
-```
-
-### CrewAI
+- `crewai`: Export PCTX's Code Mode tools as [CrewAI tools](https://docs.crewai.com/en/concepts/tools)
 
 ```bash
-pip install pctx[crewai]
+pip install pctx-client[crewai]
 ```
 
-```python
-tools = pctx.c()
-```
-
-### OpenAI Agents SDK
+- `openai`: Export PCTX's Code Mode tools as [OpenAI function tools](https://openai.github.io/openai-agents-python/tools/#function-tools)
 
 ```bash
-pip install pctx[openai]
+pip install pctx-client[openai]
 ```
 
-```python
-tools = pctx.openai_agents_tools()
-```
-
-### Pydantic AI
+- `pydantic-ai`: Export PCTX's Code Mode tools as [Pydantic Ai function tools](https://ai.pydantic.dev/tools/)
 
 ```bash
-pip install pctx[pydantic-ai]
+pip install pctx-client[pydantic-ai]
 ```
 
-```python
-tools = pctx.pydantic_ai_tools()
-```
+**PCTX can easily be integrated into any agent framework by wrapping the 3 Code Mode tools available on the `Pctx` class with the frameworks tools, see [`Pctx().langchain_tools()`](./src/pctx_client/_client.py) for the langchain implementation**
