@@ -4,7 +4,6 @@ PCTX Client
 Main client for executing code with both MCP tools and local Python tools.
 """
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
@@ -28,8 +27,8 @@ if TYPE_CHECKING:
     try:
         from langchain_core.tools import BaseTool as LangchainBaseTool
         from crewai.tools import BaseTool as CrewAiBaseTool
-        from openai import BaseModel as OpenAIBaseModel
         from pydantic_ai.tools import Tool as PydanticAITool
+        from agents import FunctionTool
     except ImportError:
         pass
 
@@ -209,11 +208,11 @@ class Pctx:
                 "LangChain is not installed. Install it with: pip install pctx[langchain]"
             ) from e
 
-        @langchain_tool(description=DEFAULT_LIST_FUNCTIONS_DESCRIPTION)
+        @langchain_tool(description=CODE_MODE_TOOL_DESCRIPTIONS["list_functions"])
         async def list_functions() -> str:
             return (await self.list_functions()).code
 
-        @langchain_tool(description=DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION)
+        @langchain_tool(description=CODE_MODE_TOOL_DESCRIPTIONS["get_function_details"])
         async def get_function_details(functions: list[str]) -> str:
             return (
                 await self.get_function_details(
@@ -221,7 +220,7 @@ class Pctx:
                 )
             ).code
 
-        @langchain_tool(description=DEFAULT_EXECUTE_DESCRIPTION)
+        @langchain_tool(description=CODE_MODE_TOOL_DESCRIPTIONS["execute"])
         async def execute(code: str) -> str:
             return (await self.execute(code)).markdown()
 
@@ -254,7 +253,7 @@ class Pctx:
 
         class ListFunctionsTool(CrewAiBaseTool):
             name: str = "list_functions"
-            description: str = DEFAULT_LIST_FUNCTIONS_DESCRIPTION
+            description: str = CODE_MODE_TOOL_DESCRIPTIONS["list_functions"]
 
             def _run(_self) -> str:
                 # When called from CrewAI's thread pool, use the main event loop
@@ -269,7 +268,7 @@ class Pctx:
 
         class GetFunctionDetailsTool(CrewAiBaseTool):
             name: str = "get_function_details"
-            description: str = DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION
+            description: str = CODE_MODE_TOOL_DESCRIPTIONS["get_function_details"]
             args_schema: type[BaseModel] = GetFunctionDetailsInput
 
             def _run(_self, functions: list[str]) -> str:
@@ -287,7 +286,7 @@ class Pctx:
 
         class ExecuteTool(CrewAiBaseTool):
             name: str = "execute"
-            description: str = DEFAULT_EXECUTE_DESCRIPTION
+            description: str = CODE_MODE_TOOL_DESCRIPTIONS["execute"]
             args_schema: type[BaseModel] = ExecuteInput
 
             def _run(_self, code: str) -> str:
@@ -303,7 +302,7 @@ class Pctx:
 
         return [ListFunctionsTool(), GetFunctionDetailsTool(), ExecuteTool()]
 
-    def openai_agents_tools(self) -> "list":
+    def openai_agents_tools(self) -> "list[FunctionTool]":
         """
         Expose PCTX code mode tools as OpenAI Agents SDK function tools
 
@@ -336,16 +335,15 @@ class Pctx:
             return (await self.execute(code)).markdown()
 
         # Set docstrings and apply decorator
-        list_functions_wrapper.__doc__ = DEFAULT_LIST_FUNCTIONS_DESCRIPTION
-        get_function_details_wrapper.__doc__ = f"""{DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION}
+        list_functions_wrapper.__doc__ = CODE_MODE_TOOL_DESCRIPTIONS["list_functions"]
+        get_function_details_wrapper.__doc__ = f"""{CODE_MODE_TOOL_DESCRIPTIONS["get_function_details"]}
 
 Args:
     functions: List of function names in 'namespace.functionName' format"""
-        execute_wrapper.__doc__ = f"""{DEFAULT_EXECUTE_DESCRIPTION}
+        execute_wrapper.__doc__ = f"""{CODE_MODE_TOOL_DESCRIPTIONS["execute"]}
 
 Args:
-    code: TypeScript code to execute
-    timeout: Timeout in seconds (default: 30)"""
+    code: TypeScript code to execute"""
 
         # Apply the function_tool decorator
         list_functions_tool = function_tool(name_override="list_functions")(
@@ -392,48 +390,24 @@ Args:
             PydanticAITool(
                 list_functions_wrapper,
                 name="list_functions",
-                description=DEFAULT_LIST_FUNCTIONS_DESCRIPTION,
+                description=CODE_MODE_TOOL_DESCRIPTIONS["list_functions"],
             ),
             PydanticAITool(
                 get_function_details_wrapper,
                 name="get_function_details",
-                description=DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION,
+                description=CODE_MODE_TOOL_DESCRIPTIONS["get_function_details"],
             ),
             PydanticAITool(
                 execute_wrapper,
                 name="execute",
-                description=DEFAULT_EXECUTE_DESCRIPTION,
+                description=CODE_MODE_TOOL_DESCRIPTIONS["execute"],
             ),
         ]
 
         return tools
 
 
-def _load_tool_description(name: str) -> str:
-    """Load tool description from markdown file."""
-    # Get the repository root (3 levels up from this file)
-    client_file = Path(__file__)
-    repo_root = client_file.parent.parent.parent.parent
-    tool_descriptions_dir = repo_root / "tool_descriptions"
-    description_file = tool_descriptions_dir / f"{name}.md"
-
-    if description_file.exists():
-        return description_file.read_text().strip()
-    else:
-        # Fallback to hardcoded descriptions if file not found
-        return _FALLBACK_DESCRIPTIONS.get(name, "")
-
-
-# Load descriptions from markdown files
-DEFAULT_LIST_FUNCTIONS_DESCRIPTION = _load_tool_description("list_functions")
-DEFAULT_GET_FUNCTION_DETAILS_DESCRIPTION = _load_tool_description(
-    "get_function_details"
-)
-DEFAULT_EXECUTE_DESCRIPTION = _load_tool_description("execute")
-
-# Fallback descriptions if markdown files are not found
-# These should match the markdown files in tool_descriptions/
-_FALLBACK_DESCRIPTIONS = {
+CODE_MODE_TOOL_DESCRIPTIONS = {
     "list_functions": """ALWAYS USE THIS TOOL FIRST to list all available functions organized by namespace.
 
 WORKFLOW:

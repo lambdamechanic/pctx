@@ -174,9 +174,7 @@ class TestOpenAIAgentsConverter:
     def test_openai_agents_get_function_details_schema(self, pctx_client):
         """Test get_function_details has correct schema"""
         tools = pctx_client.openai_agents_tools()
-        get_details_tool = next(
-            t for t in tools if t.name == "get_function_details"
-        )
+        get_details_tool = next(t for t in tools if t.name == "get_function_details")
         params = get_details_tool.params_json_schema
         assert "functions" in params["properties"]
         assert params["properties"]["functions"]["type"] == "array"
@@ -188,9 +186,7 @@ class TestOpenAIAgentsConverter:
         execute_tool = next(t for t in tools if t.name == "execute")
         params = execute_tool.params_json_schema
         assert "code" in params["properties"]
-        assert "timeout" in params["properties"]
         assert params["properties"]["code"]["type"] == "string"
-        assert params["properties"]["timeout"]["type"] == "number"
         assert "code" in params["required"]
 
 
@@ -282,9 +278,7 @@ class TestConverterIntegration:
         assert crewai_names == expected_names
 
         # OpenAI Agents
-        openai_names = {
-            tool.name for tool in pctx_client.openai_agents_tools()
-        }
+        openai_names = {tool.name for tool in pctx_client.openai_agents_tools()}
         assert openai_names == expected_names
 
         # Pydantic AI
