@@ -1,8 +1,7 @@
-import inspect
 from collections.abc import Callable
 from typing import Any, overload
 
-from pctx_client._tool import Tool
+from pctx_client._tool import AsyncTool, Tool
 
 
 @overload
@@ -11,14 +10,14 @@ def tool(
     *args: Any,
     namespace: str = "tools",
     description: str | None = None,
-) -> Callable[[Callable], Tool]: ...
+) -> Callable[[Callable], Tool | AsyncTool]: ...
 @overload
 def tool(
     name_or_callable: Callable,
     *args: Any,
     namespace: str = "tools",
     description: str | None = None,
-) -> Tool: ...
+) -> Tool | AsyncTool: ...
 
 
 def tool(
@@ -26,12 +25,12 @@ def tool(
     *args: Any,
     namespace: str = "tools",
     description: str | None = None,
-) -> Tool | Callable[[Callable], Tool]:
+) -> Tool | AsyncTool | Callable[[Callable], Tool | AsyncTool]:
     """
     Decorator that prints the name of the function it wraps when called.
     """
 
-    def _crate_tool_factory(tool_name: str) -> Callable[[Callable], Tool]:
+    def _crate_tool_factory(tool_name: str) -> Callable[[Callable], Tool | AsyncTool]:
         """
         Creates a decorator which takes the callable & returns the tool
 
@@ -42,19 +41,11 @@ def tool(
             A function that takes a callable & returns a base tool
         """
 
-        def _tool_factory(fn: Callable) -> Tool:
+        def _tool_factory(fn: Callable) -> Tool | AsyncTool:
             tool_desc = description
 
-            if inspect.iscoroutinefunction(fn):
-                coroutine = fn
-                func = None
-            else:
-                coroutine = None
-                func = fn
-
             return Tool.from_func(
-                func=func,
-                coroutine=coroutine,
+                func=fn,
                 name=tool_name,
                 namespace=namespace,
                 description=tool_desc,

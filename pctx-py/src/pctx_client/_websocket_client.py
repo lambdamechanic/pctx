@@ -24,7 +24,7 @@ from pctx_client.models import (
     ExecuteToolRequest,
     ExecuteToolResponse,
 )
-from pctx_client._tool import Tool
+from pctx_client._tool import AsyncTool, Tool
 from websockets.asyncio.client import ClientConnection
 
 from .exceptions import ConnectionError
@@ -46,7 +46,7 @@ class WebSocketClient:
     receive and handle tool execution requests from the server
     """
 
-    def __init__(self, url: str, tools: list[Tool] | None = None):
+    def __init__(self, url: str, tools: list[Tool | AsyncTool] | None = None):
         """
         Initialize the WebSocket client.
 
@@ -199,7 +199,7 @@ class WebSocketClient:
 
         args = req.params.args or {}
         try:
-            if tool.func is not None:
+            if isinstance(tool, Tool):
                 output = tool.invoke(**args)
             else:
                 output = await tool.ainvoke(**args)

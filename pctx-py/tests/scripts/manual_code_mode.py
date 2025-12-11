@@ -1,5 +1,6 @@
 import asyncio
 import pprint
+from groq import BaseModel
 from pctx_client import Pctx, tool
 
 
@@ -15,9 +16,20 @@ def subtract(a: float, b: float) -> float:
     return a - b
 
 
+class MultiplyOutput(BaseModel):
+    message: str
+    result: float
+
+
+@tool("multiply", namespace="my_math")
+def multiply(a: float, b: float) -> MultiplyOutput:
+    """multiplies a and b"""
+    return MultiplyOutput(message=f"Show your work! {a} * {b} = {a * b}", result=a * b)
+
+
 async def main():
     p = Pctx(
-        tools=[add, subtract],
+        tools=[add, subtract, multiply],
         # servers=[
         #     {
         #         "name": "stripe",
@@ -40,9 +52,12 @@ async def main():
 
     code = """
 async function run() {
-    let value = await MyMath.add({a: 40, b: 2});
+    let addval = await MyMath.add({a: 40, b: 2});
+    let subval = await MyMath.subtract({a: addval, b: 2});
+    let multval = await MyMath.multiply({a: subval, b: 2});
 
-    return value;
+
+    return multval;
 }
 """
     print(code)

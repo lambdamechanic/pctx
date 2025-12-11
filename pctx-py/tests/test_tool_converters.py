@@ -137,20 +137,19 @@ class TestOpenAIAgentsConverter:
 
     def test_openai_agents_tools_structure(self, pctx_client):
         """Test that OpenAI Agents tools have correct structure"""
+        from agents import FunctionTool
+
         tools = pctx_client.openai_agents_tools()
         for tool in tools:
-            assert isinstance(tool, dict)
-            assert "type" in tool
-            assert tool["type"] == "function"
-            assert "function" in tool
-            assert "name" in tool["function"]
-            assert "description" in tool["function"]
-            assert "parameters" in tool["function"]
+            assert isinstance(tool, FunctionTool)
+            assert hasattr(tool, "name")
+            assert hasattr(tool, "description")
+            assert hasattr(tool, "params_json_schema")
 
     def test_openai_agents_function_names(self, pctx_client):
         """Test that OpenAI Agents functions have correct names"""
         tools = pctx_client.openai_agents_tools()
-        names = [tool["function"]["name"] for tool in tools]
+        names = [tool.name for tool in tools]
         assert "list_functions" in names
         assert "get_function_details" in names
         assert "execute" in names
@@ -159,7 +158,7 @@ class TestOpenAIAgentsConverter:
         """Test that OpenAI Agents functions have descriptions"""
         tools = pctx_client.openai_agents_tools()
         for tool in tools:
-            description = tool["function"]["description"]
+            description = tool.description
             assert description
             assert len(description) > 0
 
@@ -167,7 +166,7 @@ class TestOpenAIAgentsConverter:
         """Test that OpenAI Agents tools have correct parameter schemas"""
         tools = pctx_client.openai_agents_tools()
         for tool in tools:
-            params = tool["function"]["parameters"]
+            params = tool.params_json_schema
             assert params["type"] == "object"
             assert "properties" in params
             assert "required" in params
@@ -176,9 +175,9 @@ class TestOpenAIAgentsConverter:
         """Test get_function_details has correct schema"""
         tools = pctx_client.openai_agents_tools()
         get_details_tool = next(
-            t for t in tools if t["function"]["name"] == "get_function_details"
+            t for t in tools if t.name == "get_function_details"
         )
-        params = get_details_tool["function"]["parameters"]
+        params = get_details_tool.params_json_schema
         assert "functions" in params["properties"]
         assert params["properties"]["functions"]["type"] == "array"
         assert "functions" in params["required"]
@@ -186,8 +185,8 @@ class TestOpenAIAgentsConverter:
     def test_openai_agents_execute_schema(self, pctx_client):
         """Test execute has correct schema"""
         tools = pctx_client.openai_agents_tools()
-        execute_tool = next(t for t in tools if t["function"]["name"] == "execute")
-        params = execute_tool["function"]["parameters"]
+        execute_tool = next(t for t in tools if t.name == "execute")
+        params = execute_tool.params_json_schema
         assert "code" in params["properties"]
         assert "timeout" in params["properties"]
         assert params["properties"]["code"]["type"] == "string"
@@ -284,7 +283,7 @@ class TestConverterIntegration:
 
         # OpenAI Agents
         openai_names = {
-            tool["function"]["name"] for tool in pctx_client.openai_agents_tools()
+            tool.name for tool in pctx_client.openai_agents_tools()
         }
         assert openai_names == expected_names
 
