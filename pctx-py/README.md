@@ -1,6 +1,6 @@
-# PCTX Python Client
+# pctx Python Client
 
-Python client for using Code Mode via PCTX - allow agents to execute code with your custom tools and MCP servers.
+Python client for using Code Mode via pctx - allow agents to execute code with your custom tools and MCP servers.
 
 ## Installation
 
@@ -23,7 +23,7 @@ curl --proto '=https' --tlsv1.2 -LsSf https://raw.githubusercontent.com/portofco
 npm i -g @portofcontext/pctx
 ```
 
-2. Install Python PCTX client with the langchain extra & additional langchain dependencies. (PCTX supports other agent frameworks as well, see [Agent Frameworks](#agent-frameworks))
+2. Install Python pctx client with the langchain extra & additional langchain dependencies. (pctx supports other agent frameworks as well, see [Agent Frameworks](#agent-frameworks))
 
 ```
 pip install pctx-client[langchain] langchain langchain_openai
@@ -83,7 +83,7 @@ async def main(api_key: str):
         system_prompt="You are a helpful assistant",
     )
 
-    # Connect to PCTX
+    # Connect to pctx
     await p.connect()
 
     result = await agent.ainvoke(
@@ -124,7 +124,7 @@ The `Pctx` client provides 3 main code mode functions:
 
 ## Defining Tools
 
-PCTX provides two approaches for defining tools: the `@tool` decorator for simple function-based tools, and `Tool`/`AsyncTool` classes for more complex implementations.
+pctx provides two approaches for defining tools: the `@tool` decorator for simple function-based tools, and `Tool`/`AsyncTool` classes for more complex implementations.
 
 ### Decorator Approach
 
@@ -379,7 +379,7 @@ pctx = Pctx(
 )
 ```
 
-### Registering Tools with PCTX
+### Registering Tools with pctx
 
 Once you've defined your tools, register them with the `Pctx` client:
 
@@ -402,28 +402,28 @@ p = Pctx(tools=[get_weather, calc, search, fetch_user_data])
 
 ## Agent Frameworks
 
-- `langchain`: Export PCTX's Code Mode tools as [LangChain tools](https://docs.langchain.com/oss/python/langchain/tools)
+- `langchain`: Export pctx's Code Mode tools as [LangChain tools](https://docs.langchain.com/oss/python/langchain/tools)
 
 ```bash
 pip install pctx-client[langchain]
 ```
 
-- `crewai`: Export PCTX's Code Mode tools as [CrewAI tools](https://docs.crewai.com/en/concepts/tools)
+- `crewai`: Export pctx's Code Mode tools as [CrewAI tools](https://docs.crewai.com/en/concepts/tools)
 
 ```bash
 pip install pctx-client[crewai]
 ```
 
-- `openai`: Export PCTX's Code Mode tools as [OpenAI function tools](https://openai.github.io/openai-agents-python/tools/#function-tools)
+- `openai`: Export pctx's Code Mode tools as [OpenAI function tools](https://openai.github.io/openai-agents-python/tools/#function-tools)
 
 ```bash
 pip install pctx-client[openai]
 ```
 
-- `pydantic-ai`: Export PCTX's Code Mode tools as [Pydantic Ai function tools](https://ai.pydantic.dev/tools/)
+- `pydantic-ai`: Export pctx's Code Mode tools as [Pydantic Ai function tools](https://ai.pydantic.dev/tools/)
 
 ```bash
 pip install pctx-client[pydantic-ai]
 ```
 
-**PCTX can easily be integrated into any agent framework by wrapping the 3 Code Mode tools available on the `Pctx` class with the frameworks tools, see [`Pctx().langchain_tools()`](./src/pctx_client/_client.py) for the langchain implementation**
+**pctx can easily be integrated into any agent framework by wrapping the 3 Code Mode tools available on the `Pctx` class with the frameworks tools, see [`Pctx().langchain_tools()`](./src/pctx_client/_client.py) for the langchain implementation**

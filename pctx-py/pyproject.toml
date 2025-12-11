@@ -18,7 +18,7 @@ pydantic-ai = ["pydantic-ai>=0.0.14"]
 
 [project.urls]
 "Homepage" = "https://github.com/portofcontext/pctx"
-"Documentation" = "https://pctx-client.readthedocs.io"
+"Documentation" = "https://pctx.readthedocs.io/en/latest/"
 "Source" = "https://github.com/portofcontext/pctx"
 "Bug Tracker" = "https://github.com/portofcontext/pctx/issues"
 
