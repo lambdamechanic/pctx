@@ -46,6 +46,7 @@ class Pctx:
         tools: list[Tool | AsyncTool] | None = None,
         servers: list[ServerConfig] | None = None,
         url: str = "http://localhost:8080",
+        execute_timeout: float = 30.0,
     ):
         """
         Initialize the PCTX client.
@@ -76,6 +77,7 @@ class Pctx:
 
         self._tools = tools or []
         self._servers = servers or []
+        self._execute_timeout = execute_timeout
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -173,12 +175,12 @@ class Pctx:
 
         return GetFunctionDetailsOutput.model_validate(list_res.json())
 
-    async def execute(self, code: str, timeout: float = 30.0) -> ExecuteOutput:
+    async def execute(self, code: str) -> ExecuteOutput:
         if self._session_id is None:
             raise SessionError(
                 "No code mode session exists, run Pctx(...).connect() before calling"
             )
-        return await self._ws_client.execute_code(code, timeout=timeout)
+        return await self._ws_client.execute_code(code, timeout=self._execute_timeout)
 
     # ========== Registrations ==========
 
@@ -220,8 +222,8 @@ class Pctx:
             ).code
 
         @langchain_tool(description=DEFAULT_EXECUTE_DESCRIPTION)
-        async def execute(code: str, timeout: float = 30) -> str:
-            return (await self.execute(code, timeout=timeout)).markdown()
+        async def execute(code: str) -> str:
+            return (await self.execute(code)).markdown()
 
         return [list_functions, get_function_details, execute]
 
@@ -294,7 +296,7 @@ class Pctx:
                     future = asyncio.run_coroutine_threadsafe(
                         self.execute(code=code), main_loop
                     )
-                    return future.result(timeout=30).markdown()
+                    return future.result(timeout=self._execute_timeout).markdown()
                 else:
                     # No event loop captured, create a new one
                     return asyncio.run(self.execute(code=code)).markdown()
@@ -324,15 +326,14 @@ class Pctx:
         # OpenAI Agents SDK uses function decorators to create tools
         # We need to create wrapper functions that call our async methods
 
-
         async def list_functions_wrapper() -> str:
             return (await self.list_functions()).code
 
         async def get_function_details_wrapper(functions: list[str]) -> str:
             return (await self.get_function_details(functions)).code
 
-        async def execute_wrapper(code: str, timeout: float = 30.0) -> str:
-            return (await self.execute(code, timeout=timeout)).markdown()
+        async def execute_wrapper(code: str) -> str:
+            return (await self.execute(code)).markdown()
 
         # Set docstrings and apply decorator
         list_functions_wrapper.__doc__ = DEFAULT_LIST_FUNCTIONS_DESCRIPTION
@@ -347,8 +348,12 @@ Args:
     timeout: Timeout in seconds (default: 30)"""
 
         # Apply the function_tool decorator
-        list_functions_tool = function_tool(name_override="list_functions")(list_functions_wrapper)
-        get_function_details_tool = function_tool(name_override="get_function_details")(get_function_details_wrapper)
+        list_functions_tool = function_tool(name_override="list_functions")(
+            list_functions_wrapper
+        )
+        get_function_details_tool = function_tool(name_override="get_function_details")(
+            get_function_details_wrapper
+        )
         execute_tool = function_tool(name_override="execute")(execute_wrapper)
 
         return [list_functions_tool, get_function_details_tool, execute_tool]
@@ -379,8 +384,8 @@ Args:
         async def get_function_details_wrapper(functions: list[str]) -> str:
             return (await self.get_function_details(functions)).code
 
-        async def execute_wrapper(code: str, timeout: float = 30.0) -> str:
-            return (await self.execute(code, timeout=timeout)).markdown()
+        async def execute_wrapper(code: str) -> str:
+            return (await self.execute(code)).markdown()
 
         # Create Pydantic AI tools using the Tool class with explicit descriptions
         tools = [
