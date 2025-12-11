@@ -151,6 +151,26 @@ class Pctx:
     # ========== Main code mode methods method ==========
 
     async def list_functions(self) -> ListFunctionsOutput:
+        """
+        List all available functions organized by namespace.
+
+        This is typically the first method you should call to discover what functions
+        are available in the current session, including both registered local tools
+        and MCP server functions.
+
+        Returns:
+            ListFunctionsOutput: An object containing function signatures organized
+                by namespace. The `code` attribute contains TypeScript code with
+                function declarations that can be used for reference.
+
+        Raises:
+            SessionError: If called before establishing a session via connect().
+
+        Example:
+            >>> async with Pctx() as pctx:
+            ...     functions = await pctx.list_functions()
+            ...     print(functions.code)  # TypeScript declarations
+        """
         if self._session_id is None:
             raise SessionError(
                 "No code mode session exists, run Pctx(...).connect() before calling"
@@ -163,6 +183,30 @@ class Pctx:
     async def get_function_details(
         self, functions: list[str]
     ) -> GetFunctionDetailsOutput:
+        """
+        Get detailed information about specific functions.
+
+        After discovering available functions with list_functions(), use this method
+        to get comprehensive details about parameter types, return values, and usage
+        for the specific functions you need.
+
+        Args:
+            functions: List of function names in 'namespace.functionName' format
+                (e.g., ['Notion.apiPostSearch', 'Weather.getCurrentWeather']).
+
+        Returns:
+            GetFunctionDetailsOutput: An object containing detailed TypeScript
+                declarations for the requested functions. The `code` attribute
+                contains the full function signatures with JSDoc comments.
+
+        Raises:
+            SessionError: If called before establishing a session via connect().
+
+        Example:
+            >>> async with Pctx() as pctx:
+            ...     details = await pctx.get_function_details(['Weather.getCurrentWeather'])
+            ...     print(details.code)  # Detailed TypeScript with parameter info
+        """
         if self._session_id is None:
             raise SessionError(
                 "No code mode session exists, run Pctx(...).connect() before calling"
@@ -175,6 +219,47 @@ class Pctx:
         return GetFunctionDetailsOutput.model_validate(list_res.json())
 
     async def execute(self, code: str) -> ExecuteOutput:
+        """
+        Execute TypeScript code that calls namespaced functions.
+
+        This method runs TypeScript code in a secure Deno sandbox with access to
+        all registered functions (both local tools and MCP server functions).
+
+        Args:
+            code: TypeScript code to execute. Must include an async `run()` function
+                that serves as the entry point. Functions must be called with their
+                namespace prefix (e.g., 'Weather.getCurrentWeather()').
+
+        Returns:
+            ExecuteOutput: An object containing execution results with attributes:
+                - result: The value returned from the run() function
+                - logs: Array of console.log() outputs
+                - markdown(): Method to format output as markdown
+
+        Raises:
+            SessionError: If called before establishing a session via connect().
+            TimeoutError: If execution exceeds the configured timeout (default 30s).
+
+        Notes:
+            - Code must define an `async function run()` as the entry point
+            - Functions MUST be called as 'Namespace.functionName'
+            - Only functions from list_functions() are available
+            - No access to fetch(), fs, or other standard Node/Deno APIs
+            - Variables don't persist between execute() calls
+            - Return values are already parsed objects, not JSON strings
+
+        Example:
+            >>> async with Pctx() as pctx:
+            ...     code = '''
+            ...     async function run() {
+            ...         const result = await Weather.getCurrentWeather({ city: "NYC" });
+            ...         console.log("Temperature:", result.temp);
+            ...         return { temperature: result.temp };
+            ...     }
+            ...     '''
+            ...     output = await pctx.execute(code)
+            ...     print(output.markdown())  # Formatted results with logs
+        """
         if self._session_id is None:
             raise SessionError(
                 "No code mode session exists, run Pctx(...).connect() before calling"
