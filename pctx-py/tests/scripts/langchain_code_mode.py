@@ -3,7 +3,7 @@ import os
 import pprint
 
 from langchain.agents import create_agent
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 
 from pctx_client import Pctx, tool
 
@@ -24,12 +24,11 @@ async def run_agent():
     code_mode = Pctx(tools=[get_weather, get_time])
     await code_mode.connect()
 
-    llm = ChatGroq(
-        model="openai/gpt-oss-120b",
+    llm = ChatOpenAI(
+        model="deepseek/deepseek-chat",
         temperature=0,
-        max_tokens=None,
-        reasoning_format="parsed",
-        timeout=None,
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
         max_retries=2,
     )
     agent = create_agent(
@@ -52,7 +51,10 @@ async def run_agent():
 
 
 if __name__ == "__main__":
-    if "GROQ_API_KEY" not in os.environ:
-        raise EnvironmentError("GROQ_API_KEY not set in the env")
+    if "OPENROUTER_API_KEY" not in os.environ:
+        raise EnvironmentError(
+            "OPENROUTER_API_KEY not set in the environment. "
+            "Get your API key from https://openrouter.ai/settings/keys"
+        )
 
     asyncio.run(run_agent())

@@ -5,13 +5,14 @@
 [![Made by](https://img.shields.io/badge/MADE%20BY-Port%20of%20Context-1e40af.svg?style=for-the-badge&labelColor=0c4a6e)](https://portofcontext.com)
 
 [![NPM Version](https://img.shields.io/npm/v/%40portofcontext%2Fpctx)](https://www.npmjs.com/package/@portofcontext/pctx)
-[![Rust](https://img.shields.io/badge/rust-1.89%2B-blue.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.89%2B-green.svg)](https://www.rust-lang.org)
+[![Python](https://img.shields.io/pypi/v/pctx-client?color=blue)](https://pctx.readthedocs.io/en/latest/)
 
 </div>
 
 <div align="center">
 
-The open source framework to connect AI agents to tools and services with [code mode](#what-is-code-mode)
+The open source framework to connect AI agents to tools and mcp with [Code Mode](#what-is-code-mode)
 
 </div>
 
@@ -28,20 +29,63 @@ curl --proto '=https' --tlsv1.2 -LsSf https://raw.githubusercontent.com/portofco
 npm i -g @portofcontext/pctx
 ```
 
-## Quick Start
+## Core Functionality
+pctx can be run as a stateless HTTP server for Code Mode sessions or as a unified MCP server that exposes Code Mode functionality for registered upstream MCP servers.
+
+```bash 
+# Start Code Mode for Python SDK
+pctx start
+
+# Start Code Mode as a unified MCP server
+pctx mcp init
+pctx mcp dev
+```
+
+## Python SDK
+Use the Python SDK if building agents in Python and want to run Code Mode with custom tools and/or MCP servers. The Python SDK is an HTTP client to the `pctx` server.
+```bash
+uv pip install pctx-client
+```
+```python
+from pctx_client import Pctx, tool
+from agents import Agent # Use any Agent SDK
+from agents.run import Runner # This example is OpenAI Agents SDK
+
+@tool
+def get_weather(city: str) -> str:
+    """Get weather information for a given city."""
+    return f"It's always sunny in {city}!"
+
+pctx = Pctx(tools=[get_weather]) # or with mcp: servers=[your_mcp]
+
+tools = pctx.openai_agents_tools() # Run Code Mode with any Agent SDK
+agent = Agent(
+    name="GreatCoder",
+    model="litellm/openrouter/openai/gpt-oss-120b",
+    instructions="You run code to complete complex tasks.",
+    tools=tools,
+)
+```
+Complete Docs: [Python SDK Quickstart and Docs](./pctx-py/README.md)
+
+## Node SDK
+Coming soon
+
+## Unified MCP
+Use the unified MCP to run Code Mode with MCP servers and want to persist the authentication connections and you do not need to register local tools.
 
 ```bash
 # Initialize config for upstream mcp connections
-pctx init
+pctx mcp init
 
 # Connect to any MCP server
-pctx add my-local-server http://localhost:3000/mcp
-pctx add stripe https://mcp.stripe.com
+pctx mcp add my-local-server http://localhost:3000/mcp
+pctx mcp add stripe https://mcp.stripe.com
 
 # Start the unified MCP server in dev mode
-pctx dev
+pctx mcp dev
 
-# copy the pctx url and connect to agents with --transport http
+# copy server url and connect to agents with --transport http
 ```
 
 For complete CLI documentation, see [CLI.md](docs/CLI.md).
@@ -55,7 +99,7 @@ For configuration options, see [Configuration Guide](docs/config.md).
 
 ## What is Code Mode?
 
-Code mode replaces sequential tool calling with code execution. Rather than an agent calling tools one at a time and passing results through its context window, it writes TypeScript code that executes in a sandbox. Read Anthropic's overview [here](https://www.anthropic.com/engineering/code-execution-with-mcp).
+Code mode replaces sequential tool calling with code execution. Rather than an agent calling tools one at a time and passing results through its context window, it writes code that executes in a sandbox. Read Anthropic's overview [here](https://www.anthropic.com/engineering/code-execution-with-mcp).
 
 **Traditional MCP flow**:
 
@@ -76,51 +120,13 @@ console.log(`Found ${orders.length} orders`);
 
 ## Features
 
-- **Code Mode interface**: Tools exposed as TypeScript functions for efficient agent interaction. See [Code Mode Guide](docs/code-mode.md).
+- **Code Mode interface**: Tools exposed as code functions for efficient agent interaction. See [Code Mode Guide](docs/code-mode.md).
 - **Upstream MCP server aggregation**: Connect to multiple MCP servers through a single interface. See [Upstream MCP Servers Guide](docs/upstream-mcp-servers.md).
 - **Simple config with CLI**: Create the pctx.json config with a simple CLI. pctx.json manages auth, upstream MCPs, logging, and more. See [Config Guide](docs/config.md).
 - **Secure authentication**: Source secrets from environment variables, system keychain, and external commands. See [Authentication Section](docs/config.md#authentication) in the CLI configuration docs for more details.
 
 ## Architecture
-
-```
-    Runs locally • in docker • any cloud
-
-  ┌─────────────────────────────────┐
-  │      AI Agents (Bring any LLM)  │
-  └──────────────-──────────────────┘
-                │ MCP
-                │ • list_functions
-                │ • get_function_details
-                │ • execute
-  ┌─────────────▼───────────────────┐
-  │            pctx                 │
-  │                                 │
-  │  ┌─────────────────────────┐    │
-  │  │  TypeScript Compiler    │    │
-  │  │  Sandbox (Deno)         │    │
-  │  │                         │    │
-  │  │  • Type checking        │    │
-  │  │  • Rich error feedback  │    │
-  │  │  • No network access    │    │
-  │  └──────────┬──────────────┘    │
-  │             │ Compiled JS       │
-  │  ┌──────────▼──────────────┐    │
-  │  │  Execution Sandbox      │    │
-  │  │  (Deno Runtime)         │    │
-  │  │                         │    │
-  │  │  • Authenticated MCP    │    │
-  │  │    client connections   │    │
-  │  │  • Restricted network   │    │
-  │  │  • Tool call execution  │    │
-  │  └──┬──────┬──────┬────────┘    │
-  └─────┼──────┼──────┼─────────────┘
-        │      │      │
-        ↓      ↓      ↓
-    ┌──────┬──────┬──────┬──────┐
-    │Local │Slack │GitHub│Custom│
-    └──────┴──────┴──────┴──────┘
-```
+<img width="1020" height="757" alt="Screenshot 2025-11-21 at 11 03 20 AM" src="./docs/pctx-architecture.svg" />
 
 ## Security
 

@@ -1,6 +1,6 @@
 [project]
 name = "pctx-client"
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 description = "Python client for using Code Mode via PCTX"
 readme = "README.md"
 authors = [
@@ -13,10 +13,12 @@ dependencies = ["httpx>=0.28.1", "pydantic>=2.7.2", "websockets>=15.0.1"]
 [project.optional-dependencies]
 langchain = ["langchain>=1.1.2"]
 crewai = ["crewai>=1.6.1"]
+openai = ["openai-agents>=0.6.2"]
+pydantic-ai = ["pydantic-ai>=0.0.14"]
 
 [project.urls]
 "Homepage" = "https://github.com/portofcontext/pctx"
-"Documentation" = "https://pctx-client.readthedocs.io"
+"Documentation" = "https://pctx.readthedocs.io/en/latest/"
 "Source" = "https://github.com/portofcontext/pctx"
 "Bug Tracker" = "https://github.com/portofcontext/pctx/issues"
 
@@ -30,8 +32,17 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "ipython>=8.26",
-    "langchain-groq>=1.1.0",
     "litellm>=1.80.8",
+    # Test dependencies for tool converters
+    "langchain>=1.1.2",
+    "langchain-openai>=0.3.0",
+    "crewai>=1.6.1",
+    "openai-agents>=0.6.2",
+    "pydantic-ai>=0.0.14",
+    "sphinx",
+    "sphinx-autobuild",
+    "sphinx-rtd-theme",
+    "tomli",
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -40,11 +51,8 @@ convention = "google"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-
-[tool.uv]
-dev-dependencies = [
-    "sphinx",
-    "sphinx-autobuild",
-    "sphinx-rtd-theme",
-    "tomli",
+filterwarnings = [
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20",
+    "ignore::DeprecationWarning:opentelemetry.*",
+    "ignore:You should use.*instead.*Deprecated since version:DeprecationWarning",
 ]

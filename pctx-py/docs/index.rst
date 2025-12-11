@@ -85,8 +85,52 @@ Features
 - **Tool Decorator**: Easily expose Python functions as callable tools
 - **Async Support**: Full async/await support for non-blocking operations
 - **MCP Server Integration**: Connect to MCP servers for extended functionality
-- **LangChain Integration**: Use tools with LangChain agents
-- **CrewAI Integration**: Use tools with CrewAI agents
+- **Framework Integrations**: Use tools with LangChain, CrewAI, , OpenAI Agents SDK, and Pydantic AI
+
+Framework Integrations
+----------------------
+
+PCTX provides converters for multiple AI agent frameworks:
+
+**LangChain**
+
+.. code-block:: bash
+
+   pip install pctx[langchain]
+
+.. code-block:: python
+
+   tools = pctx.langchain_tools()
+
+**CrewAI**
+
+.. code-block:: bash
+
+   pip install pctx[crewai]
+
+.. code-block:: python
+
+   tools = pctx.c()
+
+**OpenAI Agents SDK**
+
+.. code-block:: bash
+
+   pip install pctx[openai]
+
+.. code-block:: python
+
+   tools = pctx.openai_agents_tools()
+
+**Pydantic AI**
+
+.. code-block:: bash
+
+   pip install pctx[pydantic-ai]
+
+.. code-block:: python
+
+   tools = pctx.pydantic_ai_tools()
 
 Contents
 --------
