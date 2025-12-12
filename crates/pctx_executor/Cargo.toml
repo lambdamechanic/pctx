@@ -9,10 +9,10 @@ publish = false
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-deno_core = "0.363.0"
-deno_runtime = { version = "0.229.0", features = ["transpile", "hmr"] }
-deno_resolver = "0.52.0"
-node_resolver = "0.59.0"
+deno_core = "0.372.0"
+deno_runtime = { version = "0.230.0", features = ["transpile", "hmr"] }
+deno_resolver = "0.53.0"
+node_resolver = "0.60.0"
 sys_traits = "0.1"
 deno_transpiler = { path = "../deno_transpiler" }
 pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
@@ -23,7 +23,6 @@ regex = "1.11"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 futures = "0.3"
-deno_error = "0.7"
 
 [target.'cfg(windows)'.dependencies]
 # Need version 0.59 to match deno_subprocess_windows transitive dependency
