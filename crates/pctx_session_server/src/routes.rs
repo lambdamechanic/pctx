@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use axum::{Json, extract::State, http::StatusCode};
-use pctx_code_execution_runtime::CallbackFn;
+
 use pctx_code_mode::{
     CodeMode,
     model::{GetFunctionDetailsInput, GetFunctionDetailsOutput, ListFunctionsOutput},
 };
-use serde_json::json;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -14,9 +13,9 @@ use uuid::Uuid;
 use crate::AppState;
 use crate::extractors::CodeModeSession;
 use crate::model::{
-    CloseSessionResponse, CreateSessionResponse, ErrorCode, ErrorData, ExecuteToolParams,
-    HealthResponse, McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
-    RegisterToolsRequest, RegisterToolsResponse,
+    CloseSessionResponse, CreateSessionResponse, ErrorCode, ErrorData, HealthResponse,
+    McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse, RegisterToolsRequest,
+    RegisterToolsResponse,
 };
 
 pub(crate) type ApiResult<T> = Result<T, (StatusCode, Json<ErrorData>)>;
@@ -210,47 +209,11 @@ pub(crate) async fn register_tools(
             details: None,
         }),
     ))?;
-    let ws_session_lock = state
-        .ws_manager
-        .get_for_code_mode_session(session_id)
-        .await
-        .ok_or((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorData {
-                code: ErrorCode::InvalidSession,
-                message: format!("Failed to find websocket for session {session_id}"),
-                details: None,
-            }),
-        ))?;
 
     let mut registered = 0;
     for tool in &request.tools {
-        // Create callback closure that captures session state
-        let ws_session_lock_clone = ws_session_lock.clone();
-        let tool_cfg = tool.clone();
-
-        let callback: CallbackFn = Arc::new(move |args: Option<serde_json::Value>| {
-            let tool_cfg_clone = tool_cfg.clone();
-            let ws_session_lock_clone = ws_session_lock_clone.clone();
-
-            Box::pin(async move {
-                let ws_session = ws_session_lock_clone.read().await;
-
-                let callback_res = ws_session
-                    .execute_callback(ExecuteToolParams {
-                        namespace: tool_cfg_clone.namespace,
-                        name: tool_cfg_clone.name,
-                        args,
-                    })
-                    .await
-                    .map_err(|e| e.to_string())?;
-
-                Ok(json!(callback_res.output))
-            })
-        });
-
         let mut code_mode_write = code_mode_lock.write().await;
-        code_mode_write.add_callback(tool, callback).map_err(|e| {
+        code_mode_write.add_callback(tool).map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorData {

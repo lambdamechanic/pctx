@@ -2,11 +2,7 @@ mod utils;
 
 use crate::utils::{callback_tools, connect_websocket, create_test_server_with_session};
 use pctx_code_mode::model::CallbackConfig;
-use pctx_session_server::{
-    CODE_MODE_SESSION_HEADER,
-    model::{ExecuteCodeParams, PctxJsonRpcRequest, WsJsonRpcMessage},
-};
-use rmcp::model::RequestId;
+use pctx_session_server::{CODE_MODE_SESSION_HEADER, model::WsJsonRpcMessage};
 use serde_json::json;
 use serial_test::serial;
 use similar_asserts::assert_serde_eq;
@@ -144,21 +140,6 @@ async fn test_exec_code_syntax_err() {
 #[serial]
 async fn test_exec_callbacks() {
     let (session_id, server, _) = create_test_server_with_session().await;
-    let mut ws = connect_websocket(&server, session_id)
-        .await
-        .into_websocket()
-        .await;
-
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&WsJsonRpcMessage::request(
-            PctxJsonRpcRequest::ExecuteCode {
-                params: ExecuteCodeParams { code: "abc".into() }
-            },
-            RequestId::String("some-id".into())
-        ))
-        .unwrap()
-    );
 
     // register tools
     let callbacks = callback_tools();
@@ -173,6 +154,10 @@ async fn test_exec_callbacks() {
     register_res.assert_status_ok();
 
     // kick off execution script that uses all of the tools
+    let mut ws = connect_websocket(&server, session_id)
+        .await
+        .into_websocket()
+        .await;
     let code = "
         async function run() {
             let value = await TestMath.add({a: 8, b: 2});

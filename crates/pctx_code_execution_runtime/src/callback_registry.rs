@@ -50,7 +50,11 @@ impl CallbackRegistry {
         id: &str, // namespace.name
         callback: CallbackFn,
     ) -> Result<(), McpError> {
-        let mut callbacks = self.callbacks.write().unwrap();
+        let mut callbacks = self.callbacks.write().map_err(|e| {
+            McpError::Config(format!(
+                "Failed obtaining write lock on callback registry: {e}"
+            ))
+        })?;
 
         if callbacks.contains_key(id) {
             return Err(McpError::Config(format!(
