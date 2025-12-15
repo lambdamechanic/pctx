@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use codegen::{Tool, ToolSet};
 use pctx_code_execution_runtime::CallbackRegistry;
 use pctx_config::server::ServerConfig;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{debug, warn};
 
@@ -14,7 +15,7 @@ use crate::{
     },
 };
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct CodeMode {
     // Codegen interfaces
     pub tool_sets: Vec<codegen::ToolSet>,
