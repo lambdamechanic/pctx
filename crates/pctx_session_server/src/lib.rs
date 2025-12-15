@@ -8,4 +8,7 @@ pub mod websocket;
 
 pub use extractors::CODE_MODE_SESSION_HEADER;
 pub use server::start_server;
-pub use state::AppState;
+pub use state::{
+    AppState,
+    backend::{LocalBackend, PctxSessionBackend},
+};

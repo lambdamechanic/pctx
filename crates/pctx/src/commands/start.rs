@@ -40,7 +40,7 @@ pub struct StartCmd {
 
 impl StartCmd {
     pub(crate) async fn handle(&self) -> Result<()> {
-        let state = AppState::default();
+        let state = AppState::new_local();
 
         self.print_banner();
 

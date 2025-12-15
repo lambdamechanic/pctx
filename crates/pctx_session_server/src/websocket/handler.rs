@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
+    PctxSessionBackend,
     extractors::CodeModeSession,
     model::{
         ExecuteCodeParams, ExecuteToolParams, PctxJsonRpcRequest, PctxJsonRpcResponse,
@@ -33,13 +34,13 @@ use uuid::Uuid;
 use crate::AppState;
 
 /// Handle WebSocket upgrade
-pub async fn ws_handler(
+pub async fn ws_handler<B: PctxSessionBackend>(
     ws: WebSocketUpgrade,
-    State(state): State<AppState>,
+    State(state): State<AppState<B>>,
     CodeModeSession(code_mode_session): CodeModeSession,
 ) -> Response {
     // Verify that a code mode session exists with this ID
-    if !state.code_mode_manager.exists(code_mode_session).await {
+    if !state.backend.exists(code_mode_session).await {
         error!("Rejecting WebSocket connection: code mode session {code_mode_session} not found");
         return (
             StatusCode::BAD_REQUEST,
@@ -71,7 +72,11 @@ pub async fn ws_handler(
 }
 
 /// Handle an individual WebSocket connection
-async fn handle_socket(socket: WebSocket, state: AppState, code_mode_session: Uuid) {
+async fn handle_socket<B: PctxSessionBackend>(
+    socket: WebSocket,
+    state: AppState<B>,
+    code_mode_session: Uuid,
+) {
     info!("New WebSocket connection with code_mode_session: {code_mode_session}");
 
     info!("Verified code mode session {code_mode_session} exists, proceeding with WebSocket setup");
@@ -133,7 +138,11 @@ async fn write_messages(
 }
 
 /// Handle incoming WebSocket messages (`execute_tool` responses from client)
-async fn read_messages(mut receiver: SplitStream<WebSocket>, ws_session: Uuid, state: AppState) {
+async fn read_messages<B: PctxSessionBackend>(
+    mut receiver: SplitStream<WebSocket>,
+    ws_session: Uuid,
+    state: AppState<B>,
+) {
     while let Some(result) = receiver.next().await {
         match result {
             Ok(msg) => {
@@ -150,11 +159,11 @@ async fn read_messages(mut receiver: SplitStream<WebSocket>, ws_session: Uuid, s
 }
 
 /// Handle an `execute_code` request from the client
-async fn handle_execute_code_request(
+async fn handle_execute_code_request<B: PctxSessionBackend>(
     req_id: RequestId,
     params: ExecuteCodeParams,
     ws_session: Uuid,
-    state: &AppState,
+    state: &AppState<B>,
 ) -> Result<(), String> {
     // Save the WebSocket session for later response
     let ws_session_lock = state
@@ -172,7 +181,7 @@ async fn handle_execute_code_request(
     drop(ws_session_read);
 
     // Get the relevant CodeMode config for the session
-    let Some(code_mode_lock) = state.code_mode_manager.get(code_mode_session_id).await else {
+    let Some(code_mode) = state.backend.get(code_mode_session_id).await else {
         let err_res = WsJsonRpcMessage::error(
             ErrorData {
                 code: ErrorCode::INVALID_PARAMS,
@@ -188,10 +197,8 @@ async fn handle_execute_code_request(
     debug!("Found CodeMode session with ID: {code_mode_session_id}");
 
     let callback_registry = CallbackRegistry::default();
-    let code_mode_lock_clone = code_mode_lock.clone();
-    let code_mode_read = code_mode_lock_clone.read().await;
 
-    for callback_cfg in &code_mode_read.callbacks {
+    for callback_cfg in &code_mode.callbacks {
         let ws_session_lock_clone = ws_session_lock.clone();
         let cfg = callback_cfg.clone();
 
@@ -244,9 +251,7 @@ async fn handle_execute_code_request(
             // create callback registry to execute callback requests over the same ws which
             // initiated the request
             rt.block_on(async {
-                code_mode_lock
-                    .read()
-                    .await
+                code_mode
                     .execute(&params.code, Some(callback_registry))
                     .await
                     .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
@@ -286,7 +291,11 @@ async fn handle_execute_code_request(
 
 /// Handle a single WebSocket message
 /// Messages coming from a client, needs to be routed to the correct `WsSession` for handling.
-async fn handle_message(msg: Message, ws_session: Uuid, state: &AppState) -> Result<(), String> {
+async fn handle_message<B: PctxSessionBackend>(
+    msg: Message,
+    ws_session: Uuid,
+    state: &AppState<B>,
+) -> Result<(), String> {
     match msg {
         Message::Text(text) => {
             debug!("Received text message from {ws_session}: {text}");

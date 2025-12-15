@@ -1,14 +1,34 @@
 use std::sync::Arc;
 
-use crate::state::{code_mode_manager::CodeModeManager, ws_manager::WsManager};
+use crate::{
+    LocalBackend,
+    state::{backend::PctxSessionBackend, ws_manager::WsManager},
+};
 
 pub(crate) mod backend;
-pub(crate) mod code_mode_manager;
 pub(crate) mod ws_manager;
 
 /// Shared application state
-#[derive(Clone, Default)]
-pub struct AppState {
+#[derive(Clone)]
+pub struct AppState<B: PctxSessionBackend> {
     pub ws_manager: Arc<WsManager>,
-    pub code_mode_manager: Arc<CodeModeManager>,
+    pub backend: Arc<B>,
+}
+
+impl<B: PctxSessionBackend> AppState<B> {
+    pub fn new(backend: B) -> Self {
+        Self {
+            ws_manager: Arc::default(),
+            backend: Arc::new(backend),
+        }
+    }
+}
+
+impl AppState<LocalBackend> {
+    pub fn new_local() -> Self {
+        Self {
+            ws_manager: Arc::default(),
+            backend: Arc::new(LocalBackend::default()),
+        }
+    }
 }

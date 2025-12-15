@@ -5,14 +5,16 @@ use std::sync::Arc;
 use axum_test::{TestResponse, TestServer};
 use pctx_code_execution_runtime::CallbackFn;
 use pctx_code_mode::{CodeMode, model::CallbackConfig};
-use pctx_session_server::{AppState, model::CreateSessionResponse, server::create_router};
+use pctx_session_server::{
+    AppState, LocalBackend, PctxSessionBackend, model::CreateSessionResponse, server::create_router,
+};
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
 #[allow(unused)]
-pub(crate) fn create_test_server() -> (TestServer, AppState) {
-    let state = AppState::default();
+pub(crate) fn create_test_server() -> (TestServer, AppState<LocalBackend>) {
+    let state = AppState::new_local();
     (
         TestServer::builder()
             .http_transport()
@@ -23,13 +25,15 @@ pub(crate) fn create_test_server() -> (TestServer, AppState) {
 }
 
 #[allow(unused)]
-pub(crate) async fn create_test_server_with_session() -> (Uuid, TestServer, AppState) {
-    let state = AppState::default();
+pub(crate) async fn create_test_server_with_session() -> (Uuid, TestServer, AppState<LocalBackend>)
+{
+    let state = AppState::new_local();
     let session_id = Uuid::new_v4();
     state
-        .code_mode_manager
-        .add(session_id, CodeMode::default())
-        .await;
+        .backend
+        .insert(session_id, CodeMode::default())
+        .await
+        .expect("Failed adding test codemode session");
     (
         session_id,
         TestServer::builder()

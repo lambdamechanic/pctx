@@ -1,11 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use async_trait::async_trait;
 use pctx_code_mode::CodeMode;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-pub trait PctxSessionBackend {
+#[async_trait]
+pub trait PctxSessionBackend: Clone + Send + Sync + 'static {
     /// Retrieve a `CodeMode` struct by it's session ID from the backend
     async fn get(&self, session_id: Uuid) -> Option<CodeMode>;
 
@@ -18,13 +20,13 @@ pub trait PctxSessionBackend {
 
     /// Deletes a `CodeMode` struct from the backend, returning the deleted
     /// instance if it exists.
-    async fn delete(&self, session_id: Uuid) -> Option<CodeMode>;
+    async fn delete(&self, session_id: Uuid) -> bool;
 
     /// Checks if a `CodeMode` struct exists for the given ID
     async fn exists(&self, session_id: Uuid) -> bool;
 
     /// Returns the number of active `CodeMode` sessions in the backend
-    async fn count(&self, session_id: Uuid) -> usize;
+    async fn count(&self) -> usize;
 
     /// Returns a full list of active `CodeMode` sessions in the backend.
     async fn list_sessions(&self) -> Vec<Uuid>;
@@ -32,38 +34,56 @@ pub trait PctxSessionBackend {
 
 /// Manages `CodeMode` sessions locally using thread-safe
 /// smart references and read/write locks
-pub struct LocalCodeModeBackend {
+#[derive(Clone, Default)]
+pub struct LocalBackend {
     /// Map of `session_id` -> `Arc<RwLock<CodeMode>>`
     /// Each `CodeMode` has its own lock for better concurrency
     sessions: Arc<RwLock<HashMap<Uuid, Arc<RwLock<CodeMode>>>>>,
 }
 
-impl PctxSessionBackend for LocalCodeModeBackend {
+#[async_trait]
+impl PctxSessionBackend for LocalBackend {
     async fn get(&self, session_id: Uuid) -> Option<CodeMode> {
-        todo!()
+        let sessions = self.sessions.read().await;
+        let code_mode_lock = sessions.get(&session_id)?;
+        Some(code_mode_lock.read().await.clone())
     }
 
     async fn insert(&self, session_id: Uuid, code_mode: CodeMode) -> Result<()> {
-        todo!()
+        let code_mode_lock = Arc::new(RwLock::new(code_mode));
+        self.sessions
+            .write()
+            .await
+            .insert(session_id, code_mode_lock);
+
+        Ok(())
     }
 
     async fn update(&self, session_id: Uuid, code_mode: CodeMode) -> Result<()> {
-        todo!()
+        let sessions = self.sessions.read().await;
+        let to_update = sessions
+            .get(&session_id)
+            .context(format!("CodeMode session {session_id} does not exist"))?;
+
+        *to_update.write().await = code_mode;
+
+        Ok(())
     }
 
-    async fn delete(&self, session_id: Uuid) -> Option<CodeMode> {
-        todo!()
+    async fn delete(&self, session_id: Uuid) -> bool {
+        let deleted = self.sessions.write().await.remove(&session_id);
+        deleted.is_some()
     }
 
     async fn exists(&self, session_id: Uuid) -> bool {
-        todo!()
+        self.sessions.read().await.contains_key(&session_id)
     }
 
-    async fn count(&self, session_id: Uuid) -> usize {
-        todo!()
+    async fn count(&self) -> usize {
+        self.sessions.read().await.len()
     }
 
     async fn list_sessions(&self) -> Vec<Uuid> {
-        todo!()
+        self.sessions.read().await.keys().copied().collect()
     }
 }
