@@ -148,7 +148,7 @@ impl PctxMcpService {
 
             rt.block_on(async {
                 code_mode
-                    .execute(&code)
+                    .execute(&code, None)
                     .await
                     .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
             })

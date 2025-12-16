@@ -1,10 +1,11 @@
 use schemars::schema::RootSchema;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::debug;
 
 use crate::{CodegenResult, case::Case, generate_docstring, typegen::generate_types_new};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ToolSet {
     pub name: String,
     pub namespace: String,
@@ -49,7 +50,7 @@ namespace {namespace} {{
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Tool {
     pub name: String,
     pub description: Option<String>,
@@ -172,7 +173,8 @@ impl Tool {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ToolVariant {
     Mcp,
     Callback,

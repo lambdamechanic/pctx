@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use codegen::{Tool, ToolSet};
-use pctx_code_execution_runtime::{CallbackFn, CallbackRegistry};
+use pctx_code_execution_runtime::CallbackRegistry;
 use pctx_config::server::ServerConfig;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{debug, warn};
 
@@ -14,14 +15,14 @@ use crate::{
     },
 };
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct CodeMode {
     // Codegen interfaces
     pub tool_sets: Vec<codegen::ToolSet>,
 
     // configurations
     pub servers: Vec<ServerConfig>,
-    pub callbacks: Vec<(CallbackConfig, CallbackFn)>,
+    pub callbacks: Vec<CallbackConfig>,
 }
 
 impl CodeMode {
@@ -104,12 +105,38 @@ impl CodeMode {
         GetFunctionDetailsOutput { code, functions }
     }
 
-    pub async fn execute(&self, code: &str) -> Result<ExecuteOutput> {
+    pub async fn execute(
+        &self,
+        code: &str,
+        callback_registry: Option<CallbackRegistry>,
+    ) -> Result<ExecuteOutput> {
+        let registry = callback_registry.unwrap_or_default();
+
         debug!(
             code_from_llm = %code,
             code_length = code.len(),
+            callbacks =? registry.ids(),
             "Received code to execute"
         );
+
+        // confirm all configured callbacks in the CodeMode interface have
+        // registered callback functions
+        let missing_ids: Vec<String> = self
+            .callbacks
+            .iter()
+            .filter_map(|c| {
+                if registry.has(&c.id()) {
+                    None
+                } else {
+                    Some(c.id())
+                }
+            })
+            .collect();
+        if !missing_ids.is_empty() {
+            return Err(Error::Message(format!(
+                "Missing configured callbacks in registry with ids: {missing_ids:?}"
+            )));
+        }
 
         // generate the full script to be executed
         let namespaces: Vec<String> = self
@@ -131,17 +158,10 @@ impl CodeMode {
 
         debug!("Executing code in sandbox");
 
-        let callback_registry = CallbackRegistry::default();
-        for (cfg, callback) in &self.callbacks {
-            callback_registry
-                .add(&cfg.id(), callback.clone())
-                .map_err(|e| Error::Message(e.to_string()))?;
-        }
-
         let options = pctx_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
             .with_servers(self.servers.clone())
-            .with_callbacks(callback_registry);
+            .with_callbacks(registry);
 
         let execution_res = pctx_executor::execute(&to_execute, options).await?;
 
@@ -230,7 +250,7 @@ impl CodeMode {
     }
 
     // Generates a Tool and add it to the correct Toolset from the given callback config
-    pub fn add_callback(&mut self, cfg: &CallbackConfig, callback: CallbackFn) -> Result<()> {
+    pub fn add_callback(&mut self, cfg: &CallbackConfig) -> Result<()> {
         // find the correct toolset & check for clashes
         let tool_set =
             if let Some(exists) = self.tool_sets.iter_mut().find(|s| s.name == cfg.namespace) {
@@ -285,7 +305,7 @@ impl CodeMode {
 
         // add tool & it's configuration
         tool_set.tools.push(tool);
-        self.callbacks.push((cfg.clone(), callback));
+        self.callbacks.push(cfg.clone());
 
         Ok(())
     }

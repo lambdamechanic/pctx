@@ -3,8 +3,7 @@ use pctx_session_server::CODE_MODE_SESSION_HEADER;
 use serde_json::json;
 
 use crate::utils::{
-    callback_tools, connect_websocket, create_session, create_test_server,
-    create_test_server_with_session,
+    callback_tools, create_session, create_test_server, create_test_server_with_session,
 };
 
 mod utils;
@@ -25,10 +24,6 @@ async fn test_health_endpoint() {
 #[tokio::test]
 async fn test_register_tools() {
     let (session_id, server, _state) = create_test_server_with_session().await;
-    let _ws = connect_websocket(&server, session_id)
-        .await
-        .into_websocket()
-        .await;
     let test_tools: Vec<CallbackConfig> = callback_tools().into_iter().map(|(c, _)| c).collect();
 
     let res = server
@@ -117,11 +112,6 @@ async fn test_register_tools() {
 async fn test_register_tools_not_shared() {
     let (server, _) = create_test_server();
     let session_1 = create_session(&server).await;
-    let _ws = connect_websocket(&server, session_1)
-        .await
-        .into_websocket()
-        .await;
-
     let test_tools: Vec<CallbackConfig> = callback_tools().into_iter().map(|(c, _)| c).collect();
     // register tools with session 1
     let res = server
