@@ -1,24 +1,20 @@
-use std::sync::Arc;
-
+use anyhow::Context;
 use axum::{Json, extract::State, http::StatusCode};
 
 use pctx_code_mode::{
     CodeMode,
     model::{GetFunctionDetailsInput, GetFunctionDetailsOutput, ListFunctionsOutput},
 };
-use tokio::sync::RwLock;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
-use crate::AppState;
 use crate::extractors::CodeModeSession;
 use crate::model::{
-    CloseSessionResponse, CreateSessionResponse, ErrorCode, ErrorData, HealthResponse,
-    McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse, RegisterToolsRequest,
-    RegisterToolsResponse,
+    ApiError, ApiResult, CloseSessionResponse, CreateSessionResponse, ErrorCode, ErrorData,
+    HealthResponse, McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
+    RegisterToolsRequest, RegisterToolsResponse,
 };
-
-pub(crate) type ApiResult<T> = Result<T, (StatusCode, Json<ErrorData>)>;
+use crate::state::{AppState, backend::PctxSessionBackend};
 
 /// Health check endpoint
 #[utoipa::path(
@@ -46,14 +42,18 @@ pub(crate) async fn health() -> Json<HealthResponse> {
         (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
-pub(crate) async fn create_session(
-    State(state): State<AppState>,
+pub(crate) async fn create_session<B: PctxSessionBackend>(
+    State(state): State<AppState<B>>,
 ) -> ApiResult<Json<CreateSessionResponse>> {
     let session_id = Uuid::new_v4();
     info!("Creating new CodeMode session: {session_id}");
 
     let code_mode = CodeMode::default();
-    state.code_mode_manager.add(session_id, code_mode).await;
+    state
+        .backend
+        .insert(session_id, code_mode)
+        .await
+        .context("Failed inserting code mode session into backend")?;
 
     info!("Created CodeMode session: {session_id}");
 
@@ -74,22 +74,26 @@ pub(crate) async fn create_session(
         (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
-pub(crate) async fn close_session(
-    State(state): State<AppState>,
+pub(crate) async fn close_session<B: PctxSessionBackend>(
+    State(state): State<AppState<B>>,
     CodeModeSession(session_id): CodeModeSession,
 ) -> ApiResult<Json<CloseSessionResponse>> {
     info!("Closing CodeMode session: {session_id}");
 
-    let existed = state.code_mode_manager.delete(session_id).await;
+    let existed = state
+        .backend
+        .delete(session_id)
+        .await
+        .context("Failed deleting code mode session from backend")?;
 
-    if existed.is_none() {
-        return Err((
+    if !existed {
+        return Err(ApiError::new(
             StatusCode::NOT_FOUND,
-            Json(ErrorData {
+            ErrorData {
                 code: ErrorCode::InvalidSession,
-                message: format!("Code mode session {session_id} does not exist"),
+                message: format!("Code Mode session {session_id} does not exist"),
                 details: None,
-            }),
+            },
         ));
     }
 
@@ -111,22 +115,27 @@ pub(crate) async fn close_session(
         (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
-pub(crate) async fn list_functions(
-    State(state): State<AppState>,
+pub(crate) async fn list_functions<B: PctxSessionBackend>(
+    State(state): State<AppState<B>>,
     CodeModeSession(session_id): CodeModeSession,
 ) -> ApiResult<Json<ListFunctionsOutput>> {
     info!(session_id =? session_id, "Listing tools");
 
-    let code_mode_lock = state.code_mode_manager.get(session_id).await.ok_or((
-        StatusCode::NOT_FOUND,
-        Json(ErrorData {
-            code: ErrorCode::InvalidSession,
-            message: format!("Code mode session {session_id} does not exist"),
-            details: None,
-        }),
-    ))?;
+    let code_mode = state
+        .backend
+        .get(session_id)
+        .await
+        .context("Failed getting code mode session")?
+        .ok_or(ApiError::new(
+            StatusCode::NOT_FOUND,
+            ErrorData {
+                code: ErrorCode::InvalidSession,
+                message: format!("Code Mode session {session_id} does not exist"),
+                details: None,
+            },
+        ))?;
 
-    let functions = code_mode_lock.read().await.list_functions();
+    let functions = code_mode.list_functions();
 
     Ok(Json(functions))
 }
@@ -146,8 +155,8 @@ pub(crate) async fn list_functions(
         (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
-pub(crate) async fn get_function_details(
-    State(state): State<AppState>,
+pub(crate) async fn get_function_details<B: PctxSessionBackend>(
+    State(state): State<AppState<B>>,
     CodeModeSession(session_id): CodeModeSession,
     Json(request): Json<GetFunctionDetailsInput>,
 ) -> ApiResult<Json<GetFunctionDetailsOutput>> {
@@ -162,16 +171,16 @@ pub(crate) async fn get_function_details(
         "Getting function details for {requested_functions}"
     );
 
-    let code_mode_lock = state.code_mode_manager.get(session_id).await.ok_or((
+    let code_mode = state.backend.get(session_id).await?.ok_or(ApiError::new(
         StatusCode::NOT_FOUND,
-        Json(ErrorData {
+        ErrorData {
             code: ErrorCode::InvalidSession,
             message: format!("Code mode session {session_id} does not exist"),
             details: None,
-        }),
+        },
     ))?;
 
-    let details = code_mode_lock.read().await.get_function_details(request);
+    let details = code_mode.get_function_details(request);
 
     Ok(Json(details))
 }
@@ -191,8 +200,8 @@ pub(crate) async fn get_function_details(
         (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
-pub(crate) async fn register_tools(
-    State(state): State<AppState>,
+pub(crate) async fn register_tools<B: PctxSessionBackend>(
+    State(state): State<AppState<B>>,
     CodeModeSession(session_id): CodeModeSession,
     Json(request): Json<RegisterToolsRequest>,
 ) -> ApiResult<Json<RegisterToolsResponse>> {
@@ -201,31 +210,31 @@ pub(crate) async fn register_tools(
         request.tools.len(),
     );
 
-    let code_mode_lock = state.code_mode_manager.get(session_id).await.ok_or((
-        StatusCode::NOT_FOUND,
-        Json(ErrorData {
-            code: ErrorCode::InvalidSession,
-            message: format!("Code mode session {session_id} does not exist"),
-            details: None,
-        }),
-    ))?;
+    let mut code_mode = state
+        .backend
+        .get(session_id)
+        .await
+        .context("Failed getting codemode session from backend")?
+        .ok_or(ApiError::new(
+            StatusCode::NOT_FOUND,
+            ErrorData {
+                code: ErrorCode::InvalidSession,
+                message: format!("Code mode session {session_id} does not exist"),
+                details: None,
+            },
+        ))?;
 
     let mut registered = 0;
     for tool in &request.tools {
-        let mut code_mode_write = code_mode_lock.write().await;
-        code_mode_write.add_callback(tool).map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorData {
-                    code: ErrorCode::Internal,
-                    message: format!("Failed to register callback in CodeMode: {e}"),
-                    details: None,
-                }),
-            )
-        })?;
+        code_mode
+            .add_callback(tool)
+            .context("Failed adding callback")?;
 
         registered += 1;
     }
+
+    // Update the backend with the modified CodeMode
+    state.backend.update(session_id, code_mode).await?;
 
     Ok(Json(RegisterToolsResponse { registered }))
 }
@@ -244,8 +253,8 @@ pub(crate) async fn register_tools(
         (status = 500, description = "Internal server error", body = ErrorData)
     )
 )]
-pub(crate) async fn register_servers(
-    State(state): State<AppState>,
+pub(crate) async fn register_servers<B: PctxSessionBackend>(
+    State(state): State<AppState<B>>,
     CodeModeSession(session_id): CodeModeSession,
     Json(request): Json<RegisterMcpServersRequest>,
 ) -> ApiResult<Json<RegisterMcpServersResponse>> {
@@ -254,20 +263,25 @@ pub(crate) async fn register_servers(
         request.servers.len()
     );
 
-    let code_mode_lock = state.code_mode_manager.get(session_id).await.ok_or((
-        StatusCode::NOT_FOUND,
-        Json(ErrorData {
-            code: ErrorCode::InvalidSession,
-            message: format!("Code mode session {session_id} does not exist"),
-            details: None,
-        }),
-    ))?;
+    let mut code_mode = state
+        .backend
+        .get(session_id)
+        .await
+        .context("Failed getting code mode session from backend")?
+        .ok_or(ApiError::new(
+            StatusCode::NOT_FOUND,
+            ErrorData {
+                code: ErrorCode::InvalidSession,
+                message: format!("Code mode session {session_id} does not exist"),
+                details: None,
+            },
+        ))?;
 
     let mut registered = 0;
     let mut failed = Vec::new();
 
     for server in &request.servers {
-        match register_mcp_server(&code_mode_lock, server).await {
+        match register_mcp_server(&mut code_mode, server).await {
             Ok(()) => {
                 registered += 1;
                 debug!("Successfully registered MCP server: {}", server.name);
@@ -279,11 +293,18 @@ pub(crate) async fn register_servers(
         }
     }
 
+    // Update the backend with the modified CodeMode
+    state
+        .backend
+        .update(session_id, code_mode)
+        .await
+        .context("Failed updating code mode session in backend")?;
+
     Ok(Json(RegisterMcpServersResponse { registered, failed }))
 }
 
 async fn register_mcp_server(
-    code_mode_lock: &Arc<RwLock<CodeMode>>,
+    code_mode: &mut CodeMode,
     server: &McpServerConfig,
 ) -> Result<(), String> {
     // Parse and validate URL
@@ -297,8 +318,6 @@ async fn register_mcp_server(
         server_config.auth = serde_json::from_value(auth.clone())
             .map_err(|e| format!("Invalid auth config: {e}"))?;
     }
-
-    let mut code_mode = code_mode_lock.write().await;
 
     code_mode
         .add_server(&server_config)

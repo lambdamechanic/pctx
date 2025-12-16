@@ -1,10 +1,56 @@
+use axum::{Json, http::StatusCode, response::IntoResponse};
 use pctx_code_mode::model::ExecuteOutput;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tracing::{error, warn};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ----------- REST API STRUCTS -----------
+
+pub(crate) type ApiResult<T> = Result<T, ApiError>;
+
+pub(crate) struct ApiError {
+    pub(crate) code: StatusCode,
+    pub(crate) data: ErrorData,
+    pub(crate) internal: String,
+}
+impl ApiError {
+    pub(crate) fn new(code: StatusCode, data: ErrorData) -> Self {
+        let internal = format!("{}, details: {:?}", &data.message, data.details);
+        Self {
+            code,
+            data,
+            internal,
+        }
+    }
+}
+
+impl From<anyhow::Error> for ApiError {
+    fn from(value: anyhow::Error) -> Self {
+        ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            data: ErrorData {
+                code: ErrorCode::Internal,
+                message: "Internal error".into(),
+                details: None,
+            },
+            internal: format!("{value}"),
+        }
+    }
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> axum::response::Response {
+        if self.code.is_server_error() {
+            error!("Server Error: {}", self.internal);
+        } else {
+            warn!("Returning API error: {}", self.internal);
+        }
+
+        (self.code, Json(self.data)).into_response()
+    }
+}
 
 /// Health check response
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

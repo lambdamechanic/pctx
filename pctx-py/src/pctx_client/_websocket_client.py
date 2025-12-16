@@ -59,7 +59,7 @@ class WebSocketClient:
         self._pending_executions: dict[str | int, asyncio.Future] = {}
         self._request_counter = 0
 
-    async def connect(self, code_mode_session: str):
+    async def _connect(self, code_mode_session: str):
         """
         Connect to the WebSocket server.
 
@@ -75,7 +75,7 @@ class WebSocketClient:
         # Start message handler after receiving session_created
         self._message_handler_task = asyncio.create_task(self._handle_messages())
 
-    async def disconnect(self):
+    async def _disconnect(self):
         """Disconnect from the WebSocket server."""
         if self._message_handler_task:
             self._message_handler_task.cancel()
@@ -95,11 +95,14 @@ class WebSocketClient:
 
         await self.ws.send(message.model_dump_json())
 
-    async def execute_code(self, code: str, timeout: float = 30.0) -> ExecuteOutput:
+    async def execute_code(
+        self, code_mode_session: str, code: str, timeout: float = 30.0
+    ) -> ExecuteOutput:
         """
         Execute code via WebSocket instead of REST.
 
         Args:
+            code_mode_session: CodeMode session to run execution in
             code: TypeScript/JavaScript code to execute
             timeout: Timeout in seconds (default 30)
 
@@ -107,12 +110,11 @@ class WebSocketClient:
             ExecuteOutput with success, stdout, stderr, and output
 
         Raises:
-            ConnectionError: If WebSocket not connected
             TimeoutError: If execution times out
             Exception: If execution fails
         """
         if self.ws is None:
-            raise ConnectionError("WebSocket not connected")
+            await self._connect(code_mode_session)
 
         # Generate unique request ID
         request_id = str(uuid.uuid4())
@@ -137,6 +139,7 @@ class WebSocketClient:
             raise TimeoutError(f"Code execution timed out after {timeout}s")
         finally:
             self._pending_executions.pop(request_id, None)
+            await self._disconnect()
 
     async def _handle_messages(self):
         """Background task to handle incoming WebSocket messages."""

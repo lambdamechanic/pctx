@@ -29,7 +29,7 @@ async fn test_websocket_connection_invalid_session() {
     let session_id = Uuid::new_v4();
     let res = connect_websocket(&server, session_id).await;
 
-    res.assert_status_bad_request();
+    res.assert_status_not_found();
     res.assert_text(format!("Code mode session {session_id} not found"));
     assert!(state.ws_manager.list_sessions().await.is_empty());
 }

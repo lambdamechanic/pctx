@@ -88,7 +88,7 @@ class Pctx:
         await self.disconnect()
 
     async def connect(self):
-        """Connect to WebSocket, register local tools, and register MCP servers."""
+        """Creates CodeMode session, register local tools, and register MCP servers."""
         if self._session_id is not None:
             await self.disconnect()
 
@@ -121,10 +121,7 @@ class Pctx:
 
         self._client.headers = {"x-code-mode-session": self._session_id or ""}
 
-        # Connect WebSocket client
-        await self._ws_client.connect(self._session_id or "")
-
-        # Register all local tools
+        # Register all local tools & MCP servers
         configs: list[ToolConfig] = [
             {
                 "name": t.name,
@@ -139,11 +136,8 @@ class Pctx:
         await self._register_tools(configs)
         await self._register_servers(self._servers)
 
-        # Register additional MCP servers
-
     async def disconnect(self):
-        """Disconnect from all endpoints."""
-        await self._ws_client.disconnect()
+        """Disconnect closes current code-mode session."""
         close_res = await self._client.post("/code-mode/session/close")
         close_res.raise_for_status()
         self._session_id = None
@@ -264,7 +258,9 @@ class Pctx:
             raise SessionError(
                 "No code mode session exists, run Pctx(...).connect() before calling"
             )
-        return await self._ws_client.execute_code(code, timeout=self._execute_timeout)
+        return await self._ws_client.execute_code(
+            self._session_id, code, timeout=self._execute_timeout
+        )
 
     # ========== Registrations ==========
 

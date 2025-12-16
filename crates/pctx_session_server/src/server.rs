@@ -11,7 +11,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    AppState,
+    AppState, PctxSessionBackend,
     model::{
         CloseSessionResponse, CreateSessionResponse, ErrorData, HealthResponse, McpServerConfig,
         RegisterMcpServersRequest, RegisterMcpServersResponse, RegisterToolsRequest,
@@ -77,7 +77,11 @@ pub struct ApiDoc;
 /// # Errors
 ///
 /// This function will return an error if axum fails binding to the provided host/port
-pub async fn start_server(host: &str, port: u16, state: AppState) -> Result<()> {
+pub async fn start_server<B: PctxSessionBackend>(
+    host: &str,
+    port: u16,
+    state: AppState<B>,
+) -> Result<()> {
     let app = create_router(state);
 
     let addr = format!("{host}:{port}");
@@ -97,7 +101,7 @@ pub async fn start_server(host: &str, port: u16, state: AppState) -> Result<()> 
 }
 
 /// Create the Axum router with all routes
-pub fn create_router(state: AppState) -> Router {
+pub fn create_router<B: PctxSessionBackend>(state: AppState<B>) -> Router {
     Router::new()
         // Health check
         .route("/health", get(routes::health))
