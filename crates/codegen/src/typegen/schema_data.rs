@@ -41,7 +41,12 @@ impl ObjectSchemaData {
         }
 
         let additional_props_sig = if let Some(add_props) = &obj_st.obj.additional_properties {
-            Some(SchemaType::from(*add_props.clone()).type_signature(false, defs)?)
+            let add_props_schema = *add_props.clone();
+            if add_props_schema == Schema::Bool(false) {
+                None
+            } else {
+                Some(SchemaType::from(add_props_schema).type_signature(false, defs)?)
+            }
         } else {
             None
         };

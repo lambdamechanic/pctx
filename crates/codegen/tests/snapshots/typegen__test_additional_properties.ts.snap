@@ -8,6 +8,10 @@ export type AdditionalProperties = {
   obj_additional_props: AdditionalPropertiesObjAdditionalProps;
 
   string_additional_props: AdditionalPropertiesStringAdditionalProps;
+
+  true_additional_props: AdditionalPropertiesTrueAdditionalProps;
+
+  false_additional_props: AdditionalPropertiesFalseAdditionalProps;
 };
 
 export type AdditionalPropertiesAnyAdditionalProps = {
@@ -44,4 +48,17 @@ export type AdditionalPropertiesStringAdditionalProps = {
   // In reality all additional properties should only have type `string | undefined`
   // (there might be some duplication here)
   [additionalProperty: string]: string | string | undefined;
+};
+
+export type AdditionalPropertiesTrueAdditionalProps = {
+  foo: string;
+
+  // Additional property types must also accommodate all defined properties if present (typescript limitation)
+  // In reality all additional properties should only have type `any | undefined`
+  // (there might be some duplication here)
+  [additionalProperty: string]: string | any | undefined;
+};
+
+export type AdditionalPropertiesFalseAdditionalProps = {
+  foo: string;
 };

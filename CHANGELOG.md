@@ -9,15 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
--
+- `pctx_session_server` crate implements CodeMode sessions using HTTP endpoints for session management and websockets for code execution with callbacks to user-defined tools.
+- `pctx_core` crate created as the primary code mode library via the `CodeMode` struct. With support for MCP servers and callback functions.
+- `pctx_executor`/`pctx_code_execution_runtime`/`pctx_type_check_runtime` supports callbacks to arbitrary rust callables
+- `pctx-client` (Python) package with `@tool` decorator and `AsyncTool`/`Tool` base class for registering/interacting with the pctx session server. Users can export the CodeMode tools to popular agent frameworks like langchain.
 
 ### Changed
 
-- `pctx_core` crate created as the primary code mode library via the `CodeMode` struct.
+- **Breaking Change**: `pctx start` now starts the pctx session server, all previous commands have been migrated to `pctx mcp <subcommand>`.
 - `codegen` create extended to include generic `Tool` and `ToolSet` structs and all code generation functions migrated to be methods of these structs.
 
 ### Fixed
 
+- `[additionalProperty: string]: ...` not included when `additionalProperties: false` in schema.
 - Comments above `[additionalProperty: string]: ...` now correctly document the expected additional property types.
 
 ## [v0.2.2] - 2025-12-07
@@ -25,7 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - windows cross-compile support through cargo-dist
-
 
 ## [v0.2.1] - 2025-11-25
 
