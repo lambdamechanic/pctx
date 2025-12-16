@@ -9,7 +9,7 @@ use uuid::Uuid;
 #[async_trait]
 pub trait PctxSessionBackend: Clone + Send + Sync + 'static {
     /// Retrieve a `CodeMode` struct by it's session ID from the backend
-    async fn get(&self, session_id: Uuid) -> Option<CodeMode>;
+    async fn get(&self, session_id: Uuid) -> Result<Option<CodeMode>>;
 
     /// Add a new `CodeMode` struct to the backend
     async fn insert(&self, session_id: Uuid, code_mode: CodeMode) -> Result<()>;
@@ -20,16 +20,16 @@ pub trait PctxSessionBackend: Clone + Send + Sync + 'static {
 
     /// Deletes a `CodeMode` struct from the backend, returning the deleted
     /// instance if it exists.
-    async fn delete(&self, session_id: Uuid) -> bool;
+    async fn delete(&self, session_id: Uuid) -> Result<bool>;
 
     /// Checks if a `CodeMode` struct exists for the given ID
-    async fn exists(&self, session_id: Uuid) -> bool;
+    async fn exists(&self, session_id: Uuid) -> Result<bool>;
 
     /// Returns the number of active `CodeMode` sessions in the backend
-    async fn count(&self) -> usize;
+    async fn count(&self) -> Result<usize>;
 
     /// Returns a full list of active `CodeMode` sessions in the backend.
-    async fn list_sessions(&self) -> Vec<Uuid>;
+    async fn list_sessions(&self) -> Result<Vec<Uuid>>;
 }
 
 /// Manages `CodeMode` sessions locally using thread-safe
@@ -43,10 +43,12 @@ pub struct LocalBackend {
 
 #[async_trait]
 impl PctxSessionBackend for LocalBackend {
-    async fn get(&self, session_id: Uuid) -> Option<CodeMode> {
+    async fn get(&self, session_id: Uuid) -> Result<Option<CodeMode>> {
         let sessions = self.sessions.read().await;
-        let code_mode_lock = sessions.get(&session_id)?;
-        Some(code_mode_lock.read().await.clone())
+        match sessions.get(&session_id) {
+            Some(code_mode_lock) => Ok(Some(code_mode_lock.read().await.clone())),
+            None => Ok(None),
+        }
     }
 
     async fn insert(&self, session_id: Uuid, code_mode: CodeMode) -> Result<()> {
@@ -70,20 +72,20 @@ impl PctxSessionBackend for LocalBackend {
         Ok(())
     }
 
-    async fn delete(&self, session_id: Uuid) -> bool {
+    async fn delete(&self, session_id: Uuid) -> Result<bool> {
         let deleted = self.sessions.write().await.remove(&session_id);
-        deleted.is_some()
+        Ok(deleted.is_some())
     }
 
-    async fn exists(&self, session_id: Uuid) -> bool {
-        self.sessions.read().await.contains_key(&session_id)
+    async fn exists(&self, session_id: Uuid) -> Result<bool> {
+        Ok(self.sessions.read().await.contains_key(&session_id))
     }
 
-    async fn count(&self) -> usize {
-        self.sessions.read().await.len()
+    async fn count(&self) -> Result<usize> {
+        Ok(self.sessions.read().await.len())
     }
 
-    async fn list_sessions(&self) -> Vec<Uuid> {
-        self.sessions.read().await.keys().copied().collect()
+    async fn list_sessions(&self) -> Result<Vec<Uuid>> {
+        Ok(self.sessions.read().await.keys().copied().collect())
     }
 }

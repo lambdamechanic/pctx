@@ -40,10 +40,15 @@ pub async fn ws_handler<B: PctxSessionBackend>(
     CodeModeSession(code_mode_session): CodeModeSession,
 ) -> Response {
     // Verify that a code mode session exists with this ID
-    if !state.backend.exists(code_mode_session).await {
+    if !state
+        .backend
+        .exists(code_mode_session)
+        .await
+        .unwrap_or_default()
+    {
         error!("Rejecting WebSocket connection: code mode session {code_mode_session} not found");
         return (
-            StatusCode::BAD_REQUEST,
+            StatusCode::NOT_FOUND,
             format!("Code mode session {code_mode_session} not found"),
         )
             .into_response();
@@ -181,7 +186,7 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
     drop(ws_session_read);
 
     // Get the relevant CodeMode config for the session
-    let Some(code_mode) = state.backend.get(code_mode_session_id).await else {
+    let Ok(Some(code_mode)) = state.backend.get(code_mode_session_id).await else {
         let err_res = WsJsonRpcMessage::error(
             ErrorData {
                 code: ErrorCode::INVALID_PARAMS,
