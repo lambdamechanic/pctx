@@ -14,7 +14,6 @@ help:
 
 # Generate CLI and Python documentation
 docs:
-	@echo "Generating CLI documentation..."
 	@./scripts/generate-cli-docs.sh
 	@echo ""
 	@echo "Building Python Sphinx documentation..."

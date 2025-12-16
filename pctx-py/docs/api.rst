@@ -3,63 +3,28 @@ API Reference
 
 This page contains the API reference for the pctx-client package.
 
-Main Client
+Pctx Client
 -----------
 
-.. automodule:: pctx_client
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Models
-------
-
-.. automodule:: pctx_client.models
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Exceptions
-----------
-
-.. automodule:: pctx_client.exceptions
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Internal Modules
-----------------
-
-These are internal implementation details. You typically won't need to use these directly.
-
-Client Implementation
-~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: pctx_client._client
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-WebSocket Client
-~~~~~~~~~~~~~~~~
-
-.. automodule:: pctx_client._websocket_client
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Tool Conversion
-~~~~~~~~~~~~~~~
-
-.. automodule:: pctx_client._convert
+.. autoclass:: pctx_client.Pctx
    :members:
    :undoc-members:
    :show-inheritance:
 
 Tool Decorator
-~~~~~~~~~~~~~~
+--------------
 
-.. automodule:: pctx_client._tool
+.. autofunction:: pctx_client.tool
+
+Tool Classes
+------------
+
+.. autoclass:: pctx_client.Tool
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: pctx_client.AsyncTool
    :members:
    :undoc-members:
    :show-inheritance:

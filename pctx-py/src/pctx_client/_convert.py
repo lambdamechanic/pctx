@@ -27,7 +27,30 @@ def tool(
     description: str | None = None,
 ) -> Tool | AsyncTool | Callable[[Callable], Tool | AsyncTool]:
     """
-    Decorator that prints the name of the function it wraps when called.
+    Decorator that converts a function into a Tool or AsyncTool instance.
+
+    Can be used with or without parameters:
+    - @tool - Uses function name as tool name
+    - @tool("custom_name") - Uses custom name for the tool
+    - @tool(namespace="custom", description="...") - With additional options
+
+    Args:
+        name_or_callable: Either a custom tool name (str) or the function to wrap (Callable)
+        namespace: The namespace the tool belongs to (default: "tools")
+        description: Optional description override (default: uses function docstring)
+
+    Returns:
+        Either a Tool/AsyncTool instance or a decorator function that creates one
+
+    Examples:
+        >>> @tool
+        ... def my_function(x: int) -> int:
+        ...     '''Adds one to x'''
+        ...     return x + 1
+
+        >>> @tool("custom_name", namespace="math")
+        ... def add_two(x: int) -> int:
+        ...     return x + 2
     """
 
     def _crate_tool_factory(tool_name: str) -> Callable[[Callable], Tool | AsyncTool]:
