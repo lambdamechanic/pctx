@@ -10,12 +10,10 @@ build:
 
 python:
   install:
-    - requirements: pctx-py/docs/requirements.txt
     - method: pip
       path: pctx-py
       extra_requirements:
-        - langchain
-        - crewai
+        - dev
 
 sphinx:
   configuration: pctx-py/docs/conf.py
