@@ -30,9 +30,10 @@ npm i -g @portofcontext/pctx
 ```
 
 ## Core Functionality
+
 pctx can be run as a stateless HTTP server for Code Mode sessions or as a unified MCP server that exposes Code Mode functionality for registered upstream MCP servers.
 
-```bash 
+```bash
 # Start Code Mode for Python SDK
 pctx start
 
@@ -42,10 +43,13 @@ pctx mcp dev
 ```
 
 ## Python SDK
+
 Use the Python SDK if building agents in Python and want to run Code Mode with custom tools and/or MCP servers. The Python SDK is an HTTP client to the `pctx` server.
+
 ```bash
-uv pip install pctx-client
+pip install pctx-client
 ```
+
 ```python
 from pctx_client import Pctx, tool
 from agents import Agent # Use any Agent SDK
@@ -66,12 +70,18 @@ agent = Agent(
     tools=tools,
 )
 ```
-Complete Docs: [Python SDK Quickstart and Docs](./pctx-py/README.md)
+
+### Links
+
+- [Python SDK Quickstart and Docs](./pctx-py/README.md)
+- [Python API Reference](https://pctx.readthedocs.io/en/latest/)
 
 ## Node SDK
+
 Coming soon
 
 ## Unified MCP
+
 Use the unified MCP to run Code Mode with MCP servers and want to persist the authentication connections and you do not need to register local tools.
 
 ```bash
@@ -126,6 +136,7 @@ console.log(`Found ${orders.length} orders`);
 - **Secure authentication**: Source secrets from environment variables, system keychain, and external commands. See [Authentication Section](docs/config.md#authentication) in the CLI configuration docs for more details.
 
 ## Architecture
+
 <img width="1020" height="757" alt="Screenshot 2025-11-21 at 11 03 20 AM" src="./docs/pctx-architecture.svg" />
 
 ## Security

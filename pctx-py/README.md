@@ -1,6 +1,22 @@
-# pctx Python Client
+<div align="center">
+  <img src="../.github/assets/logo.png" alt="PCTX Logo" style="height: 128px">
+  <h1>Python pctx-client</h1>
+
+[![Made by](https://img.shields.io/badge/MADE%20BY-Port%20of%20Context-1e40af.svg?style=for-the-badge&labelColor=0c4a6e)](https://portofcontext.com)
+
+[![Python](https://img.shields.io/pypi/v/pctx-client?color=blue)](https://pctx.readthedocs.io/en/latest/)
+[![Docs](https://img.shields.io/readthedocs/pctx)](https://pctx.readthedocs.io/en/latest/)
+
+</div>
+
+<div align="center">
 
 Python client for using Code Mode via pctx - allow agents to execute code with your custom tools and MCP servers.
+
+This README contains the quickstart, guides, and concept overviews. See
+[Python API Reference](https://pctx.readthedocs.io/en/latest/) for full reference documentation.
+
+</div>
 
 ## Installation
 
