@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+-
+
+### Changed
+
+-
+
+### Fixed
+
+-
+
+## [v0.3.0] - 2025-12-16
+
+### Added
+
 - `pctx_session_server` crate implements CodeMode sessions using HTTP endpoints for session management and websockets for code execution with callbacks to user-defined tools.
 - `pctx_core` crate created as the primary code mode library via the `CodeMode` struct. With support for MCP servers and callback functions.
 - `pctx_executor`/`pctx_code_execution_runtime`/`pctx_type_check_runtime` supports callbacks to arbitrary rust callables
@@ -111,7 +125,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial public release
 
-[Unreleased]: https://github.com/portofcontext/pctx/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/portofcontext/pctx/compare/v0.3.0...HEAD
+[v0.2.1]: https://github.com/portofcontext/pctx/compare/v0.3.0
+[v0.2.1]: https://github.com/portofcontext/pctx/compare/v0.2.2
+[v0.2.1]: https://github.com/portofcontext/pctx/compare/v0.2.1
 [v0.2.0]: https://github.com/portofcontext/pctx/compare/v0.2.0
 [v0.1.4]: https://github.com/portofcontext/pctx/compare/v0.1.4
 [v0.1.3]: https://github.com/portofcontext/pctx/compare/v0.1.3
