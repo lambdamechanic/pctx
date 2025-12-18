@@ -28,7 +28,9 @@ def multiply(a: float, b: float) -> MultiplyOutput:
 
 
 async def main():
-    p = Pctx(
+    async with Pctx(
+        url="http://localhost:8080/some-org/some-server",
+        api_key="asdlkfjasldf",
         tools=[add, subtract, multiply],
         # servers=[
         #     {
@@ -40,32 +42,26 @@ async def main():
         #         },
         #     }
         # ],
-    )
-    print("connecting....")
-    await p.connect()
+    ) as p:
+        print("+++++++++++ LIST +++++++++++\n")
+        print((await p.list_functions()).code)
 
-    print("+++++++++++ LIST +++++++++++\n")
-    print((await p.list_functions()).code)
+        print("\n\n+++++++++++ DETAILS +++++++++++\n")
+        print((await p.get_function_details(["MyMath.add"])).code)
 
-    print("\n\n+++++++++++ DETAILS +++++++++++\n")
-    print((await p.get_function_details(["MyMath.add"])).code)
-
-    code = """
-async function run() {
-    let addval = await MyMath.add({a: 40, b: 2});
-    let subval = await MyMath.subtract({a: addval, b: 2});
-    let multval = await MyMath.multiply({a: subval, b: 2});
+        code = """
+    async function run() {
+        let addval = await MyMath.add({a: 40, b: 2});
+        let subval = await MyMath.subtract({a: addval, b: 2});
+        let multval = await MyMath.multiply({a: subval, b: 2});
 
 
-    return multval;
-}
-"""
-    print(code)
-    output = await p.execute(code)
-    pprint.pprint(output)
-
-    print("disconnecting....")
-    await p.disconnect()
+        return multval;
+    }
+    """
+        print(code)
+        output = await p.execute(code)
+        pprint.pprint(output)
 
 
 if __name__ == "__main__":
