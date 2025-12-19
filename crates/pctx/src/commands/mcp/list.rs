@@ -8,8 +8,6 @@ use pctx_config::{
 };
 use rmcp::model::InitializeResult;
 use tracing::info;
-use url::Url;
-
 use crate::utils::{
     spinner::Spinner,
     styles::{fmt_bold, fmt_cyan, fmt_dimmed, fmt_error, fmt_green, fmt_success},
@@ -49,14 +47,21 @@ impl ListCmd {
 }
 
 struct UpstreamMcpSummary {
-    pub url: Url,
+    pub target: String,
     pub name: String,
     pub error: Option<String>,
     pub init_res: Option<InitializeResult>,
     pub tools: Vec<String>,
+    pub transport: &'static str,
 }
 impl UpstreamMcpSummary {
     async fn new(server: &ServerConfig) -> Self {
+        let transport = if server.http().is_some() {
+            "http"
+        } else {
+            "stdio"
+        };
+
         let (error, init_res, tools) = match server.connect().await {
             Ok(client) => {
                 let mut error = None;
@@ -75,27 +80,33 @@ impl UpstreamMcpSummary {
             Err(McpConnectionError::RequiresAuth) => {
                 (Some("Requires authentication".into()), None, vec![])
             }
+            Err(McpConnectionError::UnsupportedTransport(transport)) => {
+                (Some(format!("Unsupported transport: {transport}")), None, vec![])
+            }
             Err(McpConnectionError::Failed(msg)) => (Some(msg), None, vec![]),
         };
 
         Self {
-            url: server.url.clone(),
+            target: server.display_target(),
             name: server.name.clone(),
             error,
             init_res,
             tools,
+            transport,
         }
     }
 }
 impl Display for UpstreamMcpSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut fields = vec![];
-        let url_field = format!("{}: {}", fmt_bold("URL"), &self.url);
+        let target_field =
+            format!("{}: {}", fmt_bold("Target"), fmt_cyan(&self.target));
+        let transport_field = format!("{}: {}", fmt_bold("Transport"), self.transport);
 
         if let Some(e) = &self.error {
-            fields.extend([fmt_error(e), url_field]);
+            fields.extend([fmt_error(e), target_field, transport_field]);
         } else {
-            fields.extend([fmt_success("Connected"), url_field]);
+            fields.extend([fmt_success("Connected"), target_field, transport_field]);
 
             if let Some(init_res) = &self.init_res {
                 fields.push(format!(

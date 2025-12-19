@@ -10,6 +10,7 @@ This document contains the help content for the `pctx` command-line program.
 * [`pctx mcp init`↴](#pctx-mcp-init)
 * [`pctx mcp list`↴](#pctx-mcp-list)
 * [`pctx mcp add`↴](#pctx-mcp-add)
+* [`pctx mcp add-stdio`↴](#pctx-mcp-add-stdio)
 * [`pctx mcp remove`↴](#pctx-mcp-remove)
 * [`pctx mcp start`↴](#pctx-mcp-start)
 * [`pctx mcp dev`↴](#pctx-mcp-dev)
@@ -26,6 +27,7 @@ EXAMPLES:
   # Code Mode MCP
   pctx mcp init 
   pctx mcp add my-server https://mcp.example.com
+  pctx mcp add-stdio local-tools node --arg ./dist/server.js
   pctx mcp dev
 
   
@@ -63,6 +65,7 @@ Starts PCTX server with no pre-configured tools. Use a client library like `pip 
 
   Default value: `.pctx/sessions`
 * `--no-banner` — Don't show the server banner
+* `--stdio` — Serve MCP over stdio instead of HTTP
 
 
 
@@ -77,6 +80,7 @@ MCP server commands (with pctx.json configuration)
 * `init` — Initialize pctx.json configuration file
 * `list` — List MCP servers and test connections
 * `add` — Add an MCP server to configuration
+* `add-stdio` — Add a stdio MCP server to configuration
 * `remove` — Remove an MCP server from configuration
 * `start` — Start the PCTX MCP server
 * `dev` — Start the PCTX MCP server with terminal UI
@@ -126,6 +130,24 @@ Add a new MCP server to the configuration.
 
 
 
+## `pctx mcp add-stdio`
+
+Add a new stdio MCP server to the configuration.
+
+**Usage:** `pctx mcp add-stdio [OPTIONS] <NAME> <COMMAND>`
+
+###### **Arguments:**
+
+* `<NAME>` — Unique name for this server
+* `<COMMAND>` — Command to execute the MCP server
+
+###### **Options:**
+
+* `--arg <ARG>` — Arguments to pass to the command (repeat for multiple)
+* `--env <ENV>` — Environment variables in KEY=VALUE format (repeat for multiple)
+* `-f`, `--force` — Overrides any existing server under the same name & skips testing connection to the MCP server
+
+
 ## `pctx mcp remove`
 
 Remove an MCP server from the configuration.
@@ -173,6 +195,7 @@ Start the PCTX MCP server in development mode with an interactive terminal UI wi
 * `--log-file <LOG_FILE>` — Path to JSONL log file
 
   Default value: `pctx-dev.jsonl`
+* `--stdio` — Serve MCP over stdio instead of HTTP
 
 
 
@@ -182,4 +205,3 @@ Start the PCTX MCP server in development mode with an interactive terminal UI wi
     This document was generated automatically by
     <a href="https://crates.io/crates/clap-markdown"><code>clap-markdown</code></a>.
 </i></small>
-

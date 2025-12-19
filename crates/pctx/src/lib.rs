@@ -81,6 +81,7 @@ impl Cli {
             McpCommands::Init(cmd) => cmd.handle(&self.config).await?,
             McpCommands::List(cmd) => cmd.handle(cfg?).await?,
             McpCommands::Add(cmd) => cmd.handle(cfg?, true).await?,
+            McpCommands::AddStdio(cmd) => cmd.handle(cfg?, true).await?,
             McpCommands::Remove(cmd) => cmd.handle(cfg?)?,
             McpCommands::Start(cmd) => cmd.handle(cfg?).await?,
             McpCommands::Dev(cmd) => cmd.handle(cfg?).await?,
@@ -117,6 +118,10 @@ pub enum McpCommands {
     /// Add an MCP server to configuration
     #[command(long_about = "Add a new MCP server to the configuration.")]
     Add(commands::mcp::AddCmd),
+
+    /// Add a stdio MCP server to configuration
+    #[command(long_about = "Add a new stdio MCP server to the configuration.")]
+    AddStdio(commands::mcp::AddStdioCmd),
 
     /// Remove an MCP server from configuration
     #[command(long_about = "Remove an MCP server from the configuration.")]
