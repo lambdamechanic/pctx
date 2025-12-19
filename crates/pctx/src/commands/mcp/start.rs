@@ -6,6 +6,8 @@ use tracing::{debug, info, warn};
 
 use pctx_mcp_server::PctxMcpServer;
 
+use crate::commands::mcp::has_stdio_upstreams;
+
 #[derive(Debug, Clone, Parser)]
 pub struct StartCmd {
     /// Port to listen on
@@ -19,6 +21,10 @@ pub struct StartCmd {
     /// Don't show the server banner
     #[arg(long)]
     pub no_banner: bool,
+
+    /// Serve MCP over stdio instead of HTTP
+    #[arg(long)]
+    pub stdio: bool,
 }
 
 impl StartCmd {
@@ -36,7 +42,7 @@ impl StartCmd {
                 warn!(
                     err =? e,
                     server.name =? &server.name,
-                    server.url =? server.url.to_string(),
+                    server.target =? server.display_target(),
                     "Failed creating creating code mode for `{}` MCP server",
                     &server.name
                 );
@@ -53,11 +59,18 @@ impl StartCmd {
             );
         }
 
+        if !self.stdio && has_stdio_upstreams(&cfg) {
+            warn!("Config includes stdio upstream MCPs; re-run with --stdio to serve them.");
+        }
+
         let code_mode = StartCmd::load_code_mode(&cfg).await?;
 
-        PctxMcpServer::new(&self.host, self.port, !self.no_banner)
-            .serve(&cfg, code_mode)
-            .await?;
+        let server = PctxMcpServer::new(&self.host, self.port, !self.no_banner);
+        if self.stdio {
+            server.serve_stdio(&cfg, code_mode).await?;
+        } else {
+            server.serve(&cfg, code_mode).await?;
+        }
 
         info!("Shutting down...");
 

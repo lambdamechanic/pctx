@@ -3,6 +3,8 @@ pub mod utils;
 
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
+use serde_json::json;
+use std::io::{self, Write};
 
 use crate::utils::{logger::init_cli_logger, telemetry::init_telemetry};
 use pctx_config::Config;
@@ -71,6 +73,12 @@ impl Cli {
     async fn handle_mcp(&self, cmd: &McpCommands) -> anyhow::Result<()> {
         let cfg = Config::load(&self.config);
 
+        if let (McpCommands::Start(start_cmd), Err(err)) = (cmd, &cfg) {
+            if start_cmd.stdio {
+                return self.handle_stdio_config_error(err);
+            }
+        }
+
         if self.cli_logger() {
             init_cli_logger(self.verbose, self.quiet);
         } else if let Ok(c) = &cfg {
@@ -81,12 +89,50 @@ impl Cli {
             McpCommands::Init(cmd) => cmd.handle(&self.config).await?,
             McpCommands::List(cmd) => cmd.handle(cfg?).await?,
             McpCommands::Add(cmd) => cmd.handle(cfg?, true).await?,
+            McpCommands::AddStdio(cmd) => cmd.handle(cfg?, true).await?,
             McpCommands::Remove(cmd) => cmd.handle(cfg?)?,
             McpCommands::Start(cmd) => cmd.handle(cfg?).await?,
             McpCommands::Dev(cmd) => cmd.handle(cfg?).await?,
         };
 
         Ok(())
+    }
+
+    fn handle_stdio_config_error(&self, err: &anyhow::Error) -> anyhow::Result<()> {
+        let response = build_stdio_error_response(err.to_string());
+        let mut stdout = io::stdout().lock();
+        writeln!(stdout, "{response}")?;
+        stdout.flush()?;
+
+        // Intentionally return the error so stderr includes a human-readable message.
+        Err(anyhow::anyhow!(err.to_string()))
+    }
+}
+
+fn build_stdio_error_response(message: String) -> String {
+    let response = json!({
+        "jsonrpc": "2.0",
+        "id": serde_json::Value::Null,
+        "error": {
+            "code": STDIO_CONFIG_ERROR_CODE,
+            "message": message,
+        }
+    });
+
+    response.to_string()
+}
+
+const STDIO_CONFIG_ERROR_CODE: i32 = -32000;
+
+#[cfg(test)]
+mod tests {
+    use super::build_stdio_error_response;
+
+    #[test]
+    fn stdio_error_response_defaults_id_to_null() {
+        let response = build_stdio_error_response("missing config".to_string());
+
+        assert!(response.contains(r#""id":null"#));
     }
 }
 
@@ -117,6 +163,10 @@ pub enum McpCommands {
     /// Add an MCP server to configuration
     #[command(long_about = "Add a new MCP server to the configuration.")]
     Add(commands::mcp::AddCmd),
+
+    /// Add a stdio MCP server to configuration
+    #[command(long_about = "Add a new stdio MCP server to the configuration.")]
+    AddStdio(commands::mcp::AddStdioCmd),
 
     /// Remove an MCP server from configuration
     #[command(long_about = "Remove an MCP server from the configuration.")]

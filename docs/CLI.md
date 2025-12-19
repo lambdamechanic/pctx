@@ -10,6 +10,7 @@ This document contains the help content for the `pctx` command-line program.
 * [`pctx mcp init`↴](#pctx-mcp-init)
 * [`pctx mcp list`↴](#pctx-mcp-list)
 * [`pctx mcp add`↴](#pctx-mcp-add)
+* [`pctx mcp add-stdio`↴](#pctx-mcp-add-stdio)
 * [`pctx mcp remove`↴](#pctx-mcp-remove)
 * [`pctx mcp start`↴](#pctx-mcp-start)
 * [`pctx mcp dev`↴](#pctx-mcp-dev)
@@ -77,6 +78,7 @@ MCP server commands (with pctx.json configuration)
 * `init` — Initialize pctx.json configuration file
 * `list` — List MCP servers and test connections
 * `add` — Add an MCP server to configuration
+* `add-stdio` — Add a stdio MCP server to configuration
 * `remove` — Remove an MCP server from configuration
 * `start` — Start the PCTX MCP server
 * `dev` — Start the PCTX MCP server with terminal UI
@@ -126,6 +128,25 @@ Add a new MCP server to the configuration.
 
 
 
+## `pctx mcp add-stdio`
+
+Add a new stdio MCP server to the configuration.
+
+**Usage:** `pctx mcp add-stdio [OPTIONS] <NAME> <COMMAND>`
+
+###### **Arguments:**
+
+* `<NAME>` — Unique name for this server
+* `<COMMAND>` — Command to execute the MCP server
+
+###### **Options:**
+
+* `--arg <ARGS>` — Arguments to pass to the command (repeat for multiple)
+* `--env <ENV>` — Environment variables in KEY=VALUE format (repeat for multiple)
+* `-f`, `--force` — Overrides any existing server under the same name & skips testing connection to the MCP server
+
+
+
 ## `pctx mcp remove`
 
 Remove an MCP server from the configuration.
@@ -153,6 +174,7 @@ Start the PCTX MCP server (exposes /mcp endpoint).
 
   Default value: `127.0.0.1`
 * `--no-banner` — Don't show the server banner
+* `--stdio` — Serve MCP over stdio instead of HTTP
 
 
 
