@@ -68,7 +68,9 @@ impl DevCmd {
         }
 
         if has_stdio_upstreams(&cfg) {
-            tracing::warn!("Config includes stdio upstream MCPs; re-run with --stdio to serve them.");
+            tracing::warn!(
+                "Config includes stdio upstream MCPs; re-run with --stdio to serve them."
+            );
         }
 
         // Set up terminal

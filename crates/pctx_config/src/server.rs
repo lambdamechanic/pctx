@@ -196,15 +196,14 @@ impl ServerConfig {
                 }
             }
             ServerTransport::Stdio(stdio_cfg) => {
-                let transport = TokioChildProcess::new(
-                    Command::new(&stdio_cfg.command).configure(|cmd| {
+                let transport =
+                    TokioChildProcess::new(Command::new(&stdio_cfg.command).configure(|cmd| {
                         cmd.args(&stdio_cfg.args);
                         if !stdio_cfg.env.is_empty() {
                             cmd.envs(&stdio_cfg.env);
                         }
-                    }),
-                )
-                .map_err(|e| McpConnectionError::Failed(e.to_string()))?;
+                    }))
+                    .map_err(|e| McpConnectionError::Failed(e.to_string()))?;
 
                 init_request
                     .serve(transport)

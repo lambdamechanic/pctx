@@ -12,10 +12,7 @@ use tracing_subscriber::{Layer, Registry, util::SubscriberInitExt};
 
 use crate::utils::{logger, metrics};
 
-pub(crate) async fn init_telemetry(
-    cfg: &Config,
-    json_l: Option<Utf8PathBuf>,
-) -> Result<()> {
+pub(crate) async fn init_telemetry(cfg: &Config, json_l: Option<Utf8PathBuf>) -> Result<()> {
     let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = Vec::new();
 
     let resource = Resource::builder()
