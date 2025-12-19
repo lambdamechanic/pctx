@@ -12,7 +12,11 @@ use tracing_subscriber::{Layer, Registry, util::SubscriberInitExt};
 
 use crate::utils::{logger, metrics};
 
-pub(crate) async fn init_telemetry(cfg: &Config, json_l: Option<Utf8PathBuf>) -> Result<()> {
+pub(crate) async fn init_telemetry(
+    cfg: &Config,
+    json_l: Option<Utf8PathBuf>,
+    log_to_stderr: bool,
+) -> Result<()> {
     let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = Vec::new();
 
     let resource = Resource::builder()
@@ -73,11 +77,19 @@ pub(crate) async fn init_telemetry(cfg: &Config, json_l: Option<Utf8PathBuf>) ->
         let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
             logger::default_env_filter(cfg.logger.level.as_str()),
         ));
-        layers.push(
-            init_tracing_layer(std::io::stdout, &cfg.logger.format, cfg.logger.colors)
-                .with_filter(env_filter)
-                .boxed(),
-        );
+        if log_to_stderr {
+            layers.push(
+                init_tracing_layer(std::io::stderr, &cfg.logger.format, cfg.logger.colors)
+                    .with_filter(env_filter)
+                    .boxed(),
+            );
+        } else {
+            layers.push(
+                init_tracing_layer(std::io::stdout, &cfg.logger.format, cfg.logger.colors)
+                    .with_filter(env_filter)
+                    .boxed(),
+            );
+        }
     }
 
     tracing_subscriber::registry().with(layers).try_init()?;
