@@ -23,7 +23,7 @@ use pctx_config::Config;
 use ratatui::{Terminal, backend::CrosstermBackend, style::Color};
 use tokio::sync::mpsc;
 
-use crate::commands::mcp::start::StartCmd;
+use crate::commands::mcp::{has_stdio_upstreams, start::StartCmd};
 use app::{App, AppMessage, FocusPanel};
 use pctx_mcp_server::PctxMcpServer;
 
@@ -445,18 +445,14 @@ fn run_ui(
 
 // Spawns the PctxMcp server task
 // Returns (server_handle, shutdown_sender)
-async fn load_code_mode_for_dev(
-    cfg: &Config,
-) -> Result<pctx_code_mode::CodeMode, String> {
+async fn load_code_mode_for_dev(cfg: &Config) -> Result<pctx_code_mode::CodeMode> {
     if cfg.servers.is_empty() {
         tracing::warn!(
             "No MCP servers configured, add servers with 'pctx add <name> <url>' and PCTX Dev Mode will refresh"
         );
         Ok(pctx_code_mode::CodeMode::default())
     } else {
-        let loaded = StartCmd::load_code_mode(cfg)
-            .await
-            .map_err(|e| format!("Failed loading upstream MCPs: {e:?}"))?;
+        let loaded = StartCmd::load_code_mode(cfg).await?;
         if loaded.tool_sets.is_empty() {
             tracing::warn!(
                 "Failed loading all configured MCP servers, add servers with 'pctx add <name> <url>' or edit {} and PCTX Dev Mode will refresh",
@@ -483,8 +479,11 @@ fn spawn_server_task(
 
         let tools = match load_code_mode_for_dev(&cfg).await {
             Ok(loaded) => loaded,
-            Err(msg) => {
-                tx.send(AppMessage::ServerFailed(msg)).ok();
+            Err(err) => {
+                tx.send(AppMessage::ServerFailed(format!(
+                    "Failed loading upstream MCPs: {err:?}"
+                )))
+                .ok();
                 pctx_code_mode::CodeMode::default()
             }
         };
@@ -516,10 +515,6 @@ fn spawn_server_task(
     (handle, shutdown_tx)
 }
 
-fn has_stdio_upstreams(cfg: &Config) -> bool {
-    cfg.servers.iter().any(|server| server.stdio().is_some())
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -531,7 +526,7 @@ mod tests {
     use chrono::Utc;
     use codegen::{Tool, ToolSet};
     use pctx_code_mode::CodeMode;
-    use pctx_config::{Config, logger::LogLevel, server::ServerConfig};
+    use pctx_config::{logger::LogLevel, server::ServerConfig};
     use serde_json::json;
 
     fn create_pctx_tools() -> CodeMode {
@@ -584,25 +579,6 @@ mod tests {
             )],
             callbacks: vec![],
         }
-    }
-
-    #[test]
-    fn test_has_stdio_upstreams() {
-        let mut cfg = Config::default();
-        cfg.servers.push(ServerConfig::new_stdio(
-            "local".to_string(),
-            "echo".to_string(),
-            vec!["hi".to_string()],
-            Default::default(),
-        ));
-        assert!(super::has_stdio_upstreams(&cfg));
-
-        let mut cfg = Config::default();
-        cfg.servers.push(ServerConfig::new(
-            "http".to_string(),
-            "http://localhost:8080/mcp".parse().unwrap(),
-        ));
-        assert!(!super::has_stdio_upstreams(&cfg));
     }
 
     #[test]

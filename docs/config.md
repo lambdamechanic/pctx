@@ -132,8 +132,8 @@ Use this for API key authentication or any custom header requirements.
 
 ## Logger Configuration
 
-The optional `logger` field controls logging behavior for the pctx server MPC server. This configuration only applies
-to `pctx start`, other commands like `pctx add` use the CLI verbosity controls (`-v/-vv/-q`).
+The optional `logger` field controls logging behavior for the pctx server MPC server. This configuration applies
+to `pctx start` and MCP server modes; other commands like `pctx add` use the CLI verbosity controls (`-v/-vv/-q`).
 Logs always write to stderr to keep stdout clean for JSON-RPC traffic.
 
 | Field     | Type           | Required | Default     | Description                                        |
