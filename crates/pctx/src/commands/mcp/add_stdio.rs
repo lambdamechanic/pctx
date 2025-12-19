@@ -165,9 +165,6 @@ mod tests {
         let stdio = server.stdio().expect("stdio config present");
         assert_eq!(stdio.command, "node");
         assert_eq!(stdio.args, vec!["./server.js"]);
-        assert_eq!(
-            stdio.env.get("NODE_ENV").map(String::as_str),
-            Some("test")
-        );
+        assert_eq!(stdio.env.get("NODE_ENV").map(String::as_str), Some("test"));
     }
 }

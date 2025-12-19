@@ -1,5 +1,9 @@
 use std::fmt::Display;
 
+use crate::utils::{
+    spinner::Spinner,
+    styles::{fmt_bold, fmt_cyan, fmt_dimmed, fmt_error, fmt_green, fmt_success},
+};
 use anyhow::Result;
 use clap::Parser;
 use pctx_config::{
@@ -8,10 +12,6 @@ use pctx_config::{
 };
 use rmcp::model::InitializeResult;
 use tracing::info;
-use crate::utils::{
-    spinner::Spinner,
-    styles::{fmt_bold, fmt_cyan, fmt_dimmed, fmt_error, fmt_green, fmt_success},
-};
 
 #[derive(Debug, Clone, Parser)]
 pub struct ListCmd;
@@ -96,8 +96,7 @@ impl UpstreamMcpSummary {
 impl Display for UpstreamMcpSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut fields = vec![];
-        let target_field =
-            format!("{}: {}", fmt_bold("Target"), fmt_cyan(&self.target));
+        let target_field = format!("{}: {}", fmt_bold("Target"), fmt_cyan(&self.target));
         let transport_field = format!("{}: {}", fmt_bold("Transport"), self.transport);
 
         if let Some(e) = &self.error {
