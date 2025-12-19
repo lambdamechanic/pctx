@@ -75,10 +75,6 @@ impl AddStdioCmd {
                     client.cancel().await?;
                     true
                 }
-                Err(McpConnectionError::UnsupportedTransport(msg)) => {
-                    sp.stop_error(format!("Unsupported transport: {msg}"));
-                    false
-                }
                 Err(McpConnectionError::RequiresAuth) => {
                     sp.stop_error("MCP requires authentication");
                     false
