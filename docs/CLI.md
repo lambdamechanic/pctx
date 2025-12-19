@@ -27,7 +27,6 @@ EXAMPLES:
   # Code Mode MCP
   pctx mcp init 
   pctx mcp add my-server https://mcp.example.com
-  pctx mcp add-stdio local-tools node --arg ./dist/server.js
   pctx mcp dev
 
   
@@ -65,7 +64,6 @@ Starts PCTX server with no pre-configured tools. Use a client library like `pip 
 
   Default value: `.pctx/sessions`
 * `--no-banner` — Don't show the server banner
-* `--stdio` — Serve MCP over stdio instead of HTTP
 
 
 
@@ -143,9 +141,10 @@ Add a new stdio MCP server to the configuration.
 
 ###### **Options:**
 
-* `--arg <ARG>` — Arguments to pass to the command (repeat for multiple)
+* `--arg <ARGS>` — Arguments to pass to the command (repeat for multiple)
 * `--env <ENV>` — Environment variables in KEY=VALUE format (repeat for multiple)
 * `-f`, `--force` — Overrides any existing server under the same name & skips testing connection to the MCP server
+
 
 
 ## `pctx mcp remove`
@@ -175,6 +174,7 @@ Start the PCTX MCP server (exposes /mcp endpoint).
 
   Default value: `127.0.0.1`
 * `--no-banner` — Don't show the server banner
+* `--stdio` — Serve MCP over stdio instead of HTTP
 
 
 
@@ -205,3 +205,4 @@ Start the PCTX MCP server in development mode with an interactive terminal UI wi
     This document was generated automatically by
     <a href="https://crates.io/crates/clap-markdown"><code>clap-markdown</code></a>.
 </i></small>
+
