@@ -113,10 +113,6 @@ impl AddCmd {
                     );
                     false
                 }
-                Err(McpConnectionError::UnsupportedTransport(transport)) => {
-                    sp.stop_error(format!("Unsupported transport: {transport}"));
-                    false
-                }
                 Err(McpConnectionError::Failed(msg)) => {
                     sp.stop_error(msg);
                     false
