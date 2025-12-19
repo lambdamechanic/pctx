@@ -7,6 +7,7 @@ use serde_json::json;
 use std::io::{self, BufRead, Write};
 
 use crate::utils::{logger::init_cli_logger, telemetry::init_telemetry};
+use pctx_config::logger::LoggerOutput;
 use pctx_config::Config;
 
 #[derive(Parser)]
@@ -63,7 +64,7 @@ impl Cli {
             Commands::Mcp(mcp_cmd) => self.handle_mcp(mcp_cmd).await,
             Commands::Start(start_cmd) => {
                 let cfg = Config::load(&self.config).unwrap_or_default();
-                init_telemetry(&cfg, None, false).await?;
+                init_telemetry(&cfg, None).await?;
 
                 start_cmd.handle().await
             }
@@ -82,12 +83,8 @@ impl Cli {
         if self.cli_logger() {
             init_cli_logger(self.verbose, self.quiet);
         } else if let Ok(c) = &cfg {
-            let log_to_stderr = match cmd {
-                McpCommands::Start(start_cmd) => start_cmd.stdio,
-                McpCommands::Dev(dev_cmd) => dev_cmd.stdio,
-                _ => false,
-            };
-            init_telemetry(c, self.json_l(), log_to_stderr).await?;
+            self.ensure_stdio_logging_ok(cmd, c)?;
+            init_telemetry(c, self.json_l()).await?;
         }
 
         let _updated_cfg = match cmd {
@@ -115,6 +112,26 @@ impl Cli {
         let mut stdout = io::stdout().lock();
         writeln!(stdout, "{response}")?;
         stdout.flush()?;
+
+        Ok(())
+    }
+}
+
+impl Cli {
+    fn ensure_stdio_logging_ok(&self, cmd: &McpCommands, cfg: &Config) -> anyhow::Result<()> {
+        let uses_stdio = matches!(cmd, McpCommands::Start(start_cmd) if start_cmd.stdio)
+            || matches!(cmd, McpCommands::Dev(dev_cmd) if dev_cmd.stdio);
+
+        if !uses_stdio || self.json_l().is_some() || !cfg.logger.enabled {
+            return Ok(());
+        }
+
+        if matches!(cfg.logger.output, LoggerOutput::Stdout) {
+            anyhow::bail!(
+                "Logging is configured to write to stdout, which conflicts with --stdio. \
+                 Set logger.output to \"stderr\" or disable logging."
+            );
+        }
 
         Ok(())
     }

@@ -140,6 +140,7 @@ to `pctx start`, other commands like `pctx add` use the CLI verbosity controls (
 | `enabled` | `boolean`      | No       | `true`      | Enable or disable logging                          |
 | `level`   | `LogLevel`     | No       | `"info"`    | Minimum log level to display (see levels below)    |
 | `format`  | `LoggerFormat` | No       | `"compact"` | Output format for log messages (see formats below) |
+| `output`  | `LoggerOutput` | No       | `"stdout"`  | Output stream for log messages (see outputs below) |
 | `colors`  | `boolean`      | No       | `true`      | Enable or disable colorized output                 |
 
 ### Log Levels
@@ -159,6 +160,13 @@ Valid values for `format`:
 - `"compact"` - Condensed single-line format (default)
 - `"pretty"` - Human-readable multi-line format with indentation
 - `"json"` - Structured JSON format for log aggregation tools
+
+### Log Outputs
+
+Valid values for `output`:
+
+- `"stdout"` - Write logs to standard output (default)
+- `"stderr"` - Write logs to standard error
 
 ### Examples
 
@@ -193,6 +201,16 @@ Valid values for `format`:
     "level": "info",
     "format": "json",
     "colors": false
+  }
+}
+```
+
+**Stderr logging for stdio servers:**
+
+```json
+{
+  "logger": {
+    "output": "stderr"
   }
 }
 ```

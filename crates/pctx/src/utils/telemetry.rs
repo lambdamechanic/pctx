@@ -6,7 +6,7 @@ use opentelemetry::trace::TracerProvider;
 
 use camino::Utf8PathBuf;
 use opentelemetry_sdk::Resource;
-use pctx_config::{Config, logger::LoggerFormat};
+use pctx_config::{Config, logger::{LoggerFormat, LoggerOutput}};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt};
 use tracing_subscriber::{Layer, Registry, util::SubscriberInitExt};
 
@@ -15,7 +15,6 @@ use crate::utils::{logger, metrics};
 pub(crate) async fn init_telemetry(
     cfg: &Config,
     json_l: Option<Utf8PathBuf>,
-    log_to_stderr: bool,
 ) -> Result<()> {
     let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = Vec::new();
 
@@ -79,19 +78,15 @@ pub(crate) async fn init_telemetry(
         let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
             logger::default_env_filter(cfg.logger.level.as_str()),
         ));
-        if log_to_stderr {
-            layers.push(
-                init_tracing_layer(std::io::stderr, &cfg.logger.format, cfg.logger.colors)
-                    .with_filter(env_filter)
-                    .boxed(),
-            );
-        } else {
-            layers.push(
-                init_tracing_layer(std::io::stdout, &cfg.logger.format, cfg.logger.colors)
-                    .with_filter(env_filter)
-                    .boxed(),
-            );
-        }
+        let make_writer = match cfg.logger.output {
+            LoggerOutput::Stderr => std::io::stderr,
+            LoggerOutput::Stdout => std::io::stdout,
+        };
+        layers.push(
+            init_tracing_layer(make_writer, &cfg.logger.format, cfg.logger.colors)
+                .with_filter(env_filter)
+                .boxed(),
+        );
     }
 
     tracing_subscriber::registry().with(layers).try_init()?;

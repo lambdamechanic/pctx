@@ -8,6 +8,8 @@ pub struct LoggerConfig {
     pub level: LogLevel,
     #[serde(default)]
     pub format: LoggerFormat,
+    #[serde(default)]
+    pub output: LoggerOutput,
     #[serde(default = "crate::defaults::default_true")]
     pub colors: bool,
 }
@@ -29,9 +31,19 @@ impl Default for LoggerConfig {
             enabled: true,
             level: LogLevel::Info,
             format: LoggerFormat::Compact,
+            output: LoggerOutput::Stdout,
             colors: true,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum LoggerOutput {
+    #[serde(rename = "stdout")]
+    #[default]
+    Stdout,
+    #[serde(rename = "stderr")]
+    Stderr,
 }
 
 /// Define an enumeration for log levels
