@@ -4,10 +4,9 @@ pub mod utils;
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 use serde_json::json;
-use std::io::{self, BufRead, Write};
+use std::io::{self, Write};
 
 use crate::utils::{logger::init_cli_logger, telemetry::init_telemetry};
-use pctx_config::logger::LoggerOutput;
 use pctx_config::Config;
 
 #[derive(Parser)]
@@ -83,7 +82,6 @@ impl Cli {
         if self.cli_logger() {
             init_cli_logger(self.verbose, self.quiet);
         } else if let Ok(c) = &cfg {
-            self.ensure_stdio_logging_ok(cmd, c)?;
             init_telemetry(c, self.json_l()).await?;
         }
 
@@ -101,14 +99,7 @@ impl Cli {
     }
 
     fn handle_stdio_config_error(&self, err: &anyhow::Error) -> anyhow::Result<()> {
-        let mut line = String::new();
-        io::stdin().lock().read_line(&mut line)?;
-
-        let response = match build_stdio_error_response(&line, err.to_string()) {
-            Some(response) => response,
-            None => return Ok(()),
-        };
-
+        let response = build_stdio_error_response(err.to_string());
         let mut stdout = io::stdout().lock();
         writeln!(stdout, "{response}")?;
         stdout.flush()?;
@@ -117,48 +108,17 @@ impl Cli {
     }
 }
 
-impl Cli {
-    fn ensure_stdio_logging_ok(&self, cmd: &McpCommands, cfg: &Config) -> anyhow::Result<()> {
-        let uses_stdio = matches!(cmd, McpCommands::Start(start_cmd) if start_cmd.stdio)
-            || matches!(cmd, McpCommands::Dev(dev_cmd) if dev_cmd.stdio);
-
-        if !uses_stdio || self.json_l().is_some() || !cfg.logger.enabled {
-            return Ok(());
-        }
-
-        if matches!(cfg.logger.output, LoggerOutput::Stdout) {
-            anyhow::bail!(
-                "Logging is configured to write to stdout, which conflicts with --stdio. \
-                 Set logger.output to \"stderr\" or disable logging."
-            );
-        }
-
-        Ok(())
-    }
-}
-
-fn build_stdio_error_response(line: &str, message: String) -> Option<String> {
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    let request = serde_json::from_str::<serde_json::Value>(trimmed).ok();
-    let id = request
-        .as_ref()
-        .and_then(|value| value.get("id"))
-        .cloned()
-        .unwrap_or(serde_json::Value::Null);
+fn build_stdio_error_response(message: String) -> String {
     let response = json!({
         "jsonrpc": "2.0",
-        "id": id,
+        "id": serde_json::Value::Null,
         "error": {
             "code": -32000,
             "message": message,
         }
     });
 
-    Some(response.to_string())
+    response.to_string()
 }
 
 #[cfg(test)]
@@ -166,38 +126,9 @@ mod tests {
     use super::build_stdio_error_response;
 
     #[test]
-    fn stdio_error_response_includes_id() {
-        let response = build_stdio_error_response(
-            r#"{"jsonrpc":"2.0","id":42,"method":"initialize","params":{}}"#,
-            "missing config".to_string(),
-        )
-        .expect("response");
-
-        assert!(response.contains(r#""id":42"#));
-        assert!(response.contains(r#""message":"missing config""#));
-    }
-
-    #[test]
     fn stdio_error_response_defaults_id_to_null() {
-        let response = build_stdio_error_response(
-            r#"{"jsonrpc":"2.0","method":"initialize","params":{}}"#,
-            "missing config".to_string(),
-        )
-        .expect("response");
+        let response = build_stdio_error_response("missing config".to_string());
 
-        assert!(response.contains(r#""id":null"#));
-    }
-
-    #[test]
-    fn stdio_error_response_ignores_empty_input() {
-        let response = build_stdio_error_response("   ", "missing config".to_string());
-        assert!(response.is_none());
-    }
-
-    #[test]
-    fn stdio_error_response_handles_invalid_json() {
-        let response =
-            build_stdio_error_response("{not-json", "missing config".to_string()).expect("response");
         assert!(response.contains(r#""id":null"#));
     }
 }

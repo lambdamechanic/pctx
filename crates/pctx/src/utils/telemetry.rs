@@ -6,7 +6,7 @@ use opentelemetry::trace::TracerProvider;
 
 use camino::Utf8PathBuf;
 use opentelemetry_sdk::Resource;
-use pctx_config::{Config, logger::{LoggerFormat, LoggerOutput}};
+use pctx_config::{Config, logger::LoggerFormat};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt};
 use tracing_subscriber::{Layer, Registry, util::SubscriberInitExt};
 
@@ -78,12 +78,8 @@ pub(crate) async fn init_telemetry(
         let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
             logger::default_env_filter(cfg.logger.level.as_str()),
         ));
-        let make_writer = match cfg.logger.output {
-            LoggerOutput::Stderr => std::io::stderr,
-            LoggerOutput::Stdout => std::io::stdout,
-        };
         layers.push(
-            init_tracing_layer(make_writer, &cfg.logger.format, cfg.logger.colors)
+            init_tracing_layer(std::io::stderr, &cfg.logger.format, cfg.logger.colors)
                 .with_filter(env_filter)
                 .boxed(),
         );

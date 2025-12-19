@@ -57,19 +57,14 @@ pub struct DevCmd {
     pub log_file: Utf8PathBuf,
 
     /// Serve MCP over stdio instead of HTTP
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub stdio: bool,
 }
 
 impl DevCmd {
     pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
         if self.stdio {
-            let tools = load_code_mode_for_dev(&cfg)
-                .await
-                .map_err(|e| anyhow::anyhow!(e))?;
-            let server = PctxMcpServer::new(&self.host, self.port, true);
-            server.serve_stdio(&cfg, tools).await?;
-            return Ok(cfg);
+            anyhow::bail!("Dev mode does not support stdio. Use `pctx mcp start --stdio` instead.");
         }
 
         if has_stdio_upstreams(&cfg) {
