@@ -35,6 +35,7 @@ pub enum ServerTransport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HttpServerConfig {
     pub url: url::Url,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -42,6 +43,7 @@ pub struct HttpServerConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StdioServerConfig {
     pub command: String,
     #[serde(default)]
@@ -219,9 +221,6 @@ pub enum McpConnectionError {
     /// Server requires authentication
     #[error("Server requires authentication")]
     RequiresAuth,
-    /// Transport not supported by this operation
-    #[error("Unsupported transport: {0}")]
-    UnsupportedTransport(String),
     /// Connection failed (network error, invalid URL, etc.)
     #[error("Failed to connect: {0}")]
     Failed(String),

@@ -12,7 +12,10 @@ use tracing_subscriber::{Layer, Registry, util::SubscriberInitExt};
 
 use crate::utils::{logger, metrics};
 
-pub(crate) async fn init_telemetry(cfg: &Config, json_l: Option<Utf8PathBuf>) -> Result<()> {
+pub(crate) async fn init_telemetry(
+    cfg: &Config,
+    json_l: Option<Utf8PathBuf>,
+) -> Result<()> {
     let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = Vec::new();
 
     let resource = Resource::builder()
@@ -76,7 +79,7 @@ pub(crate) async fn init_telemetry(cfg: &Config, json_l: Option<Utf8PathBuf>) ->
             logger::default_env_filter(cfg.logger.level.as_str()),
         ));
         layers.push(
-            init_tracing_layer(std::io::stdout, &cfg.logger.format, cfg.logger.colors)
+            init_tracing_layer(std::io::stderr, &cfg.logger.format, cfg.logger.colors)
                 .with_filter(env_filter)
                 .boxed(),
         );

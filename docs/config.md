@@ -132,8 +132,9 @@ Use this for API key authentication or any custom header requirements.
 
 ## Logger Configuration
 
-The optional `logger` field controls logging behavior for the pctx server MPC server. This configuration only applies
-to `pctx start`, other commands like `pctx add` use the CLI verbosity controls (`-v/-vv/-q`).
+The optional `logger` field controls logging behavior for the pctx server MPC server. This configuration applies
+to `pctx start` and MCP server modes; other commands like `pctx add` use the CLI verbosity controls (`-v/-vv/-q`).
+Logs always write to stderr to keep stdout clean for JSON-RPC traffic; stdout is reserved for JSON-RPC responses.
 
 | Field     | Type           | Required | Default     | Description                                        |
 | --------- | -------------- | -------- | ----------- | -------------------------------------------------- |
@@ -632,6 +633,12 @@ The server returned 401/403. Add authentication:
 pctx add my-server https://mcp.example.com \
   --bearer '${env:TOKEN}'
 ```
+
+### Missing config in stdio mode
+
+When starting with `pctx mcp start --stdio`, a missing or unreadable config file
+returns a JSON-RPC error on stdout and then exits. Ensure `pctx.json` exists or
+pass the correct path with `-c`.
 
 ### "Environment variable not found" Error
 
