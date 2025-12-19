@@ -104,7 +104,7 @@ impl Cli {
         writeln!(stdout, "{response}")?;
         stdout.flush()?;
 
-        Ok(())
+        Err(anyhow::anyhow!(err.to_string()))
     }
 }
 
