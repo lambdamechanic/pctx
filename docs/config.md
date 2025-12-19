@@ -37,13 +37,37 @@ This creates a basic `pctx.json` and prompts you to add upstream MCP servers.
 
 ### Server Configuration
 
-Each server in the `servers` array has the following fields:
+Each server in the `servers` array is either an HTTP server or a stdio server.
+
+**HTTP server fields:**
 
 | Field  | Type         | Required | Description                                    |
 | ------ | ------------ | -------- | ---------------------------------------------- |
 | `name` | `string`     | Yes      | Unique identifier used as TypeScript namespace |
 | `url`  | `string`     | Yes      | HTTP(S) URL of the MCP server endpoint         |
 | `auth` | `AuthConfig` | No       | Authentication configuration (see below)       |
+
+**Stdio server fields:**
+
+| Field     | Type                   | Required | Description                                    |
+| --------- | ---------------------- | -------- | ---------------------------------------------- |
+| `name`    | `string`               | Yes      | Unique identifier used as TypeScript namespace |
+| `command` | `string`               | Yes      | Command to execute the MCP server              |
+| `args`    | `array[string]`        | No       | Arguments passed to the command                |
+| `env`     | `map[string]string`    | No       | Environment variables for the process          |
+
+**Example (stdio):**
+
+```json
+{
+  "name": "local_tools",
+  "command": "node",
+  "args": ["./dist/server.js"],
+  "env": {
+    "NODE_ENV": "development"
+  }
+}
+```
 
 #### Server Names as Namespaces
 

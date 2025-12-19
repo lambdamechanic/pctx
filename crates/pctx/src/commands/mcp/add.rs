@@ -67,7 +67,7 @@ impl AddCmd {
         }
 
         // apply authentication (clap ensures bearer & header are mutually exclusive)
-        server.auth = if let Some(bearer) = &self.bearer {
+        let auth = if let Some(bearer) = &self.bearer {
             Some(AuthConfig::Bearer {
                 token: bearer.clone(),
             })
@@ -91,6 +91,7 @@ impl AddCmd {
                 None
             }
         };
+        server.set_auth(auth);
 
         // try connection
         if !self.force {
@@ -104,12 +105,16 @@ impl AddCmd {
                 Err(McpConnectionError::RequiresAuth) => {
                     sp.stop_and_persist(
                         "!",
-                        if server.auth.is_none() {
+                        if server.http().and_then(|cfg| cfg.auth.as_ref()).is_none() {
                             "MCP requires authentication"
                         } else {
                             "Invalid authentication"
                         },
                     );
+                    false
+                }
+                Err(McpConnectionError::UnsupportedTransport(transport)) => {
+                    sp.stop_error(format!("Unsupported transport: {transport}"));
                     false
                 }
                 Err(McpConnectionError::Failed(msg)) => {

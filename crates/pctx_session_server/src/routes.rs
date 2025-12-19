@@ -315,8 +315,9 @@ async fn register_mcp_server(
 
     // Add auth if provided
     if let Some(auth) = &server.auth {
-        server_config.auth = serde_json::from_value(auth.clone())
+        let auth = serde_json::from_value(auth.clone())
             .map_err(|e| format!("Invalid auth config: {e}"))?;
+        server_config.set_auth(Some(auth));
     }
 
     code_mode
