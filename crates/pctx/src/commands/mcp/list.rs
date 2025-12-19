@@ -80,9 +80,6 @@ impl UpstreamMcpSummary {
             Err(McpConnectionError::RequiresAuth) => {
                 (Some("Requires authentication".into()), None, vec![])
             }
-            Err(McpConnectionError::UnsupportedTransport(transport)) => {
-                (Some(format!("Unsupported transport: {transport}")), None, vec![])
-            }
             Err(McpConnectionError::Failed(msg)) => (Some(msg), None, vec![]),
         };
 
