@@ -104,6 +104,7 @@ impl Cli {
         writeln!(stdout, "{response}")?;
         stdout.flush()?;
 
+        // Intentionally return the error so stderr includes a human-readable message.
         Err(anyhow::anyhow!(err.to_string()))
     }
 }
@@ -113,13 +114,15 @@ fn build_stdio_error_response(message: String) -> String {
         "jsonrpc": "2.0",
         "id": serde_json::Value::Null,
         "error": {
-            "code": -32000,
+            "code": STDIO_CONFIG_ERROR_CODE,
             "message": message,
         }
     });
 
     response.to_string()
 }
+
+const STDIO_CONFIG_ERROR_CODE: i32 = -32000;
 
 #[cfg(test)]
 mod tests {
