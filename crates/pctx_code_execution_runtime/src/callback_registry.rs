@@ -4,6 +4,7 @@ use std::{
     pin::Pin,
     sync::{Arc, RwLock},
 };
+use tracing::info;
 
 use crate::error::McpError;
 
@@ -111,6 +112,8 @@ impl CallbackRegistry {
         let callback = self.get(id).ok_or_else(|| {
             McpError::ToolCall(format!("Callback with id \"{id}\" does not exist"))
         })?;
+
+        info!(callback_id =? id, "Handling callback");
 
         callback(args).await.map_err(|e| {
             McpError::ExecutionError(format!("Failed calling callback with id \"{id}\": {e}",))

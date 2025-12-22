@@ -244,10 +244,14 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
         }
     }
 
+    let execution_span = tracing::info_span!(
+        "execute_code_in_session",
+        code_mode_session_id = %code_mode_session_id
+    );
+
     tokio::spawn(async move {
-        let current_span = tracing::Span::current();
         let output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
-            let _guard = current_span.enter();
+            let _guard = execution_span.enter();
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -349,7 +353,6 @@ async fn handle_message<B: PctxSessionBackend>(
         }
         Message::Close(_) => {
             info!("Received close message for session {ws_session}");
-            println!("CLOSING....");
             Ok(())
         }
         Message::Ping(_) | Message::Pong(_) => Ok(()),
