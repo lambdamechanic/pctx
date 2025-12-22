@@ -11,7 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 pctx_config = { path = "../pctx_config" }
-deno_core = { version = "0.363.0", features = ["include_icu_data"] }
+deno_core = { version = "0.372.0", features = ["include_icu_data"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 reqwest = { version = "0.12", features = ["json"] }
@@ -23,7 +23,7 @@ rmcp = { workspace = true }
 
 [build-dependencies]
 pctx_config = { path = "../pctx_config" }
-deno_core = { version = "0.363.0", features = ["include_icu_data"] }
+deno_core = { version = "0.372.0", features = ["include_icu_data"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

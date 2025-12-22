@@ -4,7 +4,7 @@ use super::{SECONDARY, TERTIARY};
 use chrono::{DateTime, Utc};
 use pctx_config::logger::LogLevel;
 use ratatui::{
-    style::{Color, Style, Stylize},
+    style::{Color, Style},
     text::{Line, Span},
 };
 use serde::Deserialize;
