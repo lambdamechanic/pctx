@@ -9,15 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
--
+- Stdio MCP server support for upstreams via `pctx.json` (`command`, `args`, `env`).
+- `pctx mcp add-stdio` to add stdio MCP servers to the config.
+- `pctx mcp start --stdio` to serve the MCP interface over stdio.
 
 ### Changed
 
--
+- **Breaking Change**: Logger output now writes to stderr instead of stdout to keep JSON-RPC output clean; if you were consuming logs from stdout, switch to stderr or a log file.
 
 ### Fixed
 
--
+- Improved error handling for stdio config and MCP initialization failures.
 
 ## [v0.3.0] - 2025-12-16
 
