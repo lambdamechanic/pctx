@@ -131,6 +131,13 @@ impl PctxMcpServer {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if the stdio server fails to start or shut down cleanly.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the ctrl-c handler cannot be installed.
     pub async fn serve_stdio(
         &self,
         cfg: &Config,
@@ -145,6 +152,10 @@ impl PctxMcpServer {
             .await
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if the stdio server fails to start or if the server
+    /// task returns an error.
     pub async fn serve_stdio_with_shutdown<F>(
         &self,
         cfg: &Config,
@@ -165,7 +176,7 @@ impl PctxMcpServer {
         let mut join_handle = tokio::spawn(async move { running.waiting().await });
 
         tokio::select! {
-            _ = shutdown_signal => {
+            () = shutdown_signal => {
                 cancel_token.cancel();
                 let _ = join_handle.await;
             }

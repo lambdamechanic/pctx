@@ -73,10 +73,10 @@ impl Cli {
     async fn handle_mcp(&self, cmd: &McpCommands) -> anyhow::Result<()> {
         let cfg = Config::load(&self.config);
 
-        if let (McpCommands::Start(start_cmd), Err(err)) = (cmd, &cfg) {
-            if start_cmd.stdio {
-                return self.handle_stdio_config_error(err);
-            }
+        if let (McpCommands::Start(start_cmd), Err(err)) = (cmd, &cfg)
+            && start_cmd.stdio
+        {
+            return Self::handle_stdio_config_error(err);
         }
 
         if self.cli_logger() {
@@ -98,8 +98,8 @@ impl Cli {
         Ok(())
     }
 
-    fn handle_stdio_config_error(&self, err: &anyhow::Error) -> anyhow::Result<()> {
-        let response = build_stdio_error_response(err.to_string());
+    fn handle_stdio_config_error(err: &anyhow::Error) -> anyhow::Result<()> {
+        let response = build_stdio_error_response(err.to_string().as_str());
         let mut stdout = io::stdout().lock();
         writeln!(stdout, "{response}")?;
         stdout.flush()?;
@@ -109,7 +109,7 @@ impl Cli {
     }
 }
 
-fn build_stdio_error_response(message: String) -> String {
+fn build_stdio_error_response(message: &str) -> String {
     let response = json!({
         "jsonrpc": "2.0",
         "id": serde_json::Value::Null,
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn stdio_error_response_defaults_id_to_null() {
-        let response = build_stdio_error_response("missing config".to_string());
+        let response = build_stdio_error_response("missing config");
 
         assert!(response.contains(r#""id":null"#));
     }
