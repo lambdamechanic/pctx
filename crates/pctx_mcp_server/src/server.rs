@@ -168,10 +168,18 @@ impl PctxMcpServer {
         self.banner_stdio(cfg, &code_mode);
 
         let mcp_service = PctxMcpService::new(cfg, code_mode);
-        let running = mcp_service
-            .serve(stdio())
-            .await
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let mut shutdown_signal = Box::pin(shutdown_signal);
+        let mut serve_task = tokio::spawn(mcp_service.serve(stdio()));
+        let running = tokio::select! {
+            _ = &mut shutdown_signal => {
+                serve_task.abort();
+                return Ok(());
+            }
+            res = &mut serve_task => {
+                res.map_err(|e| anyhow::anyhow!(e))?
+                    .map_err(|e| anyhow::anyhow!("{e}"))?
+            }
+        };
         let cancel_token = running.cancellation_token();
         let mut join_handle = tokio::spawn(async move { running.waiting().await });
 
@@ -379,11 +387,10 @@ mod tests {
             .serve_stdio_with_shutdown(&cfg, code_mode, async {})
             .await;
 
-        if let Err(err) = result {
-            assert!(
-                err.to_string().contains("connection closed"),
-                "unexpected stdio shutdown error: {err}"
-            );
-        }
+        assert!(
+            result.is_ok(),
+            "unexpected stdio shutdown error: {}",
+            result.err().unwrap()
+        );
     }
 }
