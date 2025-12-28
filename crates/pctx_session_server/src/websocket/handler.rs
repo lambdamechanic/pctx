@@ -246,8 +246,7 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
 
     let execution_span = tracing::info_span!(
         "execute_code_in_session",
-        session_id =? code_mode_session_id,
-        code =? params.code,
+        session_id =% code_mode_session_id,
     );
 
     tokio::spawn(async move {
@@ -260,17 +259,12 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
 
             // create callback registry to execute callback requests over the same ws which
             // initiated the request
-            let res = rt.block_on(async {
+            rt.block_on(async {
                 code_mode
                     .execute(&params.code, Some(callback_registry))
                     .await
                     .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
-            });
-            if let Ok(output) = &res {
-                info!(result = json!(output).to_string(), "Execution completed");
-            }
-
-            res
+            })
         })
         .await;
 

@@ -5,7 +5,7 @@ use pctx_code_execution_runtime::CallbackRegistry;
 use pctx_config::server::ServerConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tracing::{debug, warn};
+use tracing::{debug, instrument, warn};
 
 use crate::{
     Error, Result,
@@ -105,6 +105,7 @@ impl CodeMode {
         GetFunctionDetailsOutput { code, functions }
     }
 
+    #[instrument(skip(self, callback_registry), ret(Display), err)]
     pub async fn execute(
         &self,
         code: &str,
@@ -156,7 +157,7 @@ impl CodeMode {
             namespaces = namespaces.join("\n\n"),
         ));
 
-        debug!("Executing code in sandbox");
+        debug!(to_execute = %to_execute, "Executing code in sandbox");
 
         let options = pctx_executor::ExecuteOptions::new()
             .with_allowed_hosts(self.allowed_hosts().into_iter().collect())
