@@ -373,7 +373,6 @@ async fn test_exec_type_error_with_rich_diagnostics() {
     // Verify the diagnostic points to the exact error location and has all the information
     // Error is at line 3 (where "wrong" is passed), column 45 (the "wrong" string literal)
     let stderr = response["result"]["stderr"].as_str().unwrap();
-    println!("\n=== TYPE ERROR STDERR ===");
 
     // Should show exact location: Line 3, Column 45
     assert!(

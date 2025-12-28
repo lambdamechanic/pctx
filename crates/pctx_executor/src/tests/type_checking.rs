@@ -286,8 +286,6 @@ async function run() {
     assert!(!result.success, "Type error should cause failure");
     assert!(!result.diagnostics.is_empty(), "Should have diagnostics");
 
-    // Check that stderr contains rich diagnostic information
-    println!("stderr: {}", result.stderr);
     assert!(
         result.stderr.contains("Line"),
         "stderr should contain line number, got: {}",
