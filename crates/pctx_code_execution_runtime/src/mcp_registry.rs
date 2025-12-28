@@ -3,6 +3,7 @@ use pctx_config::server::ServerConfig;
 use rmcp::model::{CallToolRequestParam, JsonObject, RawContent};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use tracing::info;
 
 /// Singleton registry for MCP server configurations
 #[derive(Clone)]
@@ -98,6 +99,9 @@ pub(crate) async fn call_mcp_tool(
             "MCP Server with name \"{server_name}\" does not exist"
         ))
     })?;
+
+    info!(
+        server_name=?server_name,tool_name=?tool_name, "Handling MCP call");
 
     let client = mcp_cfg.connect().await?;
     let tool_result = client
