@@ -3,7 +3,9 @@ use axum::{Json, extract::State, http::StatusCode};
 
 use pctx_code_mode::{
     CodeMode,
-    model::{GetFunctionDetailsInput, GetFunctionDetailsOutput, ListFunctionsOutput},
+    model::{
+        CallbackConfig, GetFunctionDetailsInput, GetFunctionDetailsOutput, ListFunctionsOutput,
+    },
 };
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -46,7 +48,10 @@ pub(crate) async fn create_session<B: PctxSessionBackend>(
     State(state): State<AppState<B>>,
 ) -> ApiResult<Json<CreateSessionResponse>> {
     let session_id = Uuid::new_v4();
-    info!("Creating new CodeMode session: {session_id}");
+    info!(
+        session_id =? session_id,
+        "Creating new CodeMode session"
+    );
 
     let code_mode = CodeMode::default();
     state
@@ -55,7 +60,10 @@ pub(crate) async fn create_session<B: PctxSessionBackend>(
         .await
         .context("Failed inserting code mode session into backend")?;
 
-    info!("Created CodeMode session: {session_id}");
+    info!(
+        session_id =? session_id,
+        "Created CodeMode session"
+    );
 
     Ok(Json(CreateSessionResponse { session_id }))
 }
@@ -78,7 +86,7 @@ pub(crate) async fn close_session<B: PctxSessionBackend>(
     State(state): State<AppState<B>>,
     CodeModeSession(session_id): CodeModeSession,
 ) -> ApiResult<Json<CloseSessionResponse>> {
-    info!("Closing CodeMode session: {session_id}");
+    info!(session_id =? session_id, "Closing CodeMode session");
 
     let existed = state
         .backend
@@ -97,7 +105,7 @@ pub(crate) async fn close_session<B: PctxSessionBackend>(
         ));
     }
 
-    info!("Closed CodeMode session: {session_id}");
+    info!(session_id =? session_id, "Closed CodeMode session");
 
     Ok(Json(CloseSessionResponse { success: true }))
 }
@@ -119,7 +127,7 @@ pub(crate) async fn list_functions<B: PctxSessionBackend>(
     State(state): State<AppState<B>>,
     CodeModeSession(session_id): CodeModeSession,
 ) -> ApiResult<Json<ListFunctionsOutput>> {
-    info!(session_id =? session_id, "Listing tools");
+    info!(session_id =? session_id, "Listing functions");
 
     let code_mode = state
         .backend
@@ -168,7 +176,8 @@ pub(crate) async fn get_function_details<B: PctxSessionBackend>(
         .join(", ");
     info!(
         session_id =? session_id,
-        "Getting function details for {requested_functions}"
+        functions =? requested_functions,
+        "Getting function details",
     );
 
     let code_mode = state.backend.get(session_id).await?.ok_or(ApiError::new(
@@ -205,9 +214,15 @@ pub(crate) async fn register_tools<B: PctxSessionBackend>(
     CodeModeSession(session_id): CodeModeSession,
     Json(request): Json<RegisterToolsRequest>,
 ) -> ApiResult<Json<RegisterToolsResponse>> {
+    let tool_ids = request
+        .tools
+        .iter()
+        .map(CallbackConfig::id)
+        .collect::<Vec<_>>();
     info!(
-        "Registering {} tools for session {session_id}",
-        request.tools.len(),
+        session_id =? session_id,
+        tools =? &tool_ids,
+        "Registering tools...",
     );
 
     let mut code_mode = state
@@ -224,19 +239,25 @@ pub(crate) async fn register_tools<B: PctxSessionBackend>(
             },
         ))?;
 
-    let mut registered = 0;
     for tool in &request.tools {
+        debug!(tool =? tool.id(), "Adding callback tool {}", tool.id());
         code_mode
             .add_callback(tool)
             .context("Failed adding callback")?;
-
-        registered += 1;
     }
 
     // Update the backend with the modified CodeMode
     state.backend.update(session_id, code_mode).await?;
 
-    Ok(Json(RegisterToolsResponse { registered }))
+    info!(
+        session_id =? session_id,
+        tools =? &tool_ids,
+        "Registered tools",
+    );
+
+    Ok(Json(RegisterToolsResponse {
+        registered: request.tools.len(),
+    }))
 }
 
 /// Register MCP servers dynamically at runtime
@@ -258,9 +279,15 @@ pub(crate) async fn register_servers<B: PctxSessionBackend>(
     CodeModeSession(session_id): CodeModeSession,
     Json(request): Json<RegisterMcpServersRequest>,
 ) -> ApiResult<Json<RegisterMcpServersResponse>> {
+    let server_ids = request
+        .servers
+        .iter()
+        .map(|s| format!("{} ({})", &s.name, &s.url))
+        .collect::<Vec<_>>();
     info!(
-        "Registering {} MCP servers in session {session_id}",
-        request.servers.len()
+        session_id =? session_id,
+        servers =? &server_ids,
+        "Registering MCP servers...",
     );
 
     let mut code_mode = state
@@ -277,13 +304,13 @@ pub(crate) async fn register_servers<B: PctxSessionBackend>(
             },
         ))?;
 
-    let mut registered = 0;
+    let mut registered = Vec::new();
     let mut failed = Vec::new();
 
     for server in &request.servers {
         match register_mcp_server(&mut code_mode, server).await {
             Ok(()) => {
-                registered += 1;
+                registered.push(server);
                 debug!("Successfully registered MCP server: {}", server.name);
             }
             Err(e) => {
@@ -300,7 +327,16 @@ pub(crate) async fn register_servers<B: PctxSessionBackend>(
         .await
         .context("Failed updating code mode session in backend")?;
 
-    Ok(Json(RegisterMcpServersResponse { registered, failed }))
+    info!(
+        session_id =? session_id,
+        servers =? &server_ids,
+        "Registered MCP servers",
+    );
+
+    Ok(Json(RegisterMcpServersResponse {
+        registered: registered.len(),
+        failed,
+    }))
 }
 
 async fn register_mcp_server(
@@ -324,7 +360,7 @@ async fn register_mcp_server(
         .await
         .map_err(|e| format!("Failed to add MCP server: {e}"))?;
 
-    info!(
+    debug!(
         "Successfully registered MCP server '{}' with {} tools",
         server.name,
         code_mode
