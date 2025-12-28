@@ -111,9 +111,12 @@ impl CodeMode {
         callback_registry: Option<CallbackRegistry>,
     ) -> Result<ExecuteOutput> {
         let registry = callback_registry.unwrap_or_default();
+        // Format for logging only
+        let formatted_code = codegen::format::format_ts(&code);
 
         debug!(
             code_from_llm = %code,
+            formatted_code = %formatted_code,
             code_length = code.len(),
             callbacks =? registry.ids(),
             "Received code to execute"
@@ -151,10 +154,11 @@ impl CodeMode {
             })
             .collect();
 
-        let to_execute = codegen::format::format_ts(&format!(
-            "{namespaces}\n\n{code}\n\nexport default await run();\n",
+        // Put LLM code at the top, then namespaces below
+        let to_execute = format!(
+            "{code}\n\n{namespaces}\n\nexport default await run();\n",
             namespaces = namespaces.join("\n\n"),
-        ));
+        );
 
         debug!("Executing code in sandbox");
 

@@ -129,6 +129,7 @@ pub async fn execute(code: &str, options: ExecuteOptions) -> Result<ExecuteResul
     );
     let check_result = run_type_check(code).await?;
 
+    // Check if we have diagnostics
     if !check_result.diagnostics.is_empty() {
         warn!(
             runtime = "type_check",
@@ -136,13 +137,8 @@ pub async fn execute(code: &str, options: ExecuteOptions) -> Result<ExecuteResul
             "Type check failed with diagnostics"
         );
 
-        // Format diagnostics as stderr output
-        let stderr = check_result
-            .diagnostics
-            .iter()
-            .map(|d| d.message.as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
+        // Format diagnostics as rich stderr output
+        let stderr = format_diagnostics(&check_result.diagnostics);
 
         return Ok(ExecuteResult {
             success: false,
@@ -168,7 +164,7 @@ pub async fn execute(code: &str, options: ExecuteOptions) -> Result<ExecuteResul
 
     Ok(ExecuteResult {
         success: exec_result.success,
-        diagnostics: check_result.diagnostics, // Filtered diagnostics (may be empty)
+        diagnostics: Vec::new(), // No type-check diagnostics if we reach execution
         runtime_error: exec_result.error,
         output: exec_result.output,
         stdout: exec_result.stdout,
@@ -194,6 +190,45 @@ async fn run_type_check(code: &str) -> Result<CheckResult> {
     }
 
     Ok(check_result)
+}
+
+/// Format diagnostics as rich stderr output with line numbers, columns, and error codes
+fn format_diagnostics(diagnostics: &[Diagnostic]) -> String {
+    diagnostics
+        .iter()
+        .map(|d| {
+            let mut parts = Vec::new();
+
+            // Add position if available
+            if let Some(line) = d.line {
+                if let Some(col) = d.column {
+                    parts.push(format!("Line {line}, Column {col}"));
+                } else {
+                    parts.push(format!("Line {line}"));
+                }
+            }
+
+            if let Some(code) = d.code {
+                parts.push(format!("TS{code}"));
+            }
+
+            // Clean the message by removing internal file paths
+            // The type checker uses "file:///check.ts" as an internal detail
+            let cleaned_message = d
+                .message
+                .replace("file:///check.ts:", "")
+                .trim()
+                .to_string();
+
+            // Build the formatted error
+            if parts.is_empty() {
+                cleaned_message
+            } else {
+                format!("{}: {}", parts.join(", "), cleaned_message)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

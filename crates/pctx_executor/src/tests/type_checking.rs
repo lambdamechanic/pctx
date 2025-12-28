@@ -268,3 +268,37 @@ export default "all types work";
         result.diagnostics
     );
 }
+
+#[serial]
+#[tokio::test]
+async fn test_rich_diagnostic_output_without_original_code() {
+    let code = r#"
+async function run() {
+    let x: number = "string";
+    return x;
+}
+"#;
+
+    let result = execute(code, ExecuteOptions::new())
+        .await
+        .expect("execution should succeed");
+
+    assert!(!result.success, "Type error should cause failure");
+    assert!(!result.diagnostics.is_empty(), "Should have diagnostics");
+
+    assert!(
+        result.stderr.contains("Line"),
+        "stderr should contain line number, got: {}",
+        result.stderr
+    );
+    assert!(
+        result.stderr.contains("Column"),
+        "stderr should contain column number, got: {}",
+        result.stderr
+    );
+    assert!(
+        result.stderr.contains("TS"),
+        "stderr should contain error code, got: {}",
+        result.stderr
+    );
+}
