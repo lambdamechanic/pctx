@@ -121,18 +121,19 @@ async fn test_exec_code_syntax_err() {
     // Receive response
     let response: serde_json::Value = ws.receive_json().await;
 
-    assert_serde_eq!(
-        response,
-        json!({
-            "jsonrpc": "2.0",
-            "id": "test-3",
-            "result": {
-                "success": false,
-                "stdout": "",
-                "stderr": "ReferenceError: bloop is not defined\n    at run (file:///execute.js:2:3)\n    at file:///execute.js:6:22",
-                "output": null
-            }
-        })
+    assert_eq!(response["result"]["success"], false);
+    let stderr = response["result"]["stderr"].as_str().unwrap();
+
+    // Should show line 3 where the error is
+    assert!(
+        stderr.contains("3:19"),
+        "Should show exact error location (line 3, col 19): {stderr}"
+    );
+
+    // Should show the actual code context with the error
+    assert!(
+        stderr.contains("bloop x = 12;"),
+        "Should show the line with the error: {stderr}"
     );
 }
 
@@ -320,5 +321,79 @@ async fn test_exec_callbacks() {
                 "output": 25
             }
         })
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_exec_type_error_with_rich_diagnostics() {
+    let (session_id, server, _) = create_test_server_with_session().await;
+
+    // Register tools to generate namespaces
+    let test_tools: Vec<CallbackConfig> = callback_tools().into_iter().map(|(c, _)| c).collect();
+    let register_res = server
+        .post("/register/tools")
+        .add_header(CODE_MODE_SESSION_HEADER, session_id.to_string())
+        .json(&json!({
+            "tools": test_tools,
+        }))
+        .await;
+    register_res.assert_status_ok();
+
+    // LLM code with type error - this will have namespaces prepended
+    // The error is on line 3 of the original code
+    let code = r#"
+        async function run() {
+            let value = await TestMath.add({a: "wrong", b: 2});  // Type error: 'a' should be number
+            return value;
+        }
+    "#;
+
+    let mut ws = connect_websocket(&server, session_id)
+        .await
+        .into_websocket()
+        .await;
+
+    // Send execute_code request via WebSocket
+    ws.send_json(&json!({
+        "jsonrpc": "2.0",
+        "id": "test-type-error",
+        "method": "execute_code",
+        "params": {
+            "code": code
+        }
+    }))
+    .await;
+
+    // Receive response
+    let response: serde_json::Value = ws.receive_json().await;
+
+    assert_eq!(response["result"]["success"], false);
+
+    // Verify the diagnostic points to the exact error location and has all the information
+    // Error is at line 3 (where "wrong" is passed), column 45 (the "wrong" string literal)
+    let stderr = response["result"]["stderr"].as_str().unwrap();
+    println!("\n=== TYPE ERROR STDERR ===");
+
+    // Should show exact location: Line 3, Column 45
+    assert!(
+        stderr.contains("Line 3"),
+        "Should show line 3 where error occurs: {stderr}"
+    );
+    assert!(
+        stderr.contains("Column 45"),
+        "Should show column 45 where 'wrong' starts: {stderr}"
+    );
+
+    // Should show TypeScript error code TS2322 (type not assignable)
+    assert!(
+        stderr.contains("TS2322"),
+        "Should show TS2322 error code: {stderr}"
+    );
+
+    // Should show the exact type error message
+    assert!(
+        stderr.contains("Type 'string' is not assignable to type 'number'"),
+        "Should show exact type mismatch: {stderr}"
     );
 }

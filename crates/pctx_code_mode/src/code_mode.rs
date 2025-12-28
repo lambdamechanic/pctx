@@ -151,10 +151,17 @@ impl CodeMode {
             })
             .collect();
 
-        let to_execute = codegen::format::format_ts(&format!(
-            "{namespaces}\n\n{code}\n\nexport default await run();\n",
+        // Put LLM code at the top, then namespaces below
+        let to_execute = format!(
+            "{code}\n\n{namespaces}\n\nexport default await run();\n",
             namespaces = namespaces.join("\n\n"),
-        ));
+        );
+
+        debug!("Original LLM code:\n{}", code);
+
+        // Format for logging only
+        let formatted_for_display = codegen::format::format_ts(&to_execute);
+        debug!("Formatted code to execute:\n{}", formatted_for_display);
 
         debug!("Executing code in sandbox");
 
