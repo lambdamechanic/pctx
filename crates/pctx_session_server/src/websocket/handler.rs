@@ -82,9 +82,7 @@ async fn handle_socket<B: PctxSessionBackend>(
     state: AppState<B>,
     code_mode_session: Uuid,
 ) {
-    info!("New WebSocket connection with code_mode_session: {code_mode_session}");
-
-    info!("Verified code mode session {code_mode_session} exists, proceeding with WebSocket setup");
+    info!(session_id =? code_mode_session, "New WebSocket connection");
 
     // Split socket into sender and receiver
     let (sender, receiver) = socket.split();
@@ -96,7 +94,9 @@ async fn handle_socket<B: PctxSessionBackend>(
     let session = WsSession::new(tx.clone(), code_mode_session);
     let ws_session = session.id;
 
-    info!(
+    debug!(
+        session_id =? code_mode_session,
+        ws_session =? ws_session,
         "Created session {ws_session} connected to code mode session {}",
         session.code_mode_session_id
     );
@@ -246,7 +246,8 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
 
     let execution_span = tracing::info_span!(
         "execute_code_in_session",
-        code_mode_session_id = %code_mode_session_id
+        session_id =? code_mode_session_id,
+        code =? params.code,
     );
 
     tokio::spawn(async move {
@@ -259,12 +260,17 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
 
             // create callback registry to execute callback requests over the same ws which
             // initiated the request
-            rt.block_on(async {
+            let res = rt.block_on(async {
                 code_mode
                     .execute(&params.code, Some(callback_registry))
                     .await
                     .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
-            })
+            });
+            if let Ok(output) = &res {
+                info!(result = json!(output).to_string(), "Execution completed");
+            }
+
+            res
         })
         .await;
 

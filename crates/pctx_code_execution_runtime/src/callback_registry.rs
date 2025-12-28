@@ -1,10 +1,11 @@
+use serde_json::json;
 use std::{
     collections::HashMap,
     future::Future,
     pin::Pin,
     sync::{Arc, RwLock},
 };
-use tracing::info;
+use tracing::instrument;
 
 use crate::error::McpError;
 
@@ -104,6 +105,13 @@ impl CallbackRegistry {
     ///
     /// This function will return an error if a callback by the provided id doesn't exist
     /// or if the callback itself fails
+    #[instrument(
+        name = "invoke_callback_tool",
+        skip_all,
+        fields(id=id, args = json!(args).to_string()),
+        ret(Display),
+        err
+    )]
     pub async fn invoke(
         &self,
         id: &str,
@@ -112,8 +120,6 @@ impl CallbackRegistry {
         let callback = self.get(id).ok_or_else(|| {
             McpError::ToolCall(format!("Callback with id \"{id}\" does not exist"))
         })?;
-
-        info!(callback_id =? id, "Handling callback");
 
         callback(args).await.map_err(|e| {
             McpError::ExecutionError(format!("Failed calling callback with id \"{id}\": {e}",))

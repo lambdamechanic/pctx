@@ -1,9 +1,10 @@
 use crate::error::McpError;
 use pctx_config::server::ServerConfig;
 use rmcp::model::{CallToolRequestParam, JsonObject, RawContent};
+use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use tracing::info;
+use tracing::{info, instrument};
 
 /// Singleton registry for MCP server configurations
 #[derive(Clone)]
@@ -87,6 +88,7 @@ impl Default for MCPRegistry {
 }
 
 /// Call an MCP tool on a registered server
+#[instrument(name = "invoke_mcp_tool", skip(registry))]
 pub(crate) async fn call_mcp_tool(
     registry: &MCPRegistry,
     server_name: &str,
@@ -99,9 +101,6 @@ pub(crate) async fn call_mcp_tool(
             "MCP Server with name \"{server_name}\" does not exist"
         ))
     })?;
-
-    info!(
-        server_name=?server_name,tool_name=?tool_name, "Handling MCP call");
 
     let client = mcp_cfg.connect().await?;
     let tool_result = client
@@ -121,22 +120,23 @@ pub(crate) async fn call_mcp_tool(
     }
 
     // Prefer structuredContent if available, otherwise use content array
-    if let Some(structured) = tool_result.structured_content {
-        return Ok(structured);
-    }
-
-    // Convert content to JSON value
-    // For simplicity, we'll extract text content and try to parse as JSON
-    if let Some(RawContent::Text(text_content)) = tool_result.content.first().map(|a| &**a) {
+    let has_structured = tool_result.structured_content.is_some();
+    let val = if let Some(structured) = tool_result.structured_content {
+        // info!(structured_content = true, result =? &structured, "Tool result");
+        structured
+    } else if let Some(RawContent::Text(text_content)) = tool_result.content.first().map(|a| &**a) {
         // Try to parse as JSON, fallback to string value
         serde_json::from_str(&text_content.text)
             .or_else(|_| Ok(serde_json::Value::String(text_content.text.clone())))
             .map_err(|e: serde_json::Error| {
                 McpError::ToolCall(format!("Failed to parse content: {e}"))
-            })
+            })?
     } else {
         // Return the whole content array as JSON
-        serde_json::to_value(&tool_result.content)
-            .map_err(|e| McpError::ToolCall(format!("Failed to serialize content: {e}")))
-    }
+        json!(tool_result.content)
+    };
+
+    info!(structured_content = has_structured, result =? &val, "Tool result");
+
+    Ok(val)
 }

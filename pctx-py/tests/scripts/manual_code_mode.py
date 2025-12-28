@@ -59,9 +59,20 @@ async def main():
         return multval;
     }
     """
-        print(code)
         output = await p.execute(code)
         pprint.pprint(output)
+
+        invalid_code = """
+    async function run() {
+        let addval = await MyMath.add({a: "40", b: 2}); // invalid because `a` must be a number
+
+        return addval;
+    }
+    """
+        invalid_output = await p.execute(invalid_code)
+        pprint.pprint(invalid_output)
+
+        print(p._session_id)
 
 
 if __name__ == "__main__":
