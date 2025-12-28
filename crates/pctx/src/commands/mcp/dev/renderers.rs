@@ -1,7 +1,7 @@
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
@@ -531,14 +531,11 @@ fn render_tool_detail(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_documentation(f: &mut Frame, app: &App, area: Rect) {
-    // Read and render the CLI.md documentation with nice markdown formatting
+    // Read and render the CLI.md documentation
     const CLI_DOCS: &str = include_str!("../../../../../../docs/CLI.md");
 
-    // Convert markdown to styled Text using tui-markdown
-    let markdown_text = tui_markdown::from_str(CLI_DOCS);
-
-    // Get all lines from the rendered markdown
-    let all_lines: Vec<Line> = markdown_text.lines.clone();
+    // Split into lines
+    let all_lines: Vec<&str> = CLI_DOCS.lines().collect();
     let total_lines = all_lines.len();
 
     // Apply scroll
@@ -546,8 +543,8 @@ fn render_documentation(f: &mut Frame, app: &App, area: Rect) {
     let start_idx = app.detail_scroll_offset.min(total_lines.saturating_sub(1));
     let end_idx = (start_idx + visible_height).min(total_lines);
 
-    // Create a new Text with only the visible lines
-    let visible_text = ratatui::text::Text::from(all_lines[start_idx..end_idx].to_vec());
+    // Create text with only the visible lines
+    let visible_text = all_lines[start_idx..end_idx].join("\n");
 
     let docs = Paragraph::new(visible_text)
         .block(Block::default().borders(Borders::ALL).title(format!(

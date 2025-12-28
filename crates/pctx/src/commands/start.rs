@@ -93,8 +93,11 @@ impl StartCmd {
                 .with(version_panel)
                 .with(logo_panel)
                 .with(Alignment::center())
-                .modify(Rows::single(logo_row), Color::FG_BLUE)
-                .modify(Rows::single(version_row), Color::FG_BLUE | Color::BOLD)
+                .modify(Rows::new(logo_row..=logo_row), Color::FG_BLUE)
+                .modify(
+                    Rows::new(version_row..=version_row),
+                    Color::FG_BLUE | Color::BOLD,
+                )
                 .with((
                     Width::wrap(table_width).priority(Priority::max(true)),
                     Width::increase(table_width).priority(Priority::min(true)),
