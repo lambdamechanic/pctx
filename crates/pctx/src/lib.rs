@@ -63,7 +63,8 @@ impl Cli {
             Commands::Mcp(mcp_cmd) => self.handle_mcp(mcp_cmd).await,
             Commands::Start(start_cmd) => {
                 let cfg = Config::load(&self.config).unwrap_or_default();
-                init_telemetry(&cfg, None).await?;
+                // Session server uses stdout for logs (not stdio protocol)
+                init_telemetry(&cfg, None, false).await?;
 
                 start_cmd.handle().await
             }
@@ -82,14 +83,15 @@ impl Cli {
         if self.cli_logger() {
             init_cli_logger(self.verbose, self.quiet);
         } else if let Ok(c) = &cfg {
-            init_telemetry(c, self.json_l()).await?;
+            // Use stderr for stdio mode to keep stdout clean for JSON-RPC
+            let use_stderr = matches!(cmd, McpCommands::Start(start_cmd) if start_cmd.stdio);
+            init_telemetry(c, self.json_l(), use_stderr).await?;
         }
 
         let _updated_cfg = match cmd {
             McpCommands::Init(cmd) => cmd.handle(&self.config).await?,
             McpCommands::List(cmd) => cmd.handle(cfg?).await?,
             McpCommands::Add(cmd) => cmd.handle(cfg?, true).await?,
-            McpCommands::AddStdio(cmd) => cmd.handle(cfg?, true).await?,
             McpCommands::Remove(cmd) => cmd.handle(cfg?)?,
             McpCommands::Start(cmd) => cmd.handle(cfg?).await?,
             McpCommands::Dev(cmd) => cmd.handle(cfg?).await?,
@@ -160,13 +162,11 @@ pub enum McpCommands {
     #[command(long_about = "Lists configured MCP servers and tests the connection to each.")]
     List(commands::mcp::ListCmd),
 
-    /// Add an MCP server to configuration
-    #[command(long_about = "Add a new MCP server to the configuration.")]
+    /// Add an MCP server to configuration (HTTP or stdio)
+    #[command(
+        long_about = "Add a new MCP server to the configuration. Supports both HTTP(S) URLs and stdio-based servers via the --command flag."
+    )]
     Add(commands::mcp::AddCmd),
-
-    /// Add a stdio MCP server to configuration
-    #[command(long_about = "Add a new stdio MCP server to the configuration.")]
-    AddStdio(commands::mcp::AddStdioCmd),
 
     /// Remove an MCP server from configuration
     #[command(long_about = "Remove an MCP server from the configuration.")]

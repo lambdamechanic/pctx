@@ -80,7 +80,10 @@ impl InitCmd {
                     .prompt()?;
                 let add_cmd = AddCmd {
                     name: name.clone(),
-                    url: url.parse()?,
+                    url: Some(url.parse()?),
+                    command: None,
+                    args: vec![],
+                    env: vec![],
                     force: false,
                     bearer: None,
                     header: None,

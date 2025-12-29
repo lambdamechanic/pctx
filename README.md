@@ -161,6 +161,11 @@ npm upgrade -g @portofcontext/pctx
 
 ```
 
+## Develop
+
+- For core dev: install sscache + rust and jump into `crates/`
+- Client SDK dev: find the README in the SDK
+
 ## Learn More
 
 - [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)

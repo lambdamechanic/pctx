@@ -1,3 +1,8 @@
+# Build configuration
+[build]
+# Use sccache to cache compilation artifacts across builds
+rustc-wrapper = "sccache"
+
 # Windows-specific linker configuration to avoid PDB errors
 [target.x86_64-pc-windows-msvc]
 # Use lld-link instead of link.exe to avoid PDB size limits (LNK1318)

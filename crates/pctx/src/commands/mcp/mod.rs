@@ -1,5 +1,4 @@
 pub(crate) mod add;
-pub(crate) mod add_stdio;
 pub(crate) mod dev;
 pub(crate) mod init;
 pub(crate) mod list;
@@ -7,7 +6,6 @@ pub(crate) mod remove;
 pub(crate) mod start;
 
 pub(crate) use add::AddCmd;
-pub(crate) use add_stdio::AddStdioCmd;
 
 use pctx_config::Config;
 

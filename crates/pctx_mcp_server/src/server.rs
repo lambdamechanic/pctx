@@ -393,4 +393,21 @@ mod tests {
             result.err().unwrap()
         );
     }
+
+    // Note: test_serve_stdio_with_delayed_shutdown removed because it's difficult to test
+    // stdio transport without actual stdin. The immediate shutdown test above covers
+    // the basic shutdown mechanism.
+
+    #[test]
+    fn test_server_construction() {
+        let server = PctxMcpServer::new("127.0.0.1", 8080, true);
+        assert_eq!(server.host, "127.0.0.1");
+        assert_eq!(server.port, 8080);
+        assert!(server.banner);
+
+        let server = PctxMcpServer::new("0.0.0.0", 3000, false);
+        assert_eq!(server.host, "0.0.0.0");
+        assert_eq!(server.port, 3000);
+        assert!(!server.banner);
+    }
 }
