@@ -163,7 +163,7 @@ npm upgrade -g @portofcontext/pctx
 
 ## Develop
 
-- For core dev: install sscache + rust and jump into `crates/`
+- For core dev: install rust and jump into `crates/`
 - Client SDK dev: find the README in the SDK
 
 ## Learn More
