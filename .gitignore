@@ -10,7 +10,6 @@
 pctx.json
 pctx-dev.jsonl
 .pctx
-.beads/
 
 # Python
 *.pyc

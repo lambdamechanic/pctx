@@ -16,13 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Breaking Change**: `pctx mcp add-stdio` command has been removed. Use `pctx mcp add --command <cmd>` instead to add stdio MCP servers.
 - `pctx mcp add` now accepts either a URL (for HTTP servers) or `--command` (for stdio servers), making it a unified interface for adding all types of MCP servers.
 - Logger output behavior is now mode-aware to ensure stdio compatibility:
   - `--stdio` mode without `logger.file`: logging is automatically disabled to keep stdout/stderr clean for JSON-RPC communication
   - `--stdio` mode with `logger.file`: logs write to the specified file
   - HTTP mode: logs write to stdout (default behavior)
-- To enable logging in stdio mode, configure `logger.file` in `pctx.json` to specify a log file path.
 
 ### Fixed
 
