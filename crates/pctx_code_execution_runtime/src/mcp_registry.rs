@@ -133,7 +133,13 @@ pub(crate) async fn call_mcp_tool(
     }
 
     // Prefer structuredContent if available, otherwise use content array
-    if let Some(structured) = tool_result.structured_content {
+    if let Some(mut structured) = tool_result.structured_content {
+        // Unwrap the "result" field if present (common MCP server pattern)
+        if let Some(obj) = structured.as_object_mut() {
+            if obj.len() == 1 && obj.contains_key("result") {
+                return Ok(obj.remove("result").unwrap());
+            }
+        }
         return Ok(structured);
     }
 
