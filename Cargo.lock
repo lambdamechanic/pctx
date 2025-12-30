@@ -7018,6 +7018,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "shlex",
  "spinoff",
  "tabled 0.20.0",
  "tempfile",

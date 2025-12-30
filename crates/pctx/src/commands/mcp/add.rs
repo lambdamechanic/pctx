@@ -306,7 +306,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("Either URL or --command must be provided")
+                .contains("Either --url or --command must be provided")
         );
     }
 }

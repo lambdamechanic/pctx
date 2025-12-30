@@ -466,6 +466,7 @@ p = Pctx(servers=servers)
 ### Stdio MCP Servers
 
 Stdio MCP servers communicate via stdin/stdout, making them ideal for local integrations and command-line tools.
+NOTE: The stdio mcp servers must be running on the same host as pctx, which is not necessarily the same host as this python client.
 
 ```python
 from pctx_client import Pctx

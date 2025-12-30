@@ -106,7 +106,7 @@ pub(crate) async fn call_mcp_tool(
             warn!(
                 server = %server_name,
                 error = %err,
-                "Disabling MCP after initialization failure"
+                "Could not connect to MCP: initialization failure"
             );
             return Err(McpError::Connection(err.to_string()));
         }

@@ -48,6 +48,7 @@ crossterm = "0.29"
 chrono = { version = "0.4", features = ["serde"] }
 notify = "8.2.0"
 arboard = "3.4"
+shlex = { workspace = true }
 
 # Logging and Telemetry
 tracing = { workspace = true }

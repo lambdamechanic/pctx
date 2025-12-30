@@ -49,15 +49,16 @@ Each server in the `servers` array is either an HTTP server or a stdio server.
 
 **Stdio server fields:**
 
-| Field     | Type                   | Required | Description                                    |
-| --------- | ---------------------- | -------- | ---------------------------------------------- |
-| `name`    | `string`               | Yes      | Unique identifier used as TypeScript namespace |
-| `command` | `string`               | Yes      | Command to execute the MCP server              |
-| `args`    | `array[string]`        | No       | Arguments passed to the command                |
-| `env`     | `map[string]string`    | No       | Environment variables for the process          |
+| Field     | Type                | Required | Description                                                                                             |
+| --------- | ------------------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `name`    | `string`            | Yes      | Unique identifier used as TypeScript namespace                                                          |
+| `command` | `string`            | Yes      | Command to execute the MCP server. Can be a single command or a full command line with arguments        |
+| `args`    | `array[string]`     | No       | Arguments passed to the command. If omitted and `command` contains spaces, it will be shell-parsed      |
+| `env`     | `map[string]string` | No       | Environment variables for the process                                                                   |
 
-**Example (stdio):**
+**Examples (stdio):**
 
+With explicit args array:
 ```json
 {
   "name": "local_tools",
@@ -68,6 +69,16 @@ Each server in the `servers` array is either an HTTP server or a stdio server.
   }
 }
 ```
+
+With command-line string (auto-parsed):
+```json
+{
+  "name": "memory",
+  "command": "npx -y @modelcontextprotocol/server-memory"
+}
+```
+
+The second format is convenient for simple commands - the full command line is automatically parsed into command and arguments.
 
 #### Server Names as Namespaces
 
@@ -606,6 +617,18 @@ You can use plain text values, but this is not recommended for production:
     {
       "name": "public",
       "url": "https://public-mcp.example.com"
+    },
+    {
+      "name": "memory",
+      "command": "npx -y @modelcontextprotocol/server-memory"
+    },
+    {
+      "name": "local_tools",
+      "command": "node",
+      "args": ["./dist/server.js"],
+      "env": {
+        "NODE_ENV": "production"
+      }
     }
   ]
 }
@@ -678,3 +701,33 @@ aws secretsmanager get-secret-value --secret-id my-token
 # Check authentication for the tool
 aws sts get-caller-identity
 ```
+
+### Stdio Server Command Parsing
+
+When configuring stdio servers, you have two options:
+
+**Option 1: Shell-style command string (auto-parsed)**
+```json
+{
+  "name": "memory",
+  "command": "npx -y @modelcontextprotocol/server-memory"
+}
+```
+
+The command is automatically parsed into executable and arguments using shell-style parsing.
+
+**Option 2: Explicit command and args**
+```json
+{
+  "name": "memory",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-memory"]
+}
+```
+
+Use explicit args when:
+- Your command has complex quoting requirements
+- You want to be explicit about argument boundaries
+- You're programmatically generating the configuration
+
+**Note:** If both `command` contains spaces AND `args` is provided, the `args` array takes precedence and no parsing occurs.

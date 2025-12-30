@@ -200,8 +200,17 @@ impl PctxMcpServer {
         Ok(())
     }
 
-    fn banner_http(&self, cfg: &pctx_config::Config, code_mode: &pctx_code_mode::CodeMode) {
-        let mcp_url = format!("http://{}:{}/mcp", self.host, self.port);
+    fn banner(
+        &self,
+        cfg: &pctx_config::Config,
+        code_mode: &pctx_code_mode::CodeMode,
+        transport_label: &str,
+        transport_value: &str,
+    ) -> Option<String> {
+        if !self.banner {
+            return None;
+        }
+
         let logo_max_length = LOGO
             .lines()
             .map(|line| line.chars().count())
@@ -210,162 +219,92 @@ impl PctxMcpServer {
         let min_term_width = logo_max_length + 4; // account for padding
         let term_width = terminal_size().map(|(w, _)| w.0).unwrap_or_default() as usize;
 
-        if self.banner && term_width >= min_term_width {
-            let mut builder = Builder::default();
+        if term_width < min_term_width {
+            return None;
+        }
 
-            builder.push_record(["Server Name", &cfg.name]);
-            builder.push_record(["Server Version", &cfg.version]);
-            builder.push_record(["Server URL", &mcp_url]);
+        let mut builder = Builder::default();
+        builder.push_record(["Server Name", &cfg.name]);
+        builder.push_record(["Server Version", &cfg.version]);
+        builder.push_record([transport_label, transport_value]);
+        builder.push_record([
+            "Tools",
+            &["list_functions", "get_function_details", "execute"].join(", "),
+        ]);
+        builder.push_record(["Docs", &fmt_dimmed("https://github.com/portofcontext/pctx")]);
+
+        if !code_mode.tool_sets.is_empty() {
+            builder.push_record(["", ""]);
+
+            let tool_record = |s: &codegen::ToolSet| {
+                format!(
+                    "{} - {} tool{}",
+                    fmt_cyan(&s.name),
+                    s.tools.len(),
+                    if s.tools.len() > 1 { "s" } else { "" }
+                )
+            };
             builder.push_record([
-                "Tools",
-                &["list_functions", "get_function_details", "execute"].join(", "),
+                "Upstream MCPs",
+                &code_mode
+                    .tool_sets
+                    .first()
+                    .map(tool_record)
+                    .unwrap_or_default(),
             ]);
-            builder.push_record(["Docs", &fmt_dimmed("https://github.com/portofcontext/pctx")]);
-
-            if !code_mode.tool_sets.is_empty() {
-                builder.push_record(["", ""]);
-
-                let tool_record = |s: &codegen::ToolSet| {
-                    format!(
-                        "{} - {} tool{}",
-                        fmt_cyan(&s.name),
-                        s.tools.len(),
-                        if s.tools.len() > 1 { "s" } else { "" }
-                    )
-                };
-                builder.push_record([
-                    "Upstream MCPs",
-                    &code_mode
-                        .tool_sets
-                        .first()
-                        .map(tool_record)
-                        .unwrap_or_default(),
-                ]);
-                for s in &code_mode.tool_sets[1..] {
-                    builder.push_record(["", &tool_record(s)]);
-                }
+            for s in &code_mode.tool_sets[1..] {
+                builder.push_record(["", &tool_record(s)]);
             }
+        }
 
-            let table_width = (term_width).min(80) as usize;
-            let info_table = builder
-                .build()
-                .with(Style::empty())
-                .modify(Columns::first(), Color::BOLD)
-                .modify(Cell::new(2, 1), Color::FG_CYAN)
-                .modify(Columns::first(), MinWidth::new(20))
-                .modify(Columns::new(..2), Width::wrap((term_width - 6) / 2)) // info cols should have equal space
-                .to_string();
+        let table_width = term_width.min(80);
+        let info_table = builder
+            .build()
+            .with(Style::empty())
+            .modify(Columns::first(), Color::BOLD)
+            .modify(Cell::new(2, 1), Color::FG_CYAN)
+            .modify(Columns::first(), MinWidth::new(20))
+            .modify(Columns::new(..2), Width::wrap((term_width - 6) / 2))
+            .to_string();
 
-            let logo_panel = Panel::header(format!("\n{LOGO}\n\n"));
-            let logo_row = 0;
-            let version_panel = Panel::header(format!(
-                "pctx v{}\n\n",
-                option_env!("CARGO_PKG_VERSION").unwrap_or_default()
-            ));
-            let version_row = 1;
+        let logo_panel = Panel::header(format!("\n{LOGO}\n\n"));
+        let logo_row = 0;
+        let version_panel = Panel::header(format!(
+            "pctx v{}\n\n",
+            option_env!("CARGO_PKG_VERSION").unwrap_or_default()
+        ));
+        let version_row = 1;
 
-            let style = Style::rounded().remove_horizontals().remove_vertical();
-            let banner = Table::from_iter([[info_table]])
-                .with(style)
-                .with(version_panel)
-                .with(logo_panel)
-                .with(Alignment::center())
-                .modify(Rows::single(logo_row), Color::FG_BLUE)
-                .modify(Rows::single(version_row), Color::FG_BLUE | Color::BOLD)
-                .with((
-                    Width::wrap(table_width).priority(Priority::max(true)),
-                    Width::increase(table_width).priority(Priority::min(true)),
-                ))
-                .to_string();
+        let style = Style::rounded().remove_horizontals().remove_vertical();
+        let banner = Table::from_iter([[info_table]])
+            .with(style)
+            .with(version_panel)
+            .with(logo_panel)
+            .with(Alignment::center())
+            .modify(Rows::single(logo_row), Color::FG_BLUE)
+            .modify(Rows::single(version_row), Color::FG_BLUE | Color::BOLD)
+            .with((
+                Width::wrap(table_width).priority(Priority::max(true)),
+                Width::increase(table_width).priority(Priority::min(true)),
+            ))
+            .to_string();
 
-            println!("\n{banner}\n"); // tracing::info doesn't work well with colors / formatting
+        Some(format!("\n{banner}\n"))
+    }
+
+    fn banner_http(&self, cfg: &pctx_config::Config, code_mode: &pctx_code_mode::CodeMode) {
+        let mcp_url = format!("http://{}:{}/mcp", self.host, self.port);
+
+        if let Some(banner) = self.banner(cfg, code_mode, "Server URL", &mcp_url) {
+            println!("{banner}"); // tracing::info doesn't work well with colors / formatting
         }
 
         info!("PCTX listening at {mcp_url}...");
     }
 
     fn banner_stdio(&self, cfg: &pctx_config::Config, code_mode: &pctx_code_mode::CodeMode) {
-        if !self.banner {
-            info!("PCTX listening via stdio...");
-            return;
-        }
-
-        let logo_max_length = LOGO
-            .lines()
-            .map(|line| line.chars().count())
-            .max()
-            .unwrap_or(0);
-        let min_term_width = logo_max_length + 4; // account for padding
-        let term_width = terminal_size().map(|(w, _)| w.0).unwrap_or_default() as usize;
-
-        if term_width >= min_term_width {
-            let mut builder = Builder::default();
-            builder.push_record(["Server Name", &cfg.name]);
-            builder.push_record(["Server Version", &cfg.version]);
-            builder.push_record(["Transport", "stdio"]);
-            builder.push_record([
-                "Tools",
-                &["list_functions", "get_function_details", "execute"].join(", "),
-            ]);
-            builder.push_record(["Docs", &fmt_dimmed("https://github.com/portofcontext/pctx")]);
-
-            if !code_mode.tool_sets.is_empty() {
-                builder.push_record(["", ""]);
-
-                let tool_record = |s: &codegen::ToolSet| {
-                    format!(
-                        "{} - {} tool{}",
-                        fmt_cyan(&s.name),
-                        s.tools.len(),
-                        if s.tools.len() > 1 { "s" } else { "" }
-                    )
-                };
-                builder.push_record([
-                    "Upstream MCPs",
-                    &code_mode
-                        .tool_sets
-                        .first()
-                        .map(tool_record)
-                        .unwrap_or_default(),
-                ]);
-                for s in &code_mode.tool_sets[1..] {
-                    builder.push_record(["", &tool_record(s)]);
-                }
-            }
-
-            let table_width = (term_width).min(80) as usize;
-            let info_table = builder
-                .build()
-                .with(Style::empty())
-                .modify(Columns::first(), Color::BOLD)
-                .modify(Cell::new(2, 1), Color::FG_CYAN)
-                .modify(Columns::first(), MinWidth::new(20))
-                .modify(Columns::new(..2), Width::wrap((term_width - 6) / 2))
-                .to_string();
-
-            let logo_panel = Panel::header(format!("\n{LOGO}\n\n"));
-            let logo_row = 0;
-            let version_panel = Panel::header(format!(
-                "pctx v{}\n\n",
-                option_env!("CARGO_PKG_VERSION").unwrap_or_default()
-            ));
-            let version_row = 1;
-
-            let style = Style::rounded().remove_horizontals().remove_vertical();
-            let banner = Table::from_iter([[info_table]])
-                .with(style)
-                .with(version_panel)
-                .with(logo_panel)
-                .with(Alignment::center())
-                .modify(Rows::single(logo_row), Color::FG_BLUE)
-                .modify(Rows::single(version_row), Color::FG_BLUE | Color::BOLD)
-                .with((
-                    Width::wrap(table_width).priority(Priority::max(true)),
-                    Width::increase(table_width).priority(Priority::min(true)),
-                ))
-                .to_string();
-
-            eprintln!("\n{banner}\n");
+        if let Some(banner) = self.banner(cfg, code_mode, "Transport", "stdio") {
+            eprintln!("{banner}");
         }
 
         info!("PCTX listening via stdio...");

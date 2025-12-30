@@ -88,14 +88,15 @@ Use the unified MCP to run Code Mode with MCP servers and want to persist the au
 # Initialize config for upstream mcp connections
 pctx mcp init
 
-# Connect to any MCP server
-pctx mcp add my-local-server http://localhost:3000/mcp
+# Add HTTP or stdio MCP servers
 pctx mcp add stripe https://mcp.stripe.com
+pctx mcp add memory --command "npx -y @modelcontextprotocol/server-memory"
 
-# Start the unified MCP server in dev mode
+# Start as HTTP server (dev mode with UI)
 pctx mcp dev
 
-# copy server url and connect to agents with --transport http
+# Or start as stdio MCP server
+pctx mcp start --stdio
 ```
 
 For complete CLI documentation, see [CLI.md](docs/CLI.md).

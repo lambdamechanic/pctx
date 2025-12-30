@@ -177,6 +177,7 @@ Start the PCTX MCP server in development mode with an interactive terminal UI wi
 * `--log-file <LOG_FILE>` — Path to JSONL log file
 
   Default value: `pctx-dev.jsonl`
+* `--stdio` — Serve MCP over stdio instead of HTTP
 
 
 
