@@ -108,7 +108,6 @@ pub(crate) async fn call_mcp_tool(
                 error = %err,
                 "Disabling MCP after initialization failure"
             );
-            registry.delete(server_name);
             return Err(McpError::Connection(err.to_string()));
         }
     };
@@ -133,13 +132,7 @@ pub(crate) async fn call_mcp_tool(
     }
 
     // Prefer structuredContent if available, otherwise use content array
-    if let Some(mut structured) = tool_result.structured_content {
-        // Unwrap the "result" field if present (common MCP server pattern)
-        if let Some(obj) = structured.as_object_mut() {
-            if obj.len() == 1 && obj.contains_key("result") {
-                return Ok(obj.remove("result").unwrap());
-            }
-        }
+    if let Some(structured) = tool_result.structured_content {
         return Ok(structured);
     }
 

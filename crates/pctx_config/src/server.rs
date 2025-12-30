@@ -196,11 +196,29 @@ impl ServerConfig {
                 }
             }
             ServerTransport::Stdio(stdio_cfg) => {
+                // Parse the command using shell-style parsing if it contains spaces and no explicit args
+                let (cmd, args) = if stdio_cfg.args.is_empty() && stdio_cfg.command.contains(' ') {
+                    // Parse the command string using shell-style parsing
+                    let parts = shlex::split(&stdio_cfg.command)
+                        .ok_or_else(|| McpConnectionError::Failed(
+                            format!("Failed to parse command: {}", stdio_cfg.command)
+                        ))?;
+
+                    if parts.is_empty() {
+                        return Err(McpConnectionError::Failed("Empty command".to_string()));
+                    }
+
+                    (parts[0].clone(), parts[1..].to_vec())
+                } else {
+                    // Use command and args as-is
+                    (stdio_cfg.command.clone(), stdio_cfg.args.clone())
+                };
+
                 let transport =
-                    TokioChildProcess::new(Command::new(&stdio_cfg.command).configure(|cmd| {
-                        cmd.args(&stdio_cfg.args);
+                    TokioChildProcess::new(Command::new(&cmd).configure(|cmd_builder| {
+                        cmd_builder.args(&args);
                         if !stdio_cfg.env.is_empty() {
-                            cmd.envs(&stdio_cfg.env);
+                            cmd_builder.envs(&stdio_cfg.env);
                         }
                     }))
                     .map_err(|e| McpConnectionError::Failed(e.to_string()))?;

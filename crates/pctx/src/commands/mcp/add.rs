@@ -82,7 +82,7 @@ impl AddCmd {
             // HTTP mode
             ServerConfig::new(self.name.clone(), url.clone())
         } else {
-            anyhow::bail!("Either URL or --command must be provided");
+            anyhow::bail!("Either --url or --command must be provided");
         };
 
         // check for name clash
