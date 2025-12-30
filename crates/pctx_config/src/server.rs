@@ -199,10 +199,12 @@ impl ServerConfig {
                 // Parse the command using shell-style parsing if it contains spaces and no explicit args
                 let (cmd, args) = if stdio_cfg.args.is_empty() && stdio_cfg.command.contains(' ') {
                     // Parse the command string using shell-style parsing
-                    let parts = shlex::split(&stdio_cfg.command)
-                        .ok_or_else(|| McpConnectionError::Failed(
-                            format!("Failed to parse command: {}", stdio_cfg.command)
-                        ))?;
+                    let parts = shlex::split(&stdio_cfg.command).ok_or_else(|| {
+                        McpConnectionError::Failed(format!(
+                            "Failed to parse command: {}",
+                            stdio_cfg.command
+                        ))
+                    })?;
 
                     if parts.is_empty() {
                         return Err(McpConnectionError::Failed("Empty command".to_string()));

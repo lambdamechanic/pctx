@@ -171,7 +171,7 @@ impl PctxMcpServer {
         let mut shutdown_signal = Box::pin(shutdown_signal);
         let mut serve_task = tokio::spawn(mcp_service.serve(stdio()));
         let running = tokio::select! {
-            _ = &mut shutdown_signal => {
+            () = &mut shutdown_signal => {
                 serve_task.abort();
                 return Ok(());
             }

@@ -6,8 +6,6 @@ use tracing::{debug, info, warn};
 
 use pctx_mcp_server::PctxMcpServer;
 
-use crate::commands::mcp::has_stdio_upstreams;
-
 #[derive(Debug, Clone, Parser)]
 pub struct StartCmd {
     /// Port to listen on
@@ -57,10 +55,6 @@ impl StartCmd {
             anyhow::bail!(
                 "No upstream MCP servers configured. Add servers with 'pctx add <name> <url>'"
             );
-        }
-
-        if !self.stdio && has_stdio_upstreams(&cfg) {
-            warn!("Config includes stdio upstream MCPs; re-run with --stdio to serve them.");
         }
 
         let code_mode = StartCmd::load_code_mode(&cfg).await?;

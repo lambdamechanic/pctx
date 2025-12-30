@@ -23,7 +23,7 @@ use pctx_config::Config;
 use ratatui::{Terminal, backend::CrosstermBackend, style::Color};
 use tokio::sync::mpsc;
 
-use crate::commands::mcp::{has_stdio_upstreams, start::StartCmd};
+use crate::commands::mcp::start::StartCmd;
 use app::{App, AppMessage, FocusPanel};
 use pctx_mcp_server::PctxMcpServer;
 
@@ -57,7 +57,7 @@ pub struct DevCmd {
     pub log_file: Utf8PathBuf,
 
     /// Serve MCP over stdio instead of HTTP
-    #[arg(long, hide = true)]
+    #[arg(long)]
     pub stdio: bool,
 }
 
@@ -65,12 +65,6 @@ impl DevCmd {
     pub(crate) async fn handle(&self, cfg: Config) -> Result<Config> {
         if self.stdio {
             anyhow::bail!("Dev mode does not support stdio. Use `pctx mcp start --stdio` instead.");
-        }
-
-        if has_stdio_upstreams(&cfg) {
-            tracing::warn!(
-                "Config includes stdio upstream MCPs; re-run with --stdio to serve them."
-            );
         }
 
         // Set up terminal
