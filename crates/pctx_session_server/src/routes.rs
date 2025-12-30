@@ -318,7 +318,8 @@ async fn register_mcp_server(
             let parsed_url = url::Url::parse(url).map_err(|e| format!("Invalid URL: {e}"))?;
 
             // Create HTTP ServerConfig
-            let mut server_config = pctx_config::server::ServerConfig::new(name.clone(), parsed_url);
+            let mut server_config =
+                pctx_config::server::ServerConfig::new(name.clone(), parsed_url);
 
             // Add auth if provided
             if let Some(auth_value) = auth {
@@ -329,7 +330,12 @@ async fn register_mcp_server(
 
             server_config
         }
-        McpServerConfig::Stdio { name, command, args, env } => {
+        McpServerConfig::Stdio {
+            name,
+            command,
+            args,
+            env,
+        } => {
             // Create stdio ServerConfig
             pctx_config::server::ServerConfig::new_stdio(
                 name.clone(),
