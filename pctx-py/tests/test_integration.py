@@ -397,8 +397,8 @@ async def test_http_mcp_server_registration(http_mcp_server):
             assert output.success, f"Execution should succeed. stderr: {output.stderr}"
             assert output.output is not None, "Should have output"
 
-            # HTTP MCP tools should return the direct value (not wrapped)
-            assert output.output.get("difference") == 42, (
+            # HTTP MCP tools return wrapped in result object
+            assert output.output.get("difference").get("result") == 42, (
                 f"Expected difference to be 42, got {output.output.get('difference')}"
             )
 
@@ -467,8 +467,8 @@ async def test_stdio_mcp_server_registration():
             assert output.success, f"Execution should succeed. stderr: {output.stderr}"
             assert output.output is not None, "Should have output"
 
-            # MCP tools should return the direct value (not wrapped)
-            assert output.output.get("sum") == 42, (
+            # MCP tools return wrapped in result object
+            assert output.output.get("sum").get("result") == 42, (
                 f"Expected sum to be 42, got {output.output.get('sum')}"
             )
 
