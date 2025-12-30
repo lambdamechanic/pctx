@@ -74,7 +74,7 @@ pub enum ErrorCode {
 }
 
 /// Request to register tools
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RegisterToolsRequest {
     pub tools: Vec<pctx_code_mode::model::CallbackConfig>,
 }
@@ -92,7 +92,7 @@ pub struct RegisterMcpServersRequest {
 }
 
 // TODO: de-dup with pctx_config
-#[derive(Debug, Deserialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct McpServerConfig {
     pub name: String,
     pub url: String,
