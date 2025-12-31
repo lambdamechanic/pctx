@@ -1,0 +1,49 @@
+name: Test Windows Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-windows:
+    name: Test Windows Build
+    runs-on: windows-latest
+    steps:
+      - name: Enable Windows longpaths
+        run: |
+          git config --global core.longpaths true
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install NASM (required by aws-lc-sys)
+        run: |
+          choco install nasm -y
+          echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run cargo check
+        run: cargo check --all-targets --workspace
+
+      - name: Run cargo build
+        run: cargo build --release
+
+      - name: Run cargo test
+        run: cargo test --workspace
