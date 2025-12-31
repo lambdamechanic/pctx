@@ -2,7 +2,8 @@ name: Test Windows Build
 
 on:
   workflow_dispatch:
-  pull_request:
+  # uncomment when debugging windows build problems
+  # pull_request: 
 
 jobs:
   test-windows:

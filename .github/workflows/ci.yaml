@@ -1,19 +1,19 @@
 name: CI
 
 on:
-  # push:
-  #   branches: [main]
-  #   paths:
-  #     - "Cargo.toml"
-  #     - "crates/**"
-  #     - "python-client/**"
-  #     - ".github/workflows/ci.yaml"
-  # pull_request:
-  #   paths:
-  #     - "Cargo.toml"
-  #     - "crates/**"
-  #     - "python-client/**"
-  #     - ".github/workflows/ci.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "crates/**"
+      - "python-client/**"
+      - ".github/workflows/ci.yaml"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "crates/**"
+      - "python-client/**"
+      - ".github/workflows/ci.yaml"
   workflow_dispatch:
 
 concurrency:
