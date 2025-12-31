@@ -82,7 +82,7 @@ Coming soon
 
 ## Unified MCP
 
-Use the unified MCP to run Code Mode with MCP servers and want to persist the authentication connections and you do not need to register local tools.
+Use the unified MCP to run Code Mode with MCP servers and want to persist the authentication connections and you do not need to use agent tools (non-mcp tools).
 
 ```bash
 # Initialize config for upstream mcp connections
