@@ -29,7 +29,7 @@ futures = "0.3"
 # and ensure the feature is enabled for it as well
 windows-sys = { version = "0.59", features = [
     "Win32_System_SystemInformation",
-    "Win32_Networking",
+    "Win32_Networking_WinSock",
 ] }
 
 [dev-dependencies]
