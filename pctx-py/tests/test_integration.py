@@ -417,6 +417,7 @@ async def test_stdio_mcp_server_registration():
     try:
         from pctx_client import StdioServerConfig
         import os
+        import sys
 
         # Get the path to the test MCP server script
         test_script = os.path.join(
@@ -424,9 +425,11 @@ async def test_stdio_mcp_server_registration():
         )
 
         # Use our Python test MCP server
+        # Use sys.executable to ensure we use the same Python interpreter
+        # that's running the tests (to work in both local dev and CI)
         stdio_server: StdioServerConfig = {
             "name": "TestMcpServer",
-            "command": "python",
+            "command": sys.executable,
             "args": [test_script],
         }
 
