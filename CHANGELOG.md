@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [v0.4.0] - 2025-12-31
+
+### Added
+
 - Stdio MCP server support for upstreams via `pctx.json` (`command`, `args`, `env`).
 - `pctx mcp add` now supports stdio MCP servers via `--command`, `--arg`, and `--env` flags.
 - `pctx mcp start --stdio` to serve the MCP interface over stdio.
