@@ -3,6 +3,7 @@
 import pytest
 from pctx_client import Pctx, tool
 from pctx_client.exceptions import ConnectionError
+from pctx_client.models import ListedFunction
 
 
 @pytest.mark.integration
@@ -47,6 +48,48 @@ async def test_list_functions():
                 "Response should have 'functions' attribute"
             )
             assert isinstance(functions.functions, list), "Functions should be a list"
+
+            # With no MCP servers registered, the list may be empty, which is valid
+    except ConnectionError:
+        pytest.fail(
+            "Failed to connect to pctx server at http://localhost:8080.\n"
+            "Please ensure the pctx server is running.\n"
+            "Start the server with: pctx server start"
+        )
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_search_functions():
+    """Test search functions from code mode"""
+    try:
+        # Define a simple local tool
+        @tool
+        def add_numbers(a: int, b: int) -> int:
+            """Add two numbers together"""
+            return a + b
+
+        @tool
+        def greet(name: str, greeting: str = "Hello") -> str:
+            """Greet someone with a custom greeting"""
+            return f"{greeting}, {name}!"
+
+        async with Pctx(tools=[add_numbers, greet]) as pctx:
+            functions = await pctx.search_functions("Add numbers together", 2)
+            assert isinstance(functions, list), "Result should be a list"
+            assert len(functions) == 1
+            assert isinstance(functions[0], ListedFunction), (
+                "Results should ListedFunction"
+            )
+            assert functions[0].name == "addNumbers", "Search should match addNumbers"
+
+            functions = await pctx.search_functions("Greet user", 2)
+            assert isinstance(functions, list), "Result should be a list"
+            assert len(functions) == 1
+            assert isinstance(functions[0], ListedFunction), (
+                "Results should ListedFunction"
+            )
+            assert functions[0].name == "greet", "Search should match greet"
 
             # With no MCP servers registered, the list may be empty, which is valid
     except ConnectionError:
@@ -415,9 +458,10 @@ async def test_http_mcp_server_registration(http_mcp_server):
 async def test_stdio_mcp_server_registration():
     """Test registering and using a stdio MCP server"""
     try:
-        from pctx_client import StdioServerConfig
         import os
         import sys
+
+        from pctx_client import StdioServerConfig
 
         # Get the path to the test MCP server script
         test_script = os.path.join(

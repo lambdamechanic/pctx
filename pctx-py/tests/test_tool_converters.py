@@ -5,12 +5,12 @@ These tests use the actual framework packages to ensure conversions work correct
 All optional dependencies are assumed to be installed in the test environment.
 """
 
-import pytest
 import inspect
-from pctx_client import Pctx
 
+import pytest
 # Import the actual frameworks we're testing against
 from crewai.tools import BaseTool as CrewAIBaseTool
+from pctx_client import Pctx
 from pydantic_ai.tools import Tool as PydanticAITool
 
 
@@ -30,7 +30,7 @@ class TestLangChainConverter:
         """Test that langchain_tools returns a list of LangChain tools"""
         tools = pctx_client.langchain_tools()
         assert isinstance(tools, list)
-        assert len(tools) == 3
+        assert len(tools) == 4
 
     def test_langchain_tools_are_langchain_tools(self, pctx_client):
         """Test that all tools are actually LangChain BaseTool instances"""
@@ -47,6 +47,7 @@ class TestLangChainConverter:
         tools = pctx_client.langchain_tools()
         names = [tool.name for tool in tools]
         assert "list_functions" in names
+        assert "search_functions" in names
         assert "get_function_details" in names
         assert "execute" in names
 
@@ -78,7 +79,7 @@ class TestCrewAIConverter:
         """Test that c() returns a list of CrewAI tools"""
         tools = pctx_client.crewai_tools()
         assert isinstance(tools, list)
-        assert len(tools) == 3
+        assert len(tools) == 4
 
     def test_crewai_tools_are_crewai_basetools(self, pctx_client):
         """Test that all tools are CrewAI BaseTool instances"""
@@ -91,6 +92,7 @@ class TestCrewAIConverter:
         tools = pctx_client.crewai_tools()
         names = [tool.name for tool in tools]
         assert "list_functions" in names
+        assert "search_functions" in names
         assert "get_function_details" in names
         assert "execute" in names
 
@@ -107,6 +109,13 @@ class TestCrewAIConverter:
         for tool in tools:
             assert hasattr(tool, "_run")
             assert callable(tool._run)
+
+    def test_crewai_search_functions_has_schema(self, pctx_client):
+        """Test that search_functions tool has args_schema"""
+        tools = pctx_client.crewai_tools()
+        search_tool = next(t for t in tools if t.name == "search_functions")
+        assert hasattr(search_tool, "args_schema")
+        assert search_tool.args_schema is not None
 
     def test_crewai_get_function_details_has_schema(self, pctx_client):
         """Test that get_function_details tool has args_schema"""
@@ -133,7 +142,7 @@ class TestOpenAIAgentsConverter:
         """Test that openai_agents_tools returns a list"""
         tools = pctx_client.openai_agents_tools()
         assert isinstance(tools, list)
-        assert len(tools) == 3
+        assert len(tools) == 4
 
     def test_openai_agents_tools_structure(self, pctx_client):
         """Test that OpenAI Agents tools have correct structure"""
@@ -151,6 +160,7 @@ class TestOpenAIAgentsConverter:
         tools = pctx_client.openai_agents_tools()
         names = [tool.name for tool in tools]
         assert "list_functions" in names
+        assert "search_functions" in names
         assert "get_function_details" in names
         assert "execute" in names
 
@@ -170,6 +180,18 @@ class TestOpenAIAgentsConverter:
             assert params["type"] == "object"
             assert "properties" in params
             assert "required" in params
+
+    def test_openai_agents_search_functions_schema(self, pctx_client):
+        """Test search_functions has correct schema"""
+        tools = pctx_client.openai_agents_tools()
+        search_tool = next(t for t in tools if t.name == "search_functions")
+        params = search_tool.params_json_schema
+        assert "query" in params["properties"]
+        assert "k" in params["properties"]
+        assert params["properties"]["query"]["type"] == "string"
+        assert params["properties"]["k"]["type"] == "integer"
+        assert "query" in params["required"]
+        assert "k" in params["required"]
 
     def test_openai_agents_get_function_details_schema(self, pctx_client):
         """Test get_function_details has correct schema"""
@@ -200,7 +222,7 @@ class TestPydanticAIConverter:
         """Test that pydantic_ai_tools returns a list"""
         tools = pctx_client.pydantic_ai_tools()
         assert isinstance(tools, list)
-        assert len(tools) == 3
+        assert len(tools) == 4
 
     def test_pydantic_ai_tools_are_pydantic_ai_tools(self, pctx_client):
         """Test that all tools are Pydantic AI Tool instances"""
@@ -213,6 +235,7 @@ class TestPydanticAIConverter:
         tools = pctx_client.pydantic_ai_tools()
         names = [tool.name for tool in tools]
         assert "list_functions" in names
+        assert "search_functions" in names
         assert "get_function_details" in names
         assert "execute" in names
 
@@ -260,14 +283,19 @@ class TestConverterIntegration:
     def test_all_converters_return_three_tools(self, pctx_client):
         """Test that converters return the expected number of tools"""
         # Most converters return 3 tools (one per function)
-        assert len(pctx_client.langchain_tools()) == 3
-        assert len(pctx_client.crewai_tools()) == 3
-        assert len(pctx_client.openai_agents_tools()) == 3
-        assert len(pctx_client.pydantic_ai_tools()) == 3
+        assert len(pctx_client.langchain_tools()) == 4
+        assert len(pctx_client.crewai_tools()) == 4
+        assert len(pctx_client.openai_agents_tools()) == 4
+        assert len(pctx_client.pydantic_ai_tools()) == 4
 
     def test_all_converters_have_same_function_names(self, pctx_client):
         """Test that all converters expose the same three function names"""
-        expected_names = {"list_functions", "get_function_details", "execute"}
+        expected_names = {
+            "list_functions",
+            "search_functions",
+            "get_function_details",
+            "execute",
+        }
 
         # LangChain
         langchain_names = {tool.name for tool in pctx_client.langchain_tools()}

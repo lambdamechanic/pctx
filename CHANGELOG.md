@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Optional `search_functions` in the python client to allow the LLM to search
+  for tools by name/description before deciding which tool to call.
+
 ### Changed
 
 ### Fixed
