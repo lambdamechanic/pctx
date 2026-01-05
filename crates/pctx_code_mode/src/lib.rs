@@ -1,6 +1,6 @@
 mod code_mode;
 pub mod model;
-pub use code_mode::CodeMode;
+pub use code_mode::{BuiltServer, CodeMode, ServerBuildReport};
 use codegen::CodegenError;
 
 pub type Result<T> = std::result::Result<T, Error>;

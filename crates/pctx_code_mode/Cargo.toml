@@ -22,5 +22,13 @@ tokio = { workspace = true }
 schemars = "1.1.0"
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net"] }
 serial_test = "3"
+axum = { workspace = true }
+rmcp = { workspace = true, features = [
+    "server",
+    "transport-streamable-http-server",
+    "macros",
+    "schemars",
+] }
+url = { version = "^2.5", features = ["serde"] }

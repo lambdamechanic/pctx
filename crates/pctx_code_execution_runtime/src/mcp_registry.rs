@@ -9,12 +9,14 @@ use tracing::warn;
 #[derive(Clone)]
 pub struct MCPRegistry {
     configs: Arc<RwLock<HashMap<String, ServerConfig>>>,
+    failed: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl MCPRegistry {
     pub fn new() -> Self {
         Self {
             configs: Arc::new(RwLock::new(HashMap::new())),
+            failed: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -35,7 +37,10 @@ impl MCPRegistry {
             )));
         }
 
-        configs.insert(cfg.name.clone(), cfg);
+        let name = cfg.name.clone();
+        configs.insert(name.clone(), cfg);
+        let mut failed = self.failed.write().unwrap();
+        failed.remove(&name);
         Ok(())
     }
 
@@ -66,7 +71,10 @@ impl MCPRegistry {
     /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
     pub fn delete(&self, name: &str) -> bool {
         let mut configs = self.configs.write().unwrap();
-        configs.remove(name).is_some()
+        let removed = configs.remove(name).is_some();
+        let mut failed = self.failed.write().unwrap();
+        failed.remove(name);
+        removed
     }
 
     /// Clear all MCP server configurations
@@ -77,6 +85,18 @@ impl MCPRegistry {
     pub fn clear(&self) {
         let mut configs = self.configs.write().unwrap();
         configs.clear();
+        let mut failed = self.failed.write().unwrap();
+        failed.clear();
+    }
+
+    fn mark_failed(&self, name: &str, error: String) {
+        let mut failed = self.failed.write().unwrap();
+        failed.insert(name.to_string(), error);
+    }
+
+    fn failure_reason(&self, name: &str) -> Option<String> {
+        let failed = self.failed.read().unwrap();
+        failed.get(name).cloned()
     }
 }
 
@@ -93,6 +113,12 @@ pub(crate) async fn call_mcp_tool(
     tool_name: &str,
     args: Option<JsonObject>,
 ) -> Result<serde_json::Value, McpError> {
+    if let Some(reason) = registry.failure_reason(server_name) {
+        return Err(McpError::Connection(format!(
+            "MCP Server \"{server_name}\" is marked failed: {reason}"
+        )));
+    }
+
     // Get the server config from registry
     let mcp_cfg = registry.get(server_name).ok_or_else(|| {
         McpError::ToolCall(format!(
@@ -108,6 +134,7 @@ pub(crate) async fn call_mcp_tool(
                 error = %err,
                 "Could not connect to MCP: initialization failure"
             );
+            registry.mark_failed(server_name, err.to_string());
             return Err(McpError::Connection(err.to_string()));
         }
     };
