@@ -37,9 +37,10 @@ impl MCPRegistry {
             )));
         }
 
-        configs.insert(cfg.name.clone(), cfg);
+        let name = cfg.name.clone();
+        configs.insert(name.clone(), cfg);
         let mut failed = self.failed.write().unwrap();
-        failed.remove(&cfg.name);
+        failed.remove(&name);
         Ok(())
     }
 
