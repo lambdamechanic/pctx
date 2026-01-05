@@ -5,11 +5,7 @@ use pctx_code_mode::CodeMode;
 use pctx_config::server::ServerConfig;
 use rmcp::{
     RoleServer, ServerHandler,
-    handler::server::{
-        router::tool::ToolRouter,
-        tool::ToolCallContext,
-        wrapper::Parameters,
-    },
+    handler::server::{router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters},
     model::{
         CallToolRequestParam, CallToolResult, Content, Implementation, ListToolsResult,
         PaginatedRequestParam, ProtocolVersion, ServerCapabilities, ServerInfo,
