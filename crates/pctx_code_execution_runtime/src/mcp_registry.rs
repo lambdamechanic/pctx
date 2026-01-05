@@ -113,7 +113,20 @@ pub(crate) async fn call_mcp_tool(
     tool_name: &str,
     args: Option<JsonObject>,
 ) -> Result<serde_json::Value, McpError> {
+    let connect_timeout_ms: Option<u64> = None;
+    let args_debug = args
+        .as_ref()
+        .map(|args| serde_json::Value::Object(args.clone()));
+
     if let Some(reason) = registry.failure_reason(server_name) {
+        warn!(
+            server = %server_name,
+            tool = %tool_name,
+            args = ?args_debug,
+            timeout_ms = ?connect_timeout_ms,
+            reason = %reason,
+            "Skipping MCP call; server marked failed"
+        );
         return Err(McpError::Connection(format!(
             "MCP Server \"{server_name}\" is marked failed: {reason}"
         )));
@@ -125,13 +138,19 @@ pub(crate) async fn call_mcp_tool(
             "MCP Server with name \"{server_name}\" does not exist"
         ))
     })?;
+    let target = mcp_cfg.display_target();
 
     let client = match mcp_cfg.connect().await {
         Ok(client) => client,
         Err(err) => {
             warn!(
                 server = %server_name,
+                target = %target,
+                tool = %tool_name,
+                args = ?args_debug,
+                timeout_ms = ?connect_timeout_ms,
                 error = %err,
+                error_debug = ?err,
                 "Could not connect to MCP: initialization failure"
             );
             registry.mark_failed(server_name, err.to_string());
@@ -145,6 +164,16 @@ pub(crate) async fn call_mcp_tool(
         })
         .await
         .map_err(|e| {
+            warn!(
+                server = %server_name,
+                target = %target,
+                tool = %tool_name,
+                args = ?args_debug,
+                timeout_ms = ?connect_timeout_ms,
+                error = %e,
+                error_debug = ?e,
+                "MCP tool call failed"
+            );
             McpError::ToolCall(format!(
                 "Tool call \"{server_name}.{tool_name}\" failed: {e}"
             ))
