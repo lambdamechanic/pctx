@@ -107,9 +107,12 @@ export default await test();
         Url::parse("http://127.0.0.1:1").unwrap(),
     )];
 
-    let first = execute(code, ExecuteOptions::new().with_servers(mcp_configs.clone()))
-        .await
-        .expect("execution should succeed");
+    let first = execute(
+        code,
+        ExecuteOptions::new().with_servers(mcp_configs.clone()),
+    )
+    .await
+    .expect("execution should succeed");
     assert!(first.success, "Execution should succeed even with error");
     let first_output = first.output.expect("Should have output");
     let first_obj = first_output.as_object().expect("Should be an object");
