@@ -23,6 +23,7 @@ use futures::{
     stream::{SplitSink, SplitStream},
 };
 use pctx_code_execution_runtime::{CallbackFn, CallbackRegistry};
+use pctx_code_mode::model::ExecuteInput;
 use rmcp::{
     ErrorData,
     model::{ErrorCode, JsonRpcMessage, RequestId},
@@ -254,6 +255,7 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
 
     tokio::spawn(async move {
         let code_mode_clone = code_mode.clone();
+        let code_clone = params.code.clone();
 
         let output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
             let _guard = execution_span.enter();
@@ -266,7 +268,7 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
             // initiated the request
             rt.block_on(async {
                 code_mode_clone
-                    .execute(&params.code, Some(callback_registry))
+                    .execute(&code_clone, Some(callback_registry))
                     .await
                     .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
             })
@@ -307,7 +309,13 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
 
         if let Err(e) = state
             .backend
-            .post_execution(code_mode_session_id, execution_id, code_mode, execution_res)
+            .post_execution(
+                code_mode_session_id,
+                execution_id,
+                code_mode,
+                ExecuteInput { code: params.code },
+                execution_res,
+            )
             .await
         {
             error!("Failed to post_execution hook: {e}");

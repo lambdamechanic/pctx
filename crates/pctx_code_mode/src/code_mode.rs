@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct CodeMode {
     // Codegen interfaces
     pub tool_sets: Vec<codegen::ToolSet>,

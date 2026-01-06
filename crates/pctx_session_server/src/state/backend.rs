@@ -2,7 +2,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use pctx_code_mode::{CodeMode, model::ExecuteOutput};
+use pctx_code_mode::{
+    CodeMode,
+    model::{ExecuteInput, ExecuteOutput},
+};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -37,6 +40,7 @@ pub trait PctxSessionBackend: Clone + Send + Sync + 'static {
         _session_id: Uuid,
         _execution_id: Uuid,
         _code_mode: CodeMode,
+        _execution_req: ExecuteInput,
         _execution_res: Result<ExecuteOutput>,
     ) -> Result<()> {
         Ok(())
