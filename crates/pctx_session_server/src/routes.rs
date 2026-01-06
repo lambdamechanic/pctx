@@ -5,7 +5,7 @@ use pctx_code_mode::{
     CodeMode,
     model::{GetFunctionDetailsInput, GetFunctionDetailsOutput, ListFunctionsOutput},
 };
-use tracing::{debug, error, info};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::extractors::CodeModeSession;
@@ -277,79 +277,24 @@ pub(crate) async fn register_servers<B: PctxSessionBackend>(
             },
         ))?;
 
-    // Spawn parallel registration tasks with timeout
-    let registration_timeout = std::time::Duration::from_secs(30);
-    let mut tasks = Vec::new();
+    // Use parallel server registration with conversion function
+    let mut results =
+        pctx_code_mode::parallel_registration::register_servers_parallel_with_conversion(
+            &request.servers,
+            30, // 30 second timeout
+            convert_mcp_server_config,
+        )
+        .await;
 
-    for server in request.servers {
-        let server_name = match &server {
-            McpServerConfig::Http { name, .. } => name.clone(),
-            McpServerConfig::Stdio { name, .. } => name.clone(),
-        };
+    // Add successful registrations to code_mode
+    let registered = results.add_to_code_mode(&mut code_mode);
 
-        let task = tokio::spawn(async move {
-            let result =
-                tokio::time::timeout(registration_timeout, register_mcp_server_config(&server))
-                    .await;
-
-            match result {
-                Ok(Ok(server_result)) => Ok((server_name, server_result)),
-                Ok(Err(e)) => Err((server_name, format!("Failed to register: {e}"))),
-                Err(_) => Err((
-                    server_name,
-                    format!(
-                        "Registration timed out after {}s",
-                        registration_timeout.as_secs()
-                    ),
-                )),
-            }
-        });
-
-        tasks.push(task);
-    }
-
-    // Wait for all tasks to complete
-    let results = futures::future::join_all(tasks).await;
-
-    let mut registered = 0;
-    let mut failed = Vec::new();
-
-    // Process results and add successful servers to code_mode
-    for result in results {
-        match result {
-            Ok(Ok((server_name, server_result))) => {
-                // Check for duplicate names
-                if code_mode
-                    .tool_sets
-                    .iter()
-                    .any(|t| t.name == server_result.server_config.name)
-                {
-                    error!(
-                        "MCP server '{}' conflicts with existing ToolSet name",
-                        server_result.server_config.name
-                    );
-                    failed.push(server_name);
-                    continue;
-                }
-
-                // Add the pre-initialized tool_set and server directly to code_mode
-                code_mode.tool_sets.push(server_result.tool_set);
-                code_mode.servers.push(server_result.server_config);
-                registered += 1;
-            }
-            Ok(Err((server_name, error_msg))) => {
-                error!(
-                    "Failed to register MCP server {}: {}",
-                    server_name, error_msg
-                );
-                failed.push(server_name);
-            }
-            Err(e) => {
-                error!("Task panicked during server registration: {}", e);
-                failed.push("unknown".to_string());
-            }
-        }
-    }
+    // Collect failed server names for response
+    let failed: Vec<String> = results
+        .failed
+        .iter()
+        .map(|f| f.server_name.clone())
+        .collect();
 
     // Update the backend with the modified CodeMode
     state
@@ -361,21 +306,22 @@ pub(crate) async fn register_servers<B: PctxSessionBackend>(
     Ok(Json(RegisterMcpServersResponse { registered, failed }))
 }
 
-/// Holds the result of successfully connecting and initializing an MCP server
-struct ServerRegistrationResult {
-    server_config: pctx_config::server::ServerConfig,
-    tool_set: codegen::ToolSet,
-}
-
-/// Fully connects to and initializes an MCP server, including listing tools
-/// Potentially slow operation (stdio) so parallelize
-async fn register_mcp_server_config(
+/// Convert `McpServerConfig` (HTTP API model) `ServerConfig` (internal config type)
+///
+/// Returns (`server_name`, `ServerConfig`) on success, or (`server_name`, `error_message`) on failure
+fn convert_mcp_server_config(
     server: &McpServerConfig,
-) -> Result<ServerRegistrationResult, String> {
+) -> Result<(String, pctx_config::server::ServerConfig), (String, String)> {
+    let server_name = match server {
+        McpServerConfig::Http { name, .. } => name.clone(),
+        McpServerConfig::Stdio { name, .. } => name.clone(),
+    };
+
     let server_config = match server {
         McpServerConfig::Http { name, url, auth } => {
             // Parse and validate URL
-            let parsed_url = url::Url::parse(url).map_err(|e| format!("Invalid URL: {e}"))?;
+            let parsed_url = url::Url::parse(url)
+                .map_err(|e| (server_name.clone(), format!("Invalid URL '{url}': {e}")))?;
 
             // Create HTTP ServerConfig
             let mut server_config =
@@ -384,7 +330,7 @@ async fn register_mcp_server_config(
             // Add auth if provided
             if let Some(auth_value) = auth {
                 let auth = serde_json::from_value(auth_value.clone())
-                    .map_err(|e| format!("Invalid auth config: {e}"))?;
+                    .map_err(|e| (server_name.clone(), format!("Invalid auth config: {e}")))?;
                 server_config.set_auth(Some(auth));
             }
 
@@ -406,87 +352,5 @@ async fn register_mcp_server_config(
         }
     };
 
-    let server_name = match server {
-        McpServerConfig::Http { name, .. } => name.clone(),
-        McpServerConfig::Stdio { name, .. } => name.clone(),
-    };
-
-    // Connect to the MCP server (this is the slow operation)
-    debug!(
-        "Connecting to MCP server '{}'({})...",
-        &server_config.name,
-        server_config.display_target()
-    );
-    let mcp_client = server_config
-        .connect()
-        .await
-        .map_err(|e| format!("Failed to connect: {e}"))?;
-
-    debug!(
-        "Successfully connected to '{}', listing tools...",
-        server_config.name
-    );
-
-    // List all tools (another potentially slow operation)
-    let listed_tools = mcp_client
-        .list_all_tools()
-        .await
-        .map_err(|e| format!("Failed to list tools: {e}"))?;
-
-    debug!("Found {} tools from '{}'", listed_tools.len(), server_name);
-
-    // Convert MCP tools to codegen tools
-    let mut codegen_tools = vec![];
-    for mcp_tool in listed_tools {
-        let input_schema: codegen::RootSchema =
-            serde_json::from_value(serde_json::json!(mcp_tool.input_schema)).map_err(|e| {
-                format!(
-                    "Failed parsing inputSchema for tool `{}`: {e}",
-                    &mcp_tool.name
-                )
-            })?;
-
-        let output_schema = if let Some(o) = mcp_tool.output_schema {
-            Some(
-                serde_json::from_value::<codegen::RootSchema>(serde_json::json!(o)).map_err(
-                    |e| {
-                        format!(
-                            "Failed parsing outputSchema for tool `{}`: {e}",
-                            &mcp_tool.name
-                        )
-                    },
-                )?,
-            )
-        } else {
-            None
-        };
-
-        codegen_tools.push(
-            codegen::Tool::new_mcp(
-                &mcp_tool.name,
-                mcp_tool.description.map(String::from),
-                input_schema,
-                output_schema,
-            )
-            .map_err(|e| format!("Failed to create tool `{}`: {e}", &mcp_tool.name))?,
-        );
-    }
-
-    let description = mcp_client
-        .peer_info()
-        .and_then(|p| p.server_info.title.clone())
-        .unwrap_or(format!("MCP server at {}", server_config.display_target()));
-
-    let tool_set = codegen::ToolSet::new(&server_config.name, &description, codegen_tools);
-
-    info!(
-        "Successfully initialized MCP server '{}' with {} tools",
-        server_name,
-        tool_set.tools.len()
-    );
-
-    Ok(ServerRegistrationResult {
-        server_config,
-        tool_set,
-    })
+    Ok((server_name, server_config))
 }
