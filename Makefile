@@ -1,4 +1,4 @@
-.PHONY: help release docs test-python
+.PHONY: help release docs test-python test-cli
 
 # Default target - show help when running just 'make'
 .DEFAULT_GOAL := help
@@ -10,6 +10,7 @@ help:
 	@echo "  make docs                    - Generate CLI and Python documentation"
 	@echo "  make test-python             - Run Python client tests"
 	@echo "  make test-python-integration - Run Python client tests with integration testing"
+	@echo "  make test-cli                - Run CLI integration tests (pctx mcp start)"
 	@echo "  make release                 - Interactive release script (bump version, update changelog)"
 	@echo ""
 
@@ -29,6 +30,10 @@ test-python:
 # Run Python client tests with integration tests (expects pctx running on localhost on the default port)
 test-python-integration:
 	@cd pctx-py && uv run pytest tests/ --integration -v
+
+# Run CLI integration tests
+test-cli:
+	@./scripts/test-mcp-cli.sh
 
 # Interactive release workflow
 release:

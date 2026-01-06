@@ -7,6 +7,14 @@ on:
       - "Cargo.toml"
       - "crates/**"
       - "pctx-py/**"
+      - "scripts/test-mcp-cli.sh"
+      - ".github/workflows/integration-tests.yaml"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "crates/**"
+      - "pctx-py/**"
+      - "scripts/test-mcp-cli.sh"
       - ".github/workflows/integration-tests.yaml"
   workflow_dispatch:
 
@@ -19,7 +27,8 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-  integration-tests:
+  # CLI integration tests - tests pctx mcp start command
+  cli-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,14 +39,58 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential libclang-dev libc6-dev
 
-      # Set up Rust
+      # Set up Rust with caching
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: false
+          shared-key: "integration-tests"
 
-      # Build and install pctx server
-      - name: Build pctx server
+      # Build pctx binary in release mode
+      - name: Build pctx
+        run: cargo build --release --bin pctx
+
+      # Run the CLI integration test script with built binary
+      - name: Run CLI integration tests
+        env:
+          PCTX_CMD: ./target/release/pctx
+        run: ./scripts/test-mcp-cli.sh
+
+      # Show server logs on failure
+      - name: Show server logs
+        if: failure()
+        run: |
+          # Find the temp directory log file
+          LOG_FILE=$(find /tmp -name "pctx-test.log" 2>/dev/null | head -1)
+          if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
+            echo "=== PCTX MCP Server Logs ==="
+            cat "$LOG_FILE"
+          else
+            echo "No log file found"
+          fi
+
+  # Python client integration tests - tests HTTP client
+  python-client-tests:
+    needs: cli-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install build dependencies
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libclang-dev libc6-dev
+
+      # Set up Rust with caching
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: false
+          shared-key: "integration-tests"
+
+      # Build pctx binary in release mode (should hit cache from cli-tests)
+      - name: Build pctx
         run: cargo build --release --bin pctx
 
       # Set up Python
@@ -79,7 +132,7 @@ jobs:
           fi
 
       # Run integration tests
-      - name: Run integration tests
+      - name: Run Python integration tests
         working-directory: pctx-py
         run: uv run pytest --integration -v
 

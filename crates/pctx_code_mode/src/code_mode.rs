@@ -112,7 +112,7 @@ impl CodeMode {
     ) -> Result<ExecuteOutput> {
         let registry = callback_registry.unwrap_or_default();
         // Format for logging only
-        let formatted_code = codegen::format::format_ts(&code);
+        let formatted_code = codegen::format::format_ts(code);
 
         debug!(
             code_from_llm = %code,
@@ -181,77 +181,6 @@ impl CodeMode {
             stderr: execution_res.stderr,
             output: execution_res.output,
         })
-    }
-
-    // Generates a ToolSet from the given MCP server config
-    pub async fn add_server(&mut self, server: &ServerConfig) -> Result<()> {
-        if self.tool_sets.iter().any(|t| t.name == server.name) {
-            return Err(Error::Message(format!(
-                "ToolSet with name `{}` already exists, MCP servers must have unique names",
-                &server.name
-            )));
-        }
-
-        // initialize and list tools
-        debug!(
-            "Fetching tools from MCP '{}'({})...",
-            &server.name,
-            server.display_target()
-        );
-        let mcp_client = server.connect().await?;
-        debug!(
-            "Successfully connected to '{}', inspecting tools...",
-            server.name
-        );
-        let listed_tools = mcp_client.list_all_tools().await?;
-        debug!("Found {} tools", listed_tools.len());
-
-        // convert tools into codegen tools
-        let mut codegen_tools = vec![];
-        for mcp_tool in listed_tools {
-            let input_schema: codegen::RootSchema =
-                serde_json::from_value(json!(mcp_tool.input_schema)).map_err(|e| {
-                    Error::Message(format!(
-                        "Failed parsing inputSchema as json schema for tool `{}`: {e}",
-                        &mcp_tool.name
-                    ))
-                })?;
-
-            let output_schema = if let Some(o) = mcp_tool.output_schema {
-                Some(
-                    serde_json::from_value::<codegen::RootSchema>(json!(o)).map_err(|e| {
-                        Error::Message(format!(
-                            "Failed parsing outputSchema as json schema for tool `{}`: {e}",
-                            &mcp_tool.name
-                        ))
-                    })?,
-                )
-            } else {
-                None
-            };
-
-            codegen_tools.push(codegen::Tool::new_mcp(
-                &mcp_tool.name,
-                mcp_tool.description.map(String::from),
-                input_schema,
-                output_schema,
-            )?);
-        }
-
-        let description = mcp_client
-            .peer_info()
-            .and_then(|p| p.server_info.title.clone())
-            .unwrap_or(format!("MCP server at {}", server.display_target()));
-
-        // add toolset & it's server configuration
-        self.tool_sets.push(codegen::ToolSet::new(
-            &server.name,
-            &description,
-            codegen_tools,
-        ));
-        self.servers.push(server.clone());
-
-        Ok(())
     }
 
     // Generates a Tool and add it to the correct Toolset from the given callback config

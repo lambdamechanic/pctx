@@ -7057,6 +7057,7 @@ name = "pctx_code_mode"
 version = "0.1.0"
 dependencies = [
  "codegen",
+ "futures",
  "pctx_code_execution_runtime",
  "pctx_config",
  "pctx_executor",
