@@ -1,0 +1,22 @@
+{
+  "name": "pctx-cli-test",
+  "version": "0.1.0",
+  "servers": [
+    {
+      "name": "memory",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    },
+    {
+      "name": "everything",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-everything"
+      ]
+    }
+  ]
+}

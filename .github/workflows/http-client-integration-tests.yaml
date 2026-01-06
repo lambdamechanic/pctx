@@ -6,9 +6,14 @@ on:
     paths:
       - "Cargo.toml"
       - "crates/**"
-      - "pctx-py/**"
-      - ".github/workflows/integration-tests.yaml"
-  workflow_dispatch:
+      - "python-client/**"
+      - ".github/workflows/http-client-integration-tests.yaml"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "crates/**"
+      - "python-client/**"
+      - ".github/workflows/http-client-integration-tests.yaml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

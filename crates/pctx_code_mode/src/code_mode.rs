@@ -112,7 +112,7 @@ impl CodeMode {
     ) -> Result<ExecuteOutput> {
         let registry = callback_registry.unwrap_or_default();
         // Format for logging only
-        let formatted_code = codegen::format::format_ts(&code);
+        let formatted_code = codegen::format::format_ts(code);
 
         debug!(
             code_from_llm = %code,
