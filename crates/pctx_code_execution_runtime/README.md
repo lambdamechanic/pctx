@@ -104,6 +104,12 @@ Thread-safe registry for MCP server configurations.
 let registry = MCPRegistry::new();
 ```
 
+Clear recorded failures when you want to retry connections:
+
+```rust
+registry.clear_failures();
+```
+
 #### `JsCallableToolRegistry`
 
 Thread-safe registry for local tool metadata (callbacks stored in JS).

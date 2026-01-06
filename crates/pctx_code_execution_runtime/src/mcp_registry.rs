@@ -103,8 +103,7 @@ impl MCPRegistry {
     pub fn clear(&self) {
         let mut configs = self.configs.write().unwrap();
         configs.clear();
-        let mut failed = self.failed.write().unwrap();
-        failed.clear();
+        self.clear_failures();
     }
 
     fn mark_failed(&self, name: &str, error: String) {
@@ -115,6 +114,14 @@ impl MCPRegistry {
     fn failure_reason(&self, name: &str) -> Option<String> {
         let failed = self.failed.read().unwrap();
         failed.get(name).cloned()
+    }
+
+    /// Clear all recorded MCP server failures.
+    ///
+    /// This can be used to opt back into reconnect attempts.
+    pub fn clear_failures(&self) {
+        let mut failed = self.failed.write().unwrap();
+        failed.clear();
     }
 }
 
