@@ -27,8 +27,8 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-  # Shared build job - builds once and caches for all test jobs
-  build:
+  # CLI integration tests - tests pctx mcp start command
+  cli-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,35 +44,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: false
-          # Use shared cache key for all integration test jobs
           shared-key: "integration-tests"
 
-      # Build pctx binary (both jobs will use cargo run, but this warms the cache)
+      # Build pctx binary in release mode
       - name: Build pctx
-        run: cargo build --bin pctx
+        run: cargo build --release --bin pctx
 
-  # CLI integration tests - tests pctx mcp start command
-  cli-tests:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # Install build dependencies
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libclang-dev libc6-dev
-
-      # Set up Rust with shared cache
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: false
-          shared-key: "integration-tests"
-
-      # Run the CLI integration test script (uses cargo run internally)
+      # Run the CLI integration test script with built binary
       - name: Run CLI integration tests
+        env:
+          PCTX_CMD: ./target/release/pctx
         run: ./scripts/test-mcp-cli.sh
 
       # Show server logs on failure
@@ -90,7 +71,6 @@ jobs:
 
   # Python client integration tests - tests HTTP client
   python-client-tests:
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -101,15 +81,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential libclang-dev libc6-dev
 
-      # Set up Rust with shared cache
+      # Set up Rust with caching
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: false
           shared-key: "integration-tests"
 
-      # Build pctx server
-      - name: Build pctx server
+      # Build pctx binary in release mode
+      - name: Build pctx
         run: cargo build --release --bin pctx
 
       # Set up Python
