@@ -2,7 +2,7 @@ use crate::error::McpError;
 use pctx_config::server::ServerConfig;
 use rmcp::model::{CallToolRequestParam, JsonObject, RawContent};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 use tracing::warn;
 
 /// Singleton registry for MCP server configurations
@@ -16,7 +16,7 @@ impl MCPRegistry {
     pub fn new() -> Self {
         Self {
             configs: Arc::new(RwLock::new(HashMap::new())),
-            failed: Arc::new(RwLock::new(HashMap::new())),
+            failed: shared_failed_map(),
         }
     }
 
@@ -28,6 +28,22 @@ impl MCPRegistry {
     ///
     /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
     pub fn add(&self, cfg: ServerConfig) -> Result<(), McpError> {
+        self.add_with_failure_reset(cfg, true)
+    }
+
+    /// Register an MCP server configuration without clearing failure state.
+    ///
+    /// This preserves prior initialization failures so callers can avoid
+    /// reconnecting to servers already marked failed.
+    pub fn add_preserve_failure(&self, cfg: ServerConfig) -> Result<(), McpError> {
+        self.add_with_failure_reset(cfg, false)
+    }
+
+    fn add_with_failure_reset(
+        &self,
+        cfg: ServerConfig,
+        reset_failure: bool,
+    ) -> Result<(), McpError> {
         let mut configs = self.configs.write().unwrap();
 
         if configs.contains_key(&cfg.name) {
@@ -39,8 +55,10 @@ impl MCPRegistry {
 
         let name = cfg.name.clone();
         configs.insert(name.clone(), cfg);
-        let mut failed = self.failed.write().unwrap();
-        failed.remove(&name);
+        if reset_failure {
+            let mut failed = self.failed.write().unwrap();
+            failed.remove(&name);
+        }
         Ok(())
     }
 
@@ -98,6 +116,13 @@ impl MCPRegistry {
         let failed = self.failed.read().unwrap();
         failed.get(name).cloned()
     }
+}
+
+fn shared_failed_map() -> Arc<RwLock<HashMap<String, String>>> {
+    static FAILED_MAP: OnceLock<Arc<RwLock<HashMap<String, String>>>> = OnceLock::new();
+    FAILED_MAP
+        .get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
+        .clone()
 }
 
 impl Default for MCPRegistry {

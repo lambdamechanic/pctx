@@ -81,3 +81,53 @@ export default await test();
         "Error message should mention nonexistent server, got: {message}"
     );
 }
+
+#[serial]
+#[tokio::test]
+async fn test_execute_with_mcp_client_failed_server_persists() {
+    let code = r#"
+
+async function test() {
+    try {
+        await callMCPTool({
+            serverName: "failed-server-persist-test",
+            toolName: "some-tool"
+        });
+        return { error: false };
+    } catch (e) {
+        return { error: true, message: e.message };
+    }
+}
+
+export default await test();
+"#;
+
+    let mcp_configs = vec![ServerConfig::new(
+        "failed-server-persist-test".to_string(),
+        Url::parse("http://127.0.0.1:1").unwrap(),
+    )];
+
+    let first = execute(code, ExecuteOptions::new().with_servers(mcp_configs.clone()))
+        .await
+        .expect("execution should succeed");
+    assert!(first.success, "Execution should succeed even with error");
+    let first_output = first.output.expect("Should have output");
+    let first_obj = first_output.as_object().expect("Should be an object");
+    let first_message = first_obj.get("message").unwrap().as_str().unwrap();
+    assert!(
+        !first_message.contains("marked failed"),
+        "First failure should be connection error, got: {first_message}"
+    );
+
+    let second = execute(code, ExecuteOptions::new().with_servers(mcp_configs))
+        .await
+        .expect("execution should succeed");
+    assert!(second.success, "Execution should succeed even with error");
+    let second_output = second.output.expect("Should have output");
+    let second_obj = second_output.as_object().expect("Should be an object");
+    let second_message = second_obj.get("message").unwrap().as_str().unwrap();
+    assert!(
+        second_message.contains("marked failed"),
+        "Second failure should be short-circuited, got: {second_message}"
+    );
+}
