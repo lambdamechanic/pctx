@@ -38,9 +38,8 @@ impl StartCmd {
         let mut code_mode = CodeMode::default();
 
         let mut builds = JoinSet::new();
-        for server in &cfg.servers {
+        for server in cfg.servers.iter().cloned() {
             debug!("Creating code mode interface for {}", &server.name);
-            let server = server.clone();
             builds.spawn(async move {
                 let start = Instant::now();
                 let result = CodeMode::build_server(&server).await;

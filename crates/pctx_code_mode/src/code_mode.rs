@@ -346,8 +346,6 @@ impl CodeMode {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
-
     use axum::Router;
     use pctx_config::server::ServerConfig;
     use rmcp::{
@@ -461,15 +459,12 @@ mod tests {
         let server = ServerConfig::new("test-server".to_string(), url);
         let mut code_mode = CodeMode::default();
 
-        let start = Instant::now();
         code_mode.add_server(&server).await.expect("add server");
-        let duration = start.elapsed();
         handle.abort();
 
         assert_eq!(code_mode.tool_sets.len(), 1);
         assert_eq!(code_mode.tool_sets[0].name, "test-server");
         assert!(!code_mode.tool_sets[0].tools.is_empty());
-        assert!(duration >= Duration::ZERO);
     }
 
     #[tokio::test]
@@ -478,11 +473,8 @@ mod tests {
         let server = ServerConfig::new("missing-server".to_string(), url);
         let mut code_mode = CodeMode::default();
 
-        let start = Instant::now();
         let result = code_mode.add_server(&server).await;
-        let duration = start.elapsed();
 
         assert!(result.is_err());
-        assert!(duration >= Duration::ZERO);
     }
 }
