@@ -139,8 +139,10 @@ class Pctx:
             for t in self._tools
         ]
 
-        await self._register_tools(configs)
-        await self._register_servers(self._servers)
+        if len(configs) > 0:
+            await self._register_tools(configs)
+        if len(self._servers) > 0:
+            await self._register_servers(self._servers)
 
     async def disconnect(self):
         """Disconnect closes current code-mode session."""
