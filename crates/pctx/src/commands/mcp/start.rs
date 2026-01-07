@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use anyhow::Result;
 use clap::Parser;
 use pctx_code_mode::CodeMode;
@@ -36,38 +38,24 @@ impl StartCmd {
 
         for server in &cfg.servers {
             debug!("Creating code mode interface for {}", &server.name);
-            let report = CodeMode::build_server_report(server).await;
-            let duration_ms = report.duration.as_millis();
-            match report.result {
-                Ok(built) => {
-                    if let Err(err) = code_mode.insert_built_server(built) {
-                        warn!(
-                            error = %err,
-                            error_debug = ?err,
-                            server.name = %report.server.name,
-                            server.target = %report.server.display_target(),
-                            duration_ms,
-                            "Failed inserting MCP server build"
-                        );
-                        continue;
-                    }
-                    info!(
-                        server.name = %report.server.name,
-                        server.target = %report.server.display_target(),
-                        duration_ms,
-                        "Initialized MCP server"
-                    );
-                }
-                Err(err) => {
-                    warn!(
-                        error = %err,
-                        error_debug = ?err,
-                        server.name = %report.server.name,
-                        server.target = %report.server.display_target(),
-                        duration_ms,
-                        "Failed initializing MCP server"
-                    );
-                }
+            let start = Instant::now();
+            let result = code_mode.add_server(server).await;
+            let duration_ms = start.elapsed().as_millis();
+            match result {
+                Ok(()) => info!(
+                    server.name = %server.name,
+                    server.target = %server.display_target(),
+                    duration_ms,
+                    "Initialized MCP server"
+                ),
+                Err(err) => warn!(
+                    error = %err,
+                    error_debug = ?err,
+                    server.name = %server.name,
+                    server.target = %server.display_target(),
+                    duration_ms,
+                    "Failed initializing MCP server"
+                ),
             }
         }
 

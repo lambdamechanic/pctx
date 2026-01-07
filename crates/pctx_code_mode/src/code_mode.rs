@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    time::{Duration, Instant},
-};
+use std::collections::{HashMap, HashSet};
 
 use codegen::{Tool, ToolSet};
 use pctx_code_execution_runtime::CallbackRegistry;
@@ -26,19 +23,6 @@ pub struct CodeMode {
     // configurations
     pub servers: Vec<ServerConfig>,
     pub callbacks: Vec<CallbackConfig>,
-}
-
-#[derive(Debug, Clone)]
-pub struct BuiltServer {
-    pub tool_set: ToolSet,
-    pub server: ServerConfig,
-}
-
-#[derive(Debug)]
-pub struct ServerBuildReport {
-    pub server: ServerConfig,
-    pub duration: Duration,
-    pub result: Result<BuiltServer>,
 }
 
 impl CodeMode {
@@ -199,7 +183,7 @@ impl CodeMode {
         })
     }
 
-    pub async fn build_server(server: &ServerConfig) -> Result<BuiltServer> {
+    async fn build_server(server: &ServerConfig) -> Result<(ToolSet, ServerConfig)> {
         // initialize and list tools
         debug!(
             "Fetching tools from MCP '{}'({})...",
@@ -251,41 +235,30 @@ impl CodeMode {
             .and_then(|p| p.server_info.title.clone())
             .unwrap_or(format!("MCP server at {}", server.display_target()));
 
-        Ok(BuiltServer {
-            tool_set: codegen::ToolSet::new(&server.name, &description, codegen_tools),
-            server: server.clone(),
-        })
+        Ok((
+            codegen::ToolSet::new(&server.name, &description, codegen_tools),
+            server.clone(),
+        ))
     }
 
-    pub async fn build_server_report(server: &ServerConfig) -> ServerBuildReport {
-        let start = Instant::now();
-        let result = Self::build_server(server).await;
-        let duration = start.elapsed();
-        ServerBuildReport {
-            server: server.clone(),
-            duration,
-            result,
-        }
-    }
-
-    pub fn insert_built_server(&mut self, built: BuiltServer) -> Result<()> {
-        if self.tool_sets.iter().any(|t| t.name == built.tool_set.name) {
+    fn insert_built_server(&mut self, tool_set: ToolSet, server: ServerConfig) -> Result<()> {
+        if self.tool_sets.iter().any(|t| t.name == tool_set.name) {
             return Err(Error::Message(format!(
                 "ToolSet with name `{}` already exists, MCP servers must have unique names",
-                built.tool_set.name
+                tool_set.name
             )));
         }
 
-        self.tool_sets.push(built.tool_set);
-        self.servers.push(built.server);
+        self.tool_sets.push(tool_set);
+        self.servers.push(server);
 
         Ok(())
     }
 
     // Generates a ToolSet from the given MCP server config
     pub async fn add_server(&mut self, server: &ServerConfig) -> Result<()> {
-        let built = Self::build_server(server).await?;
-        self.insert_built_server(built)
+        let (tool_set, server) = Self::build_server(server).await?;
+        self.insert_built_server(tool_set, server)
     }
 
     // Generates a Tool and add it to the correct Toolset from the given callback config
@@ -368,5 +341,145 @@ impl CodeMode {
                 Some(allowed)
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
+    use axum::Router;
+    use pctx_config::server::ServerConfig;
+    use rmcp::{
+        RoleServer, ServerHandler,
+        handler::server::{router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters},
+        model::{
+            CallToolRequestParam, CallToolResult, Content, Implementation, ListToolsResult,
+            PaginatedRequestParam, ProtocolVersion, ServerCapabilities, ServerInfo,
+        },
+        service::RequestContext,
+        tool, tool_router,
+        transport::{
+            StreamableHttpServerConfig,
+            streamable_http_server::{StreamableHttpService, session::local::LocalSessionManager},
+        },
+    };
+    use schemars::JsonSchema;
+    use serde::{Deserialize, Serialize};
+    use tokio::net::TcpListener;
+
+    use super::CodeMode;
+
+    #[derive(Clone)]
+    struct TestMcpService {
+        tool_router: ToolRouter<TestMcpService>,
+    }
+
+    type McpResult<T> = Result<T, rmcp::ErrorData>;
+
+    #[derive(Debug, Serialize, Deserialize, JsonSchema)]
+    struct EchoInput {
+        message: String,
+    }
+
+    #[tool_router]
+    impl TestMcpService {
+        fn new() -> Self {
+            Self {
+                tool_router: Self::tool_router(),
+            }
+        }
+
+        #[tool(title = "Echo", description = "Echo input back")]
+        async fn echo(&self, Parameters(input): Parameters<EchoInput>) -> McpResult<CallToolResult> {
+            Ok(CallToolResult::success(vec![Content::text(&input.message)]))
+        }
+    }
+
+    impl ServerHandler for TestMcpService {
+        fn get_info(&self) -> ServerInfo {
+            ServerInfo {
+                protocol_version: ProtocolVersion::V_2024_11_05,
+                capabilities: ServerCapabilities::builder().enable_tools().build(),
+                server_info: Implementation {
+                    name: "test-mcp".to_string(),
+                    title: Some("test-mcp".to_string()),
+                    version: "0.1.0".to_string(),
+                    ..Default::default()
+                },
+                instructions: None,
+            }
+        }
+
+        async fn list_tools(
+            &self,
+            _req: Option<PaginatedRequestParam>,
+            _ctx: RequestContext<RoleServer>,
+        ) -> McpResult<ListToolsResult> {
+            Ok(ListToolsResult::with_all_items(self.tool_router.list_all()))
+        }
+
+        async fn call_tool(
+            &self,
+            req: CallToolRequestParam,
+            ctx: RequestContext<RoleServer>,
+        ) -> McpResult<CallToolResult> {
+            let tcc = ToolCallContext::new(self, req, ctx);
+            self.tool_router.call(tcc).await
+        }
+    }
+
+    async fn spawn_test_server() -> (url::Url, tokio::task::JoinHandle<()>) {
+        let service = TestMcpService::new();
+        let service = StreamableHttpService::new(
+            move || Ok(service.clone()),
+            LocalSessionManager::default().into(),
+            StreamableHttpServerConfig {
+                stateful_mode: false,
+                ..Default::default()
+            },
+        );
+        let router = Router::new().nest_service("/mcp", service);
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server");
+        let addr = listener.local_addr().expect("local addr");
+        let url = url::Url::parse(&format!("http://{addr}/mcp")).expect("parse url");
+        let handle = tokio::spawn(async move {
+            let _ = axum::serve(listener, router).await;
+        });
+
+        (url, handle)
+    }
+
+    #[tokio::test]
+    async fn add_server_builds_toolset() {
+        let (url, handle) = spawn_test_server().await;
+        let server = ServerConfig::new("test-server".to_string(), url);
+        let mut code_mode = CodeMode::default();
+
+        let start = Instant::now();
+        code_mode.add_server(&server).await.expect("add server");
+        let duration = start.elapsed();
+        handle.abort();
+
+        assert_eq!(code_mode.tool_sets.len(), 1);
+        assert_eq!(code_mode.tool_sets[0].name, "test-server");
+        assert!(!code_mode.tool_sets[0].tools.is_empty());
+        assert!(duration >= Duration::ZERO);
+    }
+
+    #[tokio::test]
+    async fn add_server_failure_returns_error() {
+        let url = url::Url::parse("http://127.0.0.1:1/mcp").expect("parse url");
+        let server = ServerConfig::new("missing-server".to_string(), url);
+        let mut code_mode = CodeMode::default();
+
+        let start = Instant::now();
+        let result = code_mode.add_server(&server).await;
+        let duration = start.elapsed();
+
+        assert!(result.is_err());
+        assert!(duration >= Duration::ZERO);
     }
 }
