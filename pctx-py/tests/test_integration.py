@@ -91,7 +91,11 @@ async def test_search_functions():
             )
             assert functions[0].name == "greet", "Search should match greet"
 
-            # With no MCP servers registered, the list may be empty, which is valid
+            # Test k greater than available tools
+            functions = await pctx.search_functions("Greet number", 5)
+            assert isinstance(functions, list), "Result should be a list"
+            assert len(functions) == 2
+
     except ConnectionError:
         pytest.fail(
             "Failed to connect to pctx server at http://localhost:8080.\n"

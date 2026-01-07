@@ -233,7 +233,8 @@ class Pctx:
             self._search_retriever.index(corpus_tokens)
 
         query_tokens = tokenize([query], stopwords="en", stemmer=stemmer)
-        results, scores = self._search_retriever.retrieve(query_tokens, k=k)
+        actual_k = min(k, len(self._functions))
+        results, scores = self._search_retriever.retrieve(query_tokens, k=actual_k)
         tools = []
         for i in range(results.shape[1]):
             tool = self._functions[results[0, i]]
