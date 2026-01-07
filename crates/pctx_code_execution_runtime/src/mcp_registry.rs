@@ -88,7 +88,13 @@ impl Default for MCPRegistry {
 }
 
 /// Call an MCP tool on a registered server
-#[instrument(name = "invoke_mcp_tool", skip(registry))]
+#[instrument(
+    name = "invoke_mcp_tool",
+    skip_all,
+    fields(id=format!("{server_name}.{tool_name}"), args = json!(args).to_string()),
+    ret(Display),
+    err
+)]
 pub(crate) async fn call_mcp_tool(
     registry: &MCPRegistry,
     server_name: &str,
