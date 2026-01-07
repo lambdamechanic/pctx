@@ -391,7 +391,10 @@ mod tests {
         }
 
         #[tool(title = "Echo", description = "Echo input back")]
-        async fn echo(&self, Parameters(input): Parameters<EchoInput>) -> McpResult<CallToolResult> {
+        async fn echo(
+            &self,
+            Parameters(input): Parameters<EchoInput>,
+        ) -> McpResult<CallToolResult> {
             Ok(CallToolResult::success(vec![Content::text(&input.message)]))
         }
     }
