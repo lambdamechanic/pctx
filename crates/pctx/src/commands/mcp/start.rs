@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use anyhow::Result;
 use clap::Parser;
 use pctx_code_mode::CodeMode;
@@ -38,24 +36,29 @@ impl StartCmd {
 
         for server in &cfg.servers {
             debug!("Creating code mode interface for {}", &server.name);
-            let start = Instant::now();
-            let result = code_mode.add_server(server).await;
-            let duration_ms = start.elapsed().as_millis();
-            match result {
-                Ok(()) => info!(
-                    server.name = %server.name,
-                    server.target = %server.display_target(),
-                    duration_ms,
-                    "Initialized MCP server"
-                ),
-                Err(err) => warn!(
-                    error = %err,
-                    error_debug = ?err,
-                    server.name = %server.name,
-                    server.target = %server.display_target(),
-                    duration_ms,
-                    "Failed initializing MCP server"
-                ),
+            let result = code_mode
+                .add_server_with_observer(server, |server, duration, result| {
+                    let duration_ms = duration.as_millis();
+                    match result {
+                        Ok(()) => info!(
+                            server.name = %server.name,
+                            server.target = %server.display_target(),
+                            duration_ms,
+                            "Initialized MCP server"
+                        ),
+                        Err(err) => warn!(
+                            error = %err,
+                            error_debug = ?err,
+                            server.name = %server.name,
+                            server.target = %server.display_target(),
+                            duration_ms,
+                            "Failed initializing MCP server"
+                        ),
+                    }
+                })
+                .await;
+            if result.is_err() {
+                continue;
             }
         }
 

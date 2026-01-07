@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::{Duration, Instant},
+};
 
 use codegen::{Tool, ToolSet};
 use pctx_code_execution_runtime::CallbackRegistry;
@@ -23,6 +26,11 @@ pub struct CodeMode {
     // configurations
     pub servers: Vec<ServerConfig>,
     pub callbacks: Vec<CallbackConfig>,
+}
+
+struct BuiltServer {
+    tool_set: ToolSet,
+    server: ServerConfig,
 }
 
 impl CodeMode {
@@ -183,7 +191,7 @@ impl CodeMode {
         })
     }
 
-    async fn build_server(server: &ServerConfig) -> Result<(ToolSet, ServerConfig)> {
+    async fn build_server(server: &ServerConfig) -> Result<BuiltServer> {
         // initialize and list tools
         debug!(
             "Fetching tools from MCP '{}'({})...",
@@ -235,30 +243,47 @@ impl CodeMode {
             .and_then(|p| p.server_info.title.clone())
             .unwrap_or(format!("MCP server at {}", server.display_target()));
 
-        Ok((
-            codegen::ToolSet::new(&server.name, &description, codegen_tools),
-            server.clone(),
-        ))
+        Ok(BuiltServer {
+            tool_set: codegen::ToolSet::new(&server.name, &description, codegen_tools),
+            server: server.clone(),
+        })
     }
 
-    fn insert_built_server(&mut self, tool_set: ToolSet, server: ServerConfig) -> Result<()> {
-        if self.tool_sets.iter().any(|t| t.name == tool_set.name) {
+    fn insert_built_server(&mut self, built: BuiltServer) -> Result<()> {
+        if self.tool_sets.iter().any(|t| t.name == built.tool_set.name) {
             return Err(Error::Message(format!(
                 "ToolSet with name `{}` already exists, MCP servers must have unique names",
-                tool_set.name
+                built.tool_set.name
             )));
         }
 
-        self.tool_sets.push(tool_set);
-        self.servers.push(server);
+        self.tool_sets.push(built.tool_set);
+        self.servers.push(built.server);
 
         Ok(())
     }
 
     // Generates a ToolSet from the given MCP server config
     pub async fn add_server(&mut self, server: &ServerConfig) -> Result<()> {
-        let (tool_set, server) = Self::build_server(server).await?;
-        self.insert_built_server(tool_set, server)
+        let built = Self::build_server(server).await?;
+        self.insert_built_server(built)
+    }
+
+    pub async fn add_server_with_observer<F>(
+        &mut self,
+        server: &ServerConfig,
+        observer: F,
+    ) -> Result<()>
+    where
+        F: FnOnce(&ServerConfig, Duration, &Result<()>),
+    {
+        let start = Instant::now();
+        let result = Self::build_server(server)
+            .await
+            .and_then(|built| self.insert_built_server(built));
+        let duration = start.elapsed();
+        observer(server, duration, &result);
+        result
     }
 
     // Generates a Tool and add it to the correct Toolset from the given callback config
