@@ -2,21 +2,19 @@ use crate::error::McpError;
 use pctx_config::server::ServerConfig;
 use rmcp::model::{CallToolRequestParam, JsonObject, RawContent};
 use std::collections::HashMap;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, RwLock};
 use tracing::warn;
 
 /// Singleton registry for MCP server configurations
 #[derive(Clone)]
 pub struct MCPRegistry {
     configs: Arc<RwLock<HashMap<String, ServerConfig>>>,
-    failed: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl MCPRegistry {
     pub fn new() -> Self {
         Self {
             configs: Arc::new(RwLock::new(HashMap::new())),
-            failed: shared_failed_map(),
         }
     }
 
@@ -28,22 +26,6 @@ impl MCPRegistry {
     ///
     /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
     pub fn add(&self, cfg: ServerConfig) -> Result<(), McpError> {
-        self.add_with_failure_reset(cfg, true)
-    }
-
-    /// Register an MCP server configuration without clearing failure state.
-    ///
-    /// This preserves prior initialization failures so callers can avoid
-    /// reconnecting to servers already marked failed.
-    pub fn add_preserve_failure(&self, cfg: ServerConfig) -> Result<(), McpError> {
-        self.add_with_failure_reset(cfg, false)
-    }
-
-    fn add_with_failure_reset(
-        &self,
-        cfg: ServerConfig,
-        reset_failure: bool,
-    ) -> Result<(), McpError> {
         let mut configs = self.configs.write().unwrap();
 
         if configs.contains_key(&cfg.name) {
@@ -53,12 +35,7 @@ impl MCPRegistry {
             )));
         }
 
-        let name = cfg.name.clone();
-        configs.insert(name.clone(), cfg);
-        if reset_failure {
-            let mut failed = self.failed.write().unwrap();
-            failed.remove(&name);
-        }
+        configs.insert(cfg.name.clone(), cfg);
         Ok(())
     }
 
@@ -89,10 +66,7 @@ impl MCPRegistry {
     /// Panics if the internal lock is poisoned (i.e., a thread panicked while holding the lock)
     pub fn delete(&self, name: &str) -> bool {
         let mut configs = self.configs.write().unwrap();
-        let removed = configs.remove(name).is_some();
-        let mut failed = self.failed.write().unwrap();
-        failed.remove(name);
-        removed
+        configs.remove(name).is_some()
     }
 
     /// Clear all MCP server configurations
@@ -103,33 +77,7 @@ impl MCPRegistry {
     pub fn clear(&self) {
         let mut configs = self.configs.write().unwrap();
         configs.clear();
-        self.clear_failures();
     }
-
-    fn mark_failed(&self, name: &str, error: String) {
-        let mut failed = self.failed.write().unwrap();
-        failed.insert(name.to_string(), error);
-    }
-
-    fn failure_reason(&self, name: &str) -> Option<String> {
-        let failed = self.failed.read().unwrap();
-        failed.get(name).cloned()
-    }
-
-    /// Clear all recorded MCP server failures.
-    ///
-    /// This can be used to opt back into reconnect attempts.
-    pub fn clear_failures(&self) {
-        let mut failed = self.failed.write().unwrap();
-        failed.clear();
-    }
-}
-
-fn shared_failed_map() -> Arc<RwLock<HashMap<String, String>>> {
-    static FAILED_MAP: OnceLock<Arc<RwLock<HashMap<String, String>>>> = OnceLock::new();
-    FAILED_MAP
-        .get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
-        .clone()
 }
 
 impl Default for MCPRegistry {
@@ -145,12 +93,6 @@ pub(crate) async fn call_mcp_tool(
     tool_name: &str,
     args: Option<JsonObject>,
 ) -> Result<serde_json::Value, McpError> {
-    if let Some(reason) = registry.failure_reason(server_name) {
-        return Err(McpError::Connection(format!(
-            "MCP Server \"{server_name}\" is marked failed: {reason}"
-        )));
-    }
-
     // Get the server config from registry
     let mcp_cfg = registry.get(server_name).ok_or_else(|| {
         McpError::ToolCall(format!(
@@ -166,7 +108,6 @@ pub(crate) async fn call_mcp_tool(
                 error = %err,
                 "Could not connect to MCP: initialization failure"
             );
-            registry.mark_failed(server_name, err.to_string());
             return Err(McpError::Connection(err.to_string()));
         }
     };

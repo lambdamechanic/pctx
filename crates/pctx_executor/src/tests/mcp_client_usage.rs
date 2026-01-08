@@ -84,7 +84,7 @@ export default await test();
 
 #[serial]
 #[tokio::test]
-async fn test_execute_with_mcp_client_failed_server_persists() {
+async fn test_execute_with_mcp_client_failed_server_retries() {
     let code = r#"
 
 async function test() {
@@ -130,7 +130,7 @@ export default await test();
     let second_obj = second_output.as_object().expect("Should be an object");
     let second_message = second_obj.get("message").unwrap().as_str().unwrap();
     assert!(
-        second_message.contains("marked failed"),
-        "Second failure should be short-circuited, got: {second_message}"
+        !second_message.contains("marked failed"),
+        "Second failure should still be a connection error, got: {second_message}"
     );
 }

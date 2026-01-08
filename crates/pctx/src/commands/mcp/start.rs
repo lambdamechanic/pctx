@@ -1,7 +1,10 @@
+use std::time::Instant;
+
 use anyhow::Result;
 use clap::Parser;
 use pctx_code_mode::CodeMode;
 use pctx_config::Config;
+use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
 
 use pctx_mcp_server::PctxMcpServer;
@@ -34,40 +37,52 @@ impl StartCmd {
         );
         let mut code_mode = CodeMode::default();
 
-        for server in &cfg.servers {
+        let mut builds = JoinSet::new();
+        for server in cfg.servers.iter().cloned() {
             debug!("Creating code mode interface for {}", &server.name);
-            let report = CodeMode::build_server_report(server).await;
-            let duration_ms = report.duration.as_millis();
-            match report.result {
-                Ok(built) => {
-                    if let Err(err) = code_mode.insert_built_server(built) {
-                        warn!(
+            builds.spawn(async move {
+                let start = Instant::now();
+                let result = CodeMode::build_server(&server).await;
+                (server, start.elapsed(), result)
+            });
+        }
+
+        while let Some(joined) = builds.join_next().await {
+            match joined {
+                Ok((server, duration, result)) => {
+                    let duration_ms = duration.as_millis();
+                    match result {
+                        Ok((tool_set, built_server)) => {
+                            if let Err(err) = code_mode.insert_built_server(tool_set, built_server)
+                            {
+                                warn!(
+                                    error = %err,
+                                    error_debug = ?err,
+                                    server.name = %server.name,
+                                    server.target = %server.display_target(),
+                                    duration_ms,
+                                    "Failed inserting MCP server build"
+                                );
+                                continue;
+                            }
+                            info!(
+                                server.name = %server.name,
+                                server.target = %server.display_target(),
+                                duration_ms,
+                                "Initialized MCP server"
+                            );
+                        }
+                        Err(err) => warn!(
                             error = %err,
                             error_debug = ?err,
-                            server.name = %report.server.name,
-                            server.target = %report.server.display_target(),
+                            server.name = %server.name,
+                            server.target = %server.display_target(),
                             duration_ms,
-                            "Failed inserting MCP server build"
-                        );
-                        continue;
+                            "Failed initializing MCP server"
+                        ),
                     }
-                    info!(
-                        server.name = %report.server.name,
-                        server.target = %report.server.display_target(),
-                        duration_ms,
-                        "Initialized MCP server"
-                    );
                 }
-                Err(err) => {
-                    warn!(
-                        error = %err,
-                        error_debug = ?err,
-                        server.name = %report.server.name,
-                        server.target = %report.server.display_target(),
-                        duration_ms,
-                        "Failed initializing MCP server"
-                    );
-                }
+                Err(err) => warn!(error = %err, error_debug = ?err, "MCP build task failed"),
             }
         }
 

@@ -299,7 +299,7 @@ async fn execute_code(
     let mcp_registry = pctx_code_execution_runtime::MCPRegistry::new();
 
     for config in options.servers {
-        if let Err(e) = mcp_registry.add_preserve_failure(config) {
+        if let Err(e) = mcp_registry.add(config) {
             warn!(runtime = "execution", error = %e, "Failed to register MCP server");
             return Ok(InternalExecuteResult {
                 success: false,
