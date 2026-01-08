@@ -128,7 +128,6 @@ pub(crate) async fn call_mcp_tool(
     // Prefer structuredContent if available, otherwise use content array
     let has_structured = tool_result.structured_content.is_some();
     let val = if let Some(structured) = tool_result.structured_content {
-        // info!(structured_content = true, result =? &structured, "Tool result");
         structured
     } else if let Some(RawContent::Text(text_content)) = tool_result.content.first().map(|a| &**a) {
         // Try to parse as JSON, fallback to string value
