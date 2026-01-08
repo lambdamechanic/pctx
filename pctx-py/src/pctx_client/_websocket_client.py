@@ -12,20 +12,21 @@ from typing import Any, Union
 
 import pydantic
 import websockets
+from websockets.asyncio.client import ClientConnection
+
+from pctx_client._tool import AsyncTool, Tool
 from pctx_client.models import (
     ErrorCode,
     ErrorData,
     ExecuteCodeParams,
-    ExecuteOutput,
-    ExecuteToolResult,
-    JsonRpcError,
     ExecuteCodeRequest,
     ExecuteCodeResponse,
+    ExecuteOutput,
     ExecuteToolRequest,
     ExecuteToolResponse,
+    ExecuteToolResult,
+    JsonRpcError,
 )
-from pctx_client._tool import AsyncTool, Tool
-from websockets.asyncio.client import ClientConnection
 
 from .exceptions import ConnectionError
 

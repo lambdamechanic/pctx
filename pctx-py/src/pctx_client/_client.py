@@ -13,10 +13,16 @@ from pydantic import BaseModel
 from pctx_client._tool import AsyncTool, Tool
 from pctx_client._websocket_client import WebSocketClient
 from pctx_client.exceptions import ConnectionError, SessionError
-from pctx_client.models import (ExecuteInput, ExecuteOutput,
-                                GetFunctionDetailsInput,
-                                GetFunctionDetailsOutput, ListedFunction,
-                                ListFunctionsOutput, ServerConfig, ToolConfig)
+from pctx_client.models import (
+    ExecuteInput,
+    ExecuteOutput,
+    GetFunctionDetailsInput,
+    GetFunctionDetailsOutput,
+    ListedFunction,
+    ListFunctionsOutput,
+    ServerConfig,
+    ToolConfig,
+)
 
 if TYPE_CHECKING:
     try:

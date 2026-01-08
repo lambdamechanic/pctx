@@ -1,6 +1,8 @@
 import asyncio
 import pprint
-from groq import BaseModel
+
+from pydantic import BaseModel
+
 from pctx_client import Pctx, tool
 
 

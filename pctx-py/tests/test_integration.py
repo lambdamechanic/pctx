@@ -1,6 +1,7 @@
 """Integration tests for pctx code mode against a running server"""
 
 import pytest
+
 from pctx_client import Pctx, tool
 from pctx_client.exceptions import ConnectionError
 from pctx_client.models import ListedFunction

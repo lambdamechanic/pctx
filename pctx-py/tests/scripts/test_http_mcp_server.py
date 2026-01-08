@@ -6,8 +6,8 @@ This server provides basic tools over HTTP to test HTTP MCP server
 registration and function calling.
 """
 
-from mcp.server.fastmcp import FastMCP
 import uvicorn
+from mcp.server.fastmcp import FastMCP
 
 # Create an MCP server
 mcp = FastMCP("test_http_mcp")

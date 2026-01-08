@@ -3,6 +3,7 @@
 import os
 import subprocess
 import time
+
 import pytest
 
 
@@ -19,7 +20,8 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     """Register custom markers"""
     config.addinivalue_line(
-        "markers", "integration: mark test as integration test (requires --integration flag)"
+        "markers",
+        "integration: mark test as integration test (requires --integration flag)",
     )
 
 
@@ -67,12 +69,12 @@ def http_mcp_server():
         # Check if port is listening
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            result = sock.connect_ex(('127.0.0.1', 8765))
+            result = sock.connect_ex(("127.0.0.1", 8765))
             sock.close()
             if result == 0:
                 # Port is open, server is ready
                 break
-        except:
+        except Exception:
             pass
     else:
         # Cleanup failed server

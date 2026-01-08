@@ -8,10 +8,12 @@ All optional dependencies are assumed to be installed in the test environment.
 import inspect
 
 import pytest
+
 # Import the actual frameworks we're testing against
 from crewai.tools import BaseTool as CrewAIBaseTool
-from pctx_client import Pctx
 from pydantic_ai.tools import Tool as PydanticAITool
+
+from pctx_client import Pctx
 
 
 @pytest.fixture

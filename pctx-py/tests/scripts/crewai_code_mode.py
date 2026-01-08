@@ -25,7 +25,7 @@ async def run_agent():
     llm = LLM(
         model="openrouter/deepseek/deepseek-chat",
         api_key=os.environ.get("OPENROUTER_API_KEY"),
-        base_url="https://openrouter.ai/api/v1"
+        base_url="https://openrouter.ai/api/v1",
     )
 
     agent = Agent(
