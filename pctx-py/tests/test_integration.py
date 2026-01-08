@@ -75,8 +75,12 @@ async def test_search_functions():
             """Greet someone with a custom greeting"""
             return f"{greeting}, {name}!"
 
-        async with Pctx(tools=[add_numbers, greet]) as pctx:
-            functions = await pctx.search_functions("Add numbers together", 2)
+        @tool("foo_bar", namespace="namespaced_with_underscore")
+        def namespaced_fn(val: str) -> str:
+            return f"Hello {val}"
+
+        async with Pctx(tools=[add_numbers, greet, namespaced_fn]) as pctx:
+            functions = await pctx.search_functions("Add numbers together", 3)
             assert isinstance(functions, list), "Result should be a list"
             assert len(functions) == 1
             assert isinstance(functions[0], ListedFunction), (
@@ -84,7 +88,7 @@ async def test_search_functions():
             )
             assert functions[0].name == "addNumbers", "Search should match addNumbers"
 
-            functions = await pctx.search_functions("Greet user", 2)
+            functions = await pctx.search_functions("greet user", 3)
             assert isinstance(functions, list), "Result should be a list"
             assert len(functions) == 1
             assert isinstance(functions[0], ListedFunction), (
@@ -96,6 +100,16 @@ async def test_search_functions():
             functions = await pctx.search_functions("Greet number", 5)
             assert isinstance(functions, list), "Result should be a list"
             assert len(functions) == 2
+
+            # test searching underscore namespace
+            functions = await pctx.search_functions("namespaced", 3)
+            assert len(functions) == 1
+            assert functions[0].name == "fooBar", "Search should match fooBar"
+
+            # test searching underscore fn name
+            functions = await pctx.search_functions("bar", 3)
+            assert len(functions) == 1
+            assert functions[0].name == "fooBar", "Search should match fooBar"
 
     except ConnectionError:
         pytest.fail(
@@ -184,6 +198,7 @@ async def test_multiple_sequential_executions():
             """
             output1 = await pctx.execute(code1)
             assert output1.success, "First execution should succeed"
+            assert output1.output is not None, "output1 should have output"
             assert output1.output.get("execution") == 1
 
             # Second execution - variables don't persist between runs
@@ -194,6 +209,7 @@ async def test_multiple_sequential_executions():
             """
             output2 = await pctx.execute(code2)
             assert output2.success, "Second execution should succeed"
+            assert output2.output is not None, "output2 should have output"
             assert output2.output.get("execution") == 2
 
             # Verify they're independent
@@ -320,6 +336,7 @@ async def test_local_python_tool_registration_and_calling():
             output2 = await pctx.execute(code2)
 
             assert output2.success, "Second execution should succeed"
+            assert output2.output is not None, "output2 should have output"
             assert output2.output.get("greeting") == "Hello, World!", (
                 "Expected greeting to be 'Hello, World!'"
             )
@@ -334,6 +351,7 @@ async def test_local_python_tool_registration_and_calling():
             output3 = await pctx.execute(code3)
 
             assert output3.success, "Third execution should succeed"
+            assert output3.output is not None, "output3 should have output"
             assert output3.output.get("greeting") == "Hi, Alice!", (
                 "Expected greeting to be 'Hi, Alice!'"
             )
@@ -575,6 +593,7 @@ async def test_mixed_tools_and_mcp_servers():
             output = await pctx.execute(code)
 
             assert output.success, "Execution should succeed"
+            assert output.output is not None, "output should have output"
             assert output.output.get("product") == 42, "Expected product to be 42"
             assert output.output.get("formatted") == "Result: 42", (
                 "Expected formatted string"

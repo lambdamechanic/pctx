@@ -11,6 +11,7 @@ from httpx import AsyncClient
 from pydantic import BaseModel
 
 from pctx_client._tool import AsyncTool, Tool
+from pctx_client._utils import to_snake_case
 from pctx_client._websocket_client import WebSocketClient
 from pctx_client.exceptions import ConnectionError, SessionError
 from pctx_client.models import (
@@ -155,6 +156,8 @@ class Pctx:
 
         await self._register_tools(configs)
         await self._register_servers(self._servers)
+
+        # reset search to re-index
         self._search_retriever = None
 
     async def disconnect(self):
@@ -230,7 +233,7 @@ class Pctx:
         if self._search_retriever is None:
             self._functions = (await self.list_functions()).functions
             corpus = [
-                f"{function.namespace}.{function.name}: {function.description}"
+                f"{to_snake_case(function.namespace).replace('_', ' ')}.{to_snake_case(function.name).replace('_', ' ')}: {function.description}"
                 for function in self._functions
             ]
 

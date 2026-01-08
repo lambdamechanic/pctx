@@ -31,6 +31,9 @@ test-python:
 test-python-integration:
 	@cd pctx-py && uv run pytest tests/ --integration -v
 
+format-python:
+	@cd pctx-py && uv run ruff format . && uv run ruff check . --fix
+
 # Run CLI integration tests
 test-cli:
 	@./scripts/test-mcp-cli.sh
