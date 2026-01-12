@@ -37,7 +37,7 @@ pub type Result<T> = std::result::Result<T, TranspileError>;
 ///
 /// # Examples
 /// ```
-/// use deno_transpiler::transpile;
+/// use pctx_deno_transpiler::transpile;
 ///
 /// let ts_code = r#"
 ///     const add = (a: number, b: number): number => a + b;

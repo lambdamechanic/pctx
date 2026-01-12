@@ -3115,14 +3115,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "deno_transpiler"
-version = "0.1.0"
-dependencies = [
- "deno_ast 0.51.0",
- "thiserror 2.0.17",
-]
-
-[[package]]
 name = "deno_tunnel"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7096,17 +7088,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pctx_deno_transpiler"
+version = "0.1.0"
+dependencies = [
+ "deno_ast 0.51.0",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "pctx_executor"
 version = "0.1.0"
 dependencies = [
  "deno_core",
  "deno_resolver",
  "deno_runtime",
- "deno_transpiler",
  "futures",
  "node_resolver",
  "pctx_code_execution_runtime",
  "pctx_config",
+ "pctx_deno_transpiler",
  "pctx_type_check_runtime",
  "regex",
  "rustls",

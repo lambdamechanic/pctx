@@ -272,7 +272,7 @@ async fn execute_code(
     debug!("Starting code execution");
 
     // Transpile TypeScript to JavaScript
-    let js_code = match deno_transpiler::transpile(code, None) {
+    let js_code = match pctx_deno_transpiler::transpile(code, None) {
         Ok(js) => {
             debug!(
                 runtime = "execution",

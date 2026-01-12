@@ -1,12 +1,12 @@
 [package]
-name = "deno_transpiler"
+name = "pctx_deno_transpiler"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT"
 description = "TypeScript transpilation utilities using Deno"
 repository = "https://github.com/portofcontext/pctx"
-keywords = ["typescript", "transpiler", "deno"]
+keywords = ["typescript", "transpiler", "deno", "pctx"]
 categories = ["development-tools"]
 
 [dependencies]
