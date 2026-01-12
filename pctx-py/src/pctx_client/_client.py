@@ -57,6 +57,7 @@ class Pctx:
         tools: list[Tool | AsyncTool] | None = None,
         servers: list[ServerConfig] | None = None,
         url: str = "http://localhost:8080",
+        api_key: str | None = None,
         execute_timeout: float = 30.0,
     ):
         """
@@ -90,9 +91,15 @@ class Pctx:
 
         ws_scheme = "wss" if http_scheme == "https" else "ws"
 
-        self._ws_client = WebSocketClient(url=f"{ws_scheme}://{host}/ws", tools=tools)
-        self._client = AsyncClient(base_url=f"{http_scheme}://{host}")
+        self._ws_client = WebSocketClient(
+            url=f"{ws_scheme}://{host}{parsed.path}/ws", api_key=api_key, tools=tools
+        )
+        self._client = AsyncClient(
+            base_url=f"{http_scheme}://{host}{parsed.path}",
+            headers={"x-pctx-api-key": api_key or ""},
+        )
         self._session_id: str | None = None
+        self._api_key = api_key
 
         self._tools = tools or []
         self._servers = servers or []
@@ -139,8 +146,7 @@ class Pctx:
                 f"Received invalid response from PCTX server at {self._client.base_url}. "
                 "The server may be running but not responding correctly."
             ) from e
-
-        self._client.headers = {"x-code-mode-session": self._session_id or ""}
+        self._client.headers.update({"x-code-mode-session": self._session_id or ""})
 
         # Register all local tools & MCP servers
         configs: list[ToolConfig] = [
@@ -154,8 +160,10 @@ class Pctx:
             for t in self._tools
         ]
 
-        await self._register_tools(configs)
-        await self._register_servers(self._servers)
+        if len(configs) > 0:
+            await self._register_tools(configs)
+        if len(self._servers) > 0:
+            await self._register_servers(self._servers)
 
         # reset search to re-index
         self._search_retriever = None

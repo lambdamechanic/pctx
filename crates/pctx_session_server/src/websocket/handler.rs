@@ -9,6 +9,7 @@ use crate::{
     },
     state::ws_manager::WsSession,
 };
+use anyhow::anyhow;
 use axum::{
     extract::{
         State,
@@ -22,6 +23,7 @@ use futures::{
     stream::{SplitSink, SplitStream},
 };
 use pctx_code_execution_runtime::{CallbackFn, CallbackRegistry};
+use pctx_code_mode::model::ExecuteInput;
 use rmcp::{
     ErrorData,
     model::{ErrorCode, JsonRpcMessage, RequestId},
@@ -82,9 +84,7 @@ async fn handle_socket<B: PctxSessionBackend>(
     state: AppState<B>,
     code_mode_session: Uuid,
 ) {
-    info!("New WebSocket connection with code_mode_session: {code_mode_session}");
-
-    info!("Verified code mode session {code_mode_session} exists, proceeding with WebSocket setup");
+    info!(session_id =? code_mode_session, "New WebSocket connection");
 
     // Split socket into sender and receiver
     let (sender, receiver) = socket.split();
@@ -96,7 +96,9 @@ async fn handle_socket<B: PctxSessionBackend>(
     let session = WsSession::new(tx.clone(), code_mode_session);
     let ws_session = session.id;
 
-    info!(
+    debug!(
+        session_id =? code_mode_session,
+        ws_session =? ws_session,
         "Created session {ws_session} connected to code mode session {}",
         session.code_mode_session_id
     );
@@ -168,7 +170,7 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
     req_id: RequestId,
     params: ExecuteCodeParams,
     ws_session: Uuid,
-    state: &AppState<B>,
+    state: AppState<B>,
 ) -> Result<(), String> {
     // Save the WebSocket session for later response
     let ws_session_lock = state
@@ -201,8 +203,9 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
 
     debug!("Found CodeMode session with ID: {code_mode_session_id}");
 
-    let callback_registry = CallbackRegistry::default();
+    let execution_id = Uuid::new_v4();
 
+    let callback_registry = CallbackRegistry::default();
     for callback_cfg in &code_mode.callbacks {
         let ws_session_lock_clone = ws_session_lock.clone();
         let cfg = callback_cfg.clone();
@@ -244,10 +247,18 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
         }
     }
 
+    let execution_span = tracing::info_span!(
+        "execute_code_in_session",
+        session_id = %code_mode_session_id,
+        execution_id = %execution_id,
+    );
+
     tokio::spawn(async move {
-        let current_span = tracing::Span::current();
+        let code_mode_clone = code_mode.clone();
+        let code_clone = params.code.clone();
+
         let output = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
-            let _guard = current_span.enter();
+            let _guard = execution_span.enter();
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -256,36 +267,59 @@ async fn handle_execute_code_request<B: PctxSessionBackend>(
             // create callback registry to execute callback requests over the same ws which
             // initiated the request
             rt.block_on(async {
-                code_mode
-                    .execute(&params.code, Some(callback_registry))
+                code_mode_clone
+                    .execute(&code_clone, Some(callback_registry))
                     .await
                     .map_err(|e| anyhow::anyhow!("Execution error: {e}"))
             })
         })
         .await;
 
-        let msg = match output {
-            Ok(Ok(exec_output)) => {
-                WsJsonRpcMessage::response(PctxJsonRpcResponse::ExecuteCode(exec_output), req_id)
-            }
-            Ok(Err(e)) => WsJsonRpcMessage::error(
-                ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: format!("Execution failed: {e}").into(),
-                    data: None,
-                },
-                req_id,
+        let (msg, execution_res) = match output {
+            Ok(Ok(exec_output)) => (
+                WsJsonRpcMessage::response(
+                    PctxJsonRpcResponse::ExecuteCode(exec_output.clone()),
+                    req_id,
+                ),
+                Ok(exec_output),
             ),
-            Err(e) => WsJsonRpcMessage::error(
-                ErrorData {
-                    code: ErrorCode::INTERNAL_ERROR,
-                    message: format!("Task join failed: {e}").into(),
-                    data: None,
-                },
-                req_id,
+            Ok(Err(e)) => (
+                WsJsonRpcMessage::error(
+                    ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: format!("Execution failed: {e}").into(),
+                        data: None,
+                    },
+                    req_id,
+                ),
+                Err(anyhow!(e)),
+            ),
+            Err(e) => (
+                WsJsonRpcMessage::error(
+                    ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: format!("Task join failed: {e}").into(),
+                        data: None,
+                    },
+                    req_id,
+                ),
+                Err(anyhow!(e)),
             ),
         };
 
+        if let Err(e) = state
+            .backend
+            .post_execution(
+                code_mode_session_id,
+                execution_id,
+                code_mode,
+                ExecuteInput { code: params.code },
+                execution_res,
+            )
+            .await
+        {
+            error!("Failed to post_execution hook: {e}");
+        }
         if let Err(e) = sender.send(msg) {
             error!("Failed to send execute_code response: {e}");
         }
@@ -312,7 +346,7 @@ async fn handle_message<B: PctxSessionBackend>(
                 JsonRpcMessage::Request(req) => match req.request {
                     PctxJsonRpcRequest::ExecuteCode { params } => {
                         debug!("Executing code...");
-                        handle_execute_code_request(req.id, params, ws_session, state).await
+                        handle_execute_code_request(req.id, params, ws_session, state.clone()).await
                     }
                     PctxJsonRpcRequest::ExecuteTool { .. } => {
                         // the server is only responsible for servicing execute_code requests, execute_tool
@@ -349,7 +383,6 @@ async fn handle_message<B: PctxSessionBackend>(
         }
         Message::Close(_) => {
             info!("Received close message for session {ws_session}");
-            println!("CLOSING....");
             Ok(())
         }
         Message::Ping(_) | Message::Pong(_) => Ok(()),

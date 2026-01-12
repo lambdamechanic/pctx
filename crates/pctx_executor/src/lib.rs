@@ -131,14 +131,15 @@ pub async fn execute(code: &str, options: ExecuteOptions) -> Result<ExecuteResul
 
     // Check if we have diagnostics
     if !check_result.diagnostics.is_empty() {
+        // Format diagnostics as rich stderr output
+        let stderr = format_diagnostics(&check_result.diagnostics);
+
         warn!(
             runtime = "type_check",
+            diagnostic = %stderr,
             diagnostic_count = check_result.diagnostics.len(),
             "Type check failed with diagnostics"
         );
-
-        // Format diagnostics as rich stderr output
-        let stderr = format_diagnostics(&check_result.diagnostics);
 
         return Ok(ExecuteResult {
             success: false,

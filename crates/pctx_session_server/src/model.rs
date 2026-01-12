@@ -53,7 +53,7 @@ impl IntoResponse for ApiError {
 }
 
 /// Health check response
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct HealthResponse {
     pub status: String,
     pub version: String,
@@ -74,25 +74,25 @@ pub enum ErrorCode {
 }
 
 /// Request to register tools
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RegisterToolsRequest {
     pub tools: Vec<pctx_code_mode::model::CallbackConfig>,
 }
 
 /// Response to registering tools
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RegisterToolsResponse {
     pub registered: usize,
 }
 
 /// Request to register MCP servers
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RegisterMcpServersRequest {
     pub servers: Vec<McpServerConfig>,
 }
 
 // TODO: de-dup with pctx_config
-#[derive(Debug, Deserialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 #[serde(untagged)]
 pub enum McpServerConfig {
     Http {
@@ -114,20 +114,20 @@ pub enum McpServerConfig {
 }
 
 /// Response after registering MCP servers
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RegisterMcpServersResponse {
     pub registered: usize,
     pub failed: Vec<String>,
 }
 
 /// Response after creating a new `CodeMode` session
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateSessionResponse {
     #[schema(value_type = String)]
     pub session_id: Uuid,
 }
 /// Response after closing a `CodeMode` session
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CloseSessionResponse {
     pub success: bool,
 }

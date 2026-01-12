@@ -2,7 +2,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use pctx_code_mode::CodeMode;
+use pctx_code_mode::{
+    CodeMode,
+    model::{ExecuteInput, ExecuteOutput},
+};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -30,6 +33,18 @@ pub trait PctxSessionBackend: Clone + Send + Sync + 'static {
 
     /// Returns a full list of active `CodeMode` sessions in the backend.
     async fn list_sessions(&self) -> Result<Vec<Uuid>>;
+
+    /// Hook called after every code mode execution websocket event
+    async fn post_execution(
+        &self,
+        _session_id: Uuid,
+        _execution_id: Uuid,
+        _code_mode: CodeMode,
+        _execution_req: ExecuteInput,
+        _execution_res: Result<ExecuteOutput>,
+    ) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Manages `CodeMode` sessions locally using thread-safe

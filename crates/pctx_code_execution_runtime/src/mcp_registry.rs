@@ -1,9 +1,10 @@
 use crate::error::McpError;
 use pctx_config::server::ServerConfig;
 use rmcp::model::{CallToolRequestParam, JsonObject, RawContent};
+use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use tracing::warn;
+use tracing::{info, instrument, warn};
 
 /// Singleton registry for MCP server configurations
 #[derive(Clone)]
@@ -87,6 +88,13 @@ impl Default for MCPRegistry {
 }
 
 /// Call an MCP tool on a registered server
+#[instrument(
+    name = "invoke_mcp_tool",
+    skip_all,
+    fields(id=format!("{server_name}.{tool_name}"), args = json!(args).to_string()),
+    ret(Display),
+    err
+)]
 pub(crate) async fn call_mcp_tool(
     registry: &MCPRegistry,
     server_name: &str,
@@ -132,22 +140,22 @@ pub(crate) async fn call_mcp_tool(
     }
 
     // Prefer structuredContent if available, otherwise use content array
-    if let Some(structured) = tool_result.structured_content {
-        return Ok(structured);
-    }
-
-    // Convert content to JSON value
-    // For simplicity, we'll extract text content and try to parse as JSON
-    if let Some(RawContent::Text(text_content)) = tool_result.content.first().map(|a| &**a) {
+    let has_structured = tool_result.structured_content.is_some();
+    let val = if let Some(structured) = tool_result.structured_content {
+        structured
+    } else if let Some(RawContent::Text(text_content)) = tool_result.content.first().map(|a| &**a) {
         // Try to parse as JSON, fallback to string value
         serde_json::from_str(&text_content.text)
             .or_else(|_| Ok(serde_json::Value::String(text_content.text.clone())))
             .map_err(|e: serde_json::Error| {
                 McpError::ToolCall(format!("Failed to parse content: {e}"))
-            })
+            })?
     } else {
         // Return the whole content array as JSON
-        serde_json::to_value(&tool_result.content)
-            .map_err(|e| McpError::ToolCall(format!("Failed to serialize content: {e}")))
-    }
+        json!(tool_result.content)
+    };
+
+    info!(structured_content = has_structured, result =? &val, "Tool result");
+
+    Ok(val)
 }

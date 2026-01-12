@@ -47,7 +47,12 @@ class WebSocketClient:
     receive and handle tool execution requests from the server
     """
 
-    def __init__(self, url: str, tools: list[Tool | AsyncTool] | None = None):
+    def __init__(
+        self,
+        url: str,
+        api_key: str | None = None,
+        tools: list[Tool | AsyncTool] | None = None,
+    ):
         """
         Initialize the WebSocket client.
 
@@ -57,6 +62,7 @@ class WebSocketClient:
         self.url = url
         self.ws: ClientConnection | None = None
         self.tools = tools or []
+        self._api_key = api_key
         self._pending_executions: dict[str | int, asyncio.Future] = {}
         self._request_counter = 0
 
@@ -68,7 +74,10 @@ class WebSocketClient:
             ConnectionError: If connection fails
         """
         try:
-            headers = {"x-code-mode-session": code_mode_session}
+            headers = {
+                "x-code-mode-session": code_mode_session,
+                "x-pctx-api-key": self._api_key,
+            }
             self.ws = await websockets.connect(self.url, additional_headers=headers)
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self.url}: {e}") from e
