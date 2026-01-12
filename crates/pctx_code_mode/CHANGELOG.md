@@ -5,13 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.0 (2026-01-12)
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 47 commits contributed to the release over the course of 45 calendar days.
+ - 48 commits contributed to the release over the course of 45 calendar days.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Init changelogs ([`60b8c14`](https://github.com/portofcontext/pctx/commit/60b8c14b41da72b74a843c1e4a20297ddc17f364))
     - Update crates setup for crates.io publishing ([`92502a4`](https://github.com/portofcontext/pctx/commit/92502a46c7b006023fb767796600cc0267fbf5e0))
     - Merge pull request #43 from portofcontext/more-instrumentation ([`b26329d`](https://github.com/portofcontext/pctx/commit/b26329dc8d135865073090b2330d6f9c54404f69))
     - Merge branch 'main' into more-instrumentation ([`f43a433`](https://github.com/portofcontext/pctx/commit/f43a43397d9030a8b7bf24a9cf6c86d6f248f474))
