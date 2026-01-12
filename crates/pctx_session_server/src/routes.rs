@@ -7,7 +7,7 @@ use pctx_code_mode::{
         CallbackConfig, GetFunctionDetailsInput, GetFunctionDetailsOutput, ListFunctionsOutput,
     },
 };
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::extractors::CodeModeSession;
@@ -279,15 +279,9 @@ pub(crate) async fn register_servers<B: PctxSessionBackend>(
     CodeModeSession(session_id): CodeModeSession,
     Json(request): Json<RegisterMcpServersRequest>,
 ) -> ApiResult<Json<RegisterMcpServersResponse>> {
-    let server_ids = request
-        .servers
-        .iter()
-        .map(|s| format!("{} ({})", &s.name, &s.url))
-        .collect::<Vec<_>>();
     info!(
-        session_id =? session_id,
-        servers =? &server_ids,
-        "Registering MCP servers...",
+        "Registering {} MCP servers in session {session_id}",
+        request.servers.len()
     );
 
     let mut code_mode = state
@@ -304,21 +298,24 @@ pub(crate) async fn register_servers<B: PctxSessionBackend>(
             },
         ))?;
 
-    let mut registered = Vec::new();
-    let mut failed = Vec::new();
+    // Use parallel server registration with conversion function
+    let mut results =
+        pctx_code_mode::parallel_registration::register_servers_parallel_with_conversion(
+            &request.servers,
+            30, // 30 second timeout
+            convert_mcp_server_config,
+        )
+        .await;
 
-    for server in &request.servers {
-        match register_mcp_server(&mut code_mode, server).await {
-            Ok(()) => {
-                registered.push(server);
-                debug!("Successfully registered MCP server: {}", server.name);
-            }
-            Err(e) => {
-                error!("Failed to register MCP server {}: {}", server.name, e);
-                failed.push(server.name.clone());
-            }
-        }
-    }
+    // Add successful registrations to code_mode
+    let registered = results.add_to_code_mode(&mut code_mode);
+
+    // Collect failed server names for response
+    let failed: Vec<String> = results
+        .failed
+        .iter()
+        .map(|f| f.server_name.clone())
+        .collect();
 
     // Update the backend with the modified CodeMode
     state
@@ -328,47 +325,60 @@ pub(crate) async fn register_servers<B: PctxSessionBackend>(
         .context("Failed updating code mode session in backend")?;
 
     info!(
-        session_id =? session_id,
-        servers =? &server_ids,
+        session_id =% session_id,
+        registered =% registered,
+        failed =? failed,
         "Registered MCP servers",
     );
 
-    Ok(Json(RegisterMcpServersResponse {
-        registered: registered.len(),
-        failed,
-    }))
+    Ok(Json(RegisterMcpServersResponse { registered, failed }))
 }
 
-async fn register_mcp_server(
-    code_mode: &mut CodeMode,
+/// Convert `McpServerConfig` (HTTP API model) `ServerConfig` (internal config type)
+///
+/// Returns (`server_name`, `ServerConfig`) on success, or (`server_name`, `error_message`) on failure
+fn convert_mcp_server_config(
     server: &McpServerConfig,
-) -> Result<(), String> {
-    // Parse and validate URL
-    let url = url::Url::parse(&server.url).map_err(|e| format!("Invalid URL: {e}"))?;
+) -> Result<(String, pctx_config::server::ServerConfig), (String, String)> {
+    let server_name = match server {
+        McpServerConfig::Http { name, .. } => name.clone(),
+        McpServerConfig::Stdio { name, .. } => name.clone(),
+    };
 
-    // Create ServerConfig
-    let mut server_config = pctx_config::server::ServerConfig::new(server.name.clone(), url);
+    let server_config = match server {
+        McpServerConfig::Http { name, url, auth } => {
+            // Parse and validate URL
+            let parsed_url = url::Url::parse(url)
+                .map_err(|e| (server_name.clone(), format!("Invalid URL '{url}': {e}")))?;
 
-    // Add auth if provided
-    if let Some(auth) = &server.auth {
-        server_config.auth = serde_json::from_value(auth.clone())
-            .map_err(|e| format!("Invalid auth config: {e}"))?;
-    }
+            // Create HTTP ServerConfig
+            let mut server_config =
+                pctx_config::server::ServerConfig::new(name.clone(), parsed_url);
 
-    code_mode
-        .add_server(&server_config)
-        .await
-        .map_err(|e| format!("Failed to add MCP server: {e}"))?;
+            // Add auth if provided
+            if let Some(auth_value) = auth {
+                let auth = serde_json::from_value(auth_value.clone())
+                    .map_err(|e| (server_name.clone(), format!("Invalid auth config: {e}")))?;
+                server_config.set_auth(Some(auth));
+            }
 
-    debug!(
-        "Successfully registered MCP server '{}' with {} tools",
-        server.name,
-        code_mode
-            .tool_sets
-            .iter()
-            .find(|ts| ts.name == server.name)
-            .map_or(0, |ts| ts.tools.len())
-    );
+            server_config
+        }
+        McpServerConfig::Stdio {
+            name,
+            command,
+            args,
+            env,
+        } => {
+            // Create stdio ServerConfig
+            pctx_config::server::ServerConfig::new_stdio(
+                name.clone(),
+                command.clone(),
+                args.clone(),
+                env.clone(),
+            )
+        }
+    };
 
-    Ok(())
+    Ok((server_name, server_config))
 }

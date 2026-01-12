@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from httpx import AsyncClient
+from pydantic import BaseModel
 
 from pctx_client._tool import AsyncTool, Tool
+from pctx_client._utils import to_snake_case
 from pctx_client._websocket_client import WebSocketClient
 from pctx_client.exceptions import ConnectionError, SessionError
 from pctx_client.models import (
@@ -17,20 +19,30 @@ from pctx_client.models import (
     ExecuteOutput,
     GetFunctionDetailsInput,
     GetFunctionDetailsOutput,
+    ListedFunction,
     ListFunctionsOutput,
     ServerConfig,
     ToolConfig,
 )
-from pydantic import BaseModel
 
 if TYPE_CHECKING:
     try:
-        from langchain_core.tools import BaseTool as LangchainBaseTool
-        from crewai.tools import BaseTool as CrewAiBaseTool
-        from pydantic_ai.tools import Tool as PydanticAITool
         from agents import FunctionTool
+        from bm25s import BM25
+        from crewai.tools import BaseTool as CrewAiBaseTool
+        from langchain_core.tools import BaseTool as LangchainBaseTool
+        from pydantic_ai.tools import Tool as PydanticAITool
+        from Stemmer import Stemmer
     except ImportError:
         pass
+
+try:
+    from bm25s import BM25, tokenize
+    from Stemmer import Stemmer
+
+    HAS_SEARCH = True
+except ImportError:
+    HAS_SEARCH = False
 
 
 class Pctx:
@@ -50,6 +62,14 @@ class Pctx:
     ):
         """
         Initialize the PCTX client.
+
+        Args:
+            tools: List of local Python tools to register
+            servers: List of MCP servers to register. Each server can be either:
+                - HTTP server: {"name": "...", "url": "...", "auth": {...}}
+                - stdio server: {"name": "...", "command": "...", "args": [...], "env": {...}}
+            url: PCTX server URL (default: http://localhost:8080)
+            execute_timeout: Timeout for code execution in seconds (default: 30.0)
         """
 
         # Parse and normalize the URL
@@ -84,6 +104,7 @@ class Pctx:
         self._tools = tools or []
         self._servers = servers or []
         self._execute_timeout = execute_timeout
+        self._search_retriever = None
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -144,6 +165,9 @@ class Pctx:
         if len(self._servers) > 0:
             await self._register_servers(self._servers)
 
+        # reset search to re-index
+        self._search_retriever = None
+
     async def disconnect(self):
         """Disconnect closes current code-mode session."""
         close_res = await self._client.post("/code-mode/session/close")
@@ -181,6 +205,60 @@ class Pctx:
         list_res.raise_for_status()
 
         return ListFunctionsOutput.model_validate(list_res.json())
+
+    async def search_functions(self, query: str, k: int = 10) -> list[ListedFunction]:
+        """
+        Search available functions matching query.
+
+        This is typically the first method you should call to discover what functions
+        are available in the current session, including both registered local tools
+        and MCP server functions.
+
+        Args:
+            query: Search query string to find relevant functions.
+            k: Max number of top results to return (default: 5).
+
+        Returns:
+            list[ListedFunction]: An list of matching function signatures matching the query
+
+        Raises:
+            ImportError: If bm25s is not installed.
+            SessionError: If called before establishing a session via connect().
+        """
+
+        if not HAS_SEARCH:
+            raise ImportError(
+                "bm25s is not installed. Install it with: pip install pctx[bm25s]"
+            )
+
+        if self._session_id is None:
+            raise SessionError(
+                "No code mode session exists, run Pctx(...).connect() before calling"
+            )
+
+        stemmer = Stemmer("english")
+
+        if self._search_retriever is None:
+            self._functions = (await self.list_functions()).functions
+            corpus = [
+                f"{to_snake_case(function.namespace).replace('_', ' ')}.{to_snake_case(function.name).replace('_', ' ')}: {function.description}"
+                for function in self._functions
+            ]
+
+            corpus_tokens = tokenize(corpus, stopwords="en", stemmer=stemmer)
+            self._search_retriever = BM25()
+            self._search_retriever.index(corpus_tokens)
+
+        query_tokens = tokenize([query], stopwords="en", stemmer=stemmer)
+        actual_k = min(k, len(self._functions))
+        results, scores = self._search_retriever.retrieve(query_tokens, k=actual_k)
+        tools = []
+        for i in range(results.shape[1]):
+            tool = self._functions[results[0, i]]
+            score = scores[0, i]
+            if score > 0:
+                tools.append(tool)
+        return tools
 
     async def get_function_details(
         self, functions: list[str]
@@ -280,6 +358,16 @@ class Pctx:
         res = await self._client.post("/register/servers", json={"servers": configs})
         res.raise_for_status()
 
+    def _search_functions_result_to_string(
+        self, functions: list[ListedFunction]
+    ) -> str:
+        return "\n".join(
+            [
+                f"{func.namespace}.{func.name}: {func.description or ''}"
+                for func in functions
+            ]
+        )
+
     def langchain_tools(self) -> "list[LangchainBaseTool]":
         """
         Expose PCTX code mode tools as langchain tools
@@ -297,9 +385,22 @@ class Pctx:
                 "LangChain is not installed. Install it with: pip install pctx[langchain]"
             ) from e
 
+        tools = []
+
         @langchain_tool(description=CODE_MODE_TOOL_DESCRIPTIONS["list_functions"])
         async def list_functions() -> str:
             return (await self.list_functions()).code
+
+        tools.append(list_functions)
+
+        if HAS_SEARCH:
+
+            @langchain_tool(description=CODE_MODE_TOOL_DESCRIPTIONS["search_functions"])
+            async def search_functions(query: str, k: int = 10) -> str:
+                functions = await self.search_functions(query, k)
+                return self._search_functions_result_to_string(functions)
+
+            tools.append(search_functions)
 
         @langchain_tool(description=CODE_MODE_TOOL_DESCRIPTIONS["get_function_details"])
         async def get_function_details(functions: list[str]) -> str:
@@ -309,11 +410,15 @@ class Pctx:
                 )
             ).code
 
+        tools.append(get_function_details)
+
         @langchain_tool(description=CODE_MODE_TOOL_DESCRIPTIONS["execute"])
         async def execute(code: str) -> str:
             return (await self.execute(code)).markdown()
 
-        return [list_functions, get_function_details, execute]
+        tools.append(execute)
+
+        return tools
 
     def crewai_tools(self) -> "list[CrewAiBaseTool]":
         """
@@ -332,6 +437,7 @@ class Pctx:
                 "CrewAI is not installed. Install it with: pip install pctx[crewai]"
             ) from e
 
+        tools = []
         import asyncio
 
         # Capture the current event loop for later use from threads
@@ -355,6 +461,31 @@ class Pctx:
                     # No event loop captured, create a new one
                     return asyncio.run(self.list_functions()).code
 
+        tools.append(ListFunctionsTool())
+
+        if HAS_SEARCH:
+
+            class SearchFunctionsTool(CrewAiBaseTool):
+                name: str = "search_functions"
+                description: str = CODE_MODE_TOOL_DESCRIPTIONS["search_functions"]
+
+                def _run(_self, query: str, k: int = 10) -> str:
+                    # When called from CrewAI's thread pool, use the main event loop
+                    if main_loop is not None:
+                        future = asyncio.run_coroutine_threadsafe(
+                            self.search_functions(query, k), main_loop
+                        )
+                        return self._search_functions_result_to_string(
+                            future.result(timeout=30)
+                        )
+                    else:
+                        # No event loop captured, create a new one
+                        return self._search_functions_result_to_string(
+                            asyncio.run(self.search_functions(query, k))
+                        )
+
+            tools.append(SearchFunctionsTool())
+
         class GetFunctionDetailsTool(CrewAiBaseTool):
             name: str = "get_function_details"
             description: str = CODE_MODE_TOOL_DESCRIPTIONS["get_function_details"]
@@ -373,6 +504,8 @@ class Pctx:
                         self.get_function_details(functions=functions)
                     ).code
 
+        tools.append(GetFunctionDetailsTool())
+
         class ExecuteTool(CrewAiBaseTool):
             name: str = "execute"
             description: str = CODE_MODE_TOOL_DESCRIPTIONS["execute"]
@@ -389,7 +522,9 @@ class Pctx:
                     # No event loop captured, create a new one
                     return asyncio.run(self.execute(code=code)).markdown()
 
-        return [ListFunctionsTool(), GetFunctionDetailsTool(), ExecuteTool()]
+        tools.append(ExecuteTool())
+
+        return tools
 
     def openai_agents_tools(self) -> "list[FunctionTool]":
         """
@@ -413,12 +548,27 @@ class Pctx:
 
         # OpenAI Agents SDK uses function decorators to create tools
         # We need to create wrapper functions that call our async methods
+        tools = []
 
         async def list_functions_wrapper() -> str:
             return (await self.list_functions()).code
 
         async def get_function_details_wrapper(functions: list[str]) -> str:
             return (await self.get_function_details(functions)).code
+
+        if HAS_SEARCH:
+
+            async def search_functions_wrapper(query: str, k: int = 10) -> str:
+                functions = await self.search_functions(query, k)
+                return self._search_functions_result_to_string(functions)
+
+            search_functions_wrapper.__doc__ = CODE_MODE_TOOL_DESCRIPTIONS[
+                "search_functions"
+            ]
+            search_functions_tool = function_tool(name_override="search_functions")(
+                search_functions_wrapper
+            )
+            tools.append(search_functions_tool)
 
         async def execute_wrapper(code: str) -> str:
             return (await self.execute(code)).markdown()
@@ -443,7 +593,9 @@ Args:
         )
         execute_tool = function_tool(name_override="execute")(execute_wrapper)
 
-        return [list_functions_tool, get_function_details_tool, execute_tool]
+        tools.extend([list_functions_tool, get_function_details_tool, execute_tool])
+
+        return tools
 
     def pydantic_ai_tools(self) -> "list[PydanticAITool]":
         """
@@ -493,11 +645,29 @@ Args:
             ),
         ]
 
+        if HAS_SEARCH:
+
+            async def search_functions_wrapper(query: str, k: int = 10) -> str:
+                functions = await self.search_functions(query, k)
+                return self._search_functions_result_to_string(functions)
+
+            search_tool = PydanticAITool(
+                search_functions_wrapper,
+                name="search_functions",
+                description=CODE_MODE_TOOL_DESCRIPTIONS["search_functions"],
+            )
+            tools.append(search_tool)
+
         return tools
 
 
 CODE_MODE_TOOL_DESCRIPTIONS = {
-    "list_functions": """ALWAYS USE THIS TOOL FIRST to list all available functions organized by namespace.
+    "list_functions": (
+        "Use this tool to list all available functions organized by namespace."
+        if HAS_SEARCH
+        else "ALWAYS USE THIS TOOL FIRST to list all available functions organized by namespace."
+    )
+    + """
 
 WORKFLOW:
 1. Start here - Call this tool to see what functions are available
@@ -505,9 +675,24 @@ WORKFLOW:
 3. Finally call execute() to run your TypeScript code
 
 This returns function signatures without full details.""",
+    "search_functions": """ALWAYS USE THIS TOOL FIRST to find relevant functions.
+
+Arguments:
+  query: The search query string to find relevant functions.
+  k: The maximum number of top results to return (default: 10).
+
+
+WORKFLOW:
+1. Start here - Call this tool to find suitable functions
+2. Then call get_function_details() for specific functions you need to understand
+3. Finally call execute() to run your TypeScript code
+
+This returns a list of matching functions.""",
     "get_function_details": """Get detailed information about specific functions you want to use.
 
-WHEN TO USE: After calling list_functions(), use this to learn about parameter types, return values, and usage for specific functions.
+WHEN TO USE: After calling """
+    + ("search_functions() or " if HAS_SEARCH else "")
+    + """list_functions(), use this to learn about parameter types, return values, and usage for specific functions.
 
 REQUIRED FORMAT: Functions must be specified as 'namespace.functionName' (e.g., 'Namespace.apiPostSearch')
 
@@ -518,7 +703,9 @@ NOTE ON RETURN TYPES:
 - If a function returns Promise<any>, the MCP server didn't provide an output schema
 - The actual value is a parsed object (not a string) - access properties directly
 - Don't use JSON.parse() on the results - they're already JavaScript objects""",
-    "execute": """Execute TypeScript code that calls namespaced functions. USE THIS LAST after list_functions() and get_function_details().
+    "execute": "Execute TypeScript code that calls namespaced functions. USE THIS LAST after "
+    + ("search_functions() or " if HAS_SEARCH else "")
+    + """list_functions() and get_function_details().
 
 TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
 To minimize tokens:

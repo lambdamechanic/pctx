@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use pctx_code_mode::CodeMode;
 use pctx_config::Config;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 use pctx_mcp_server::PctxMcpServer;
 
@@ -19,29 +19,43 @@ pub struct StartCmd {
     /// Don't show the server banner
     #[arg(long)]
     pub no_banner: bool,
+
+    /// Serve MCP over stdio instead of HTTP
+    #[arg(long)]
+    pub stdio: bool,
 }
 
 impl StartCmd {
     pub(crate) async fn load_code_mode(cfg: &Config) -> Result<CodeMode> {
-        // Connect to each MCP server and fetch their tool definitions
+        // Connect to each MCP server and fetch their tool definitions in parallel
         info!(
-            "Creating code mode interface for {} upstream MCP servers",
+            "Creating code mode interface for {} upstream MCP servers (parallel)",
             cfg.servers.len()
         );
         let mut code_mode = CodeMode::default();
 
-        for server in &cfg.servers {
-            debug!("Creating code mode interface for {}", &server.name);
-            if let Err(e) = code_mode.add_server(server).await {
-                warn!(
-                    err =? e,
-                    server.name =? &server.name,
-                    server.url =? server.url.to_string(),
-                    "Failed creating creating code mode for `{}` MCP server",
-                    &server.name
-                );
-            }
+        // Use parallel registration with 30 second timeout per server
+        let mut results =
+            pctx_code_mode::parallel_registration::register_servers_parallel(&cfg.servers, 30)
+                .await;
+
+        // Add successful registrations to code_mode
+        let registered = results.add_to_code_mode(&mut code_mode);
+
+        // Log failures
+        for failure in &results.failed {
+            warn!(
+                server.name = failure.server_name,
+                error = failure.error_message,
+                "Failed creating code mode for MCP server"
+            );
         }
+
+        info!(
+            "Code mode initialized with {}/{} MCP servers",
+            registered,
+            cfg.servers.len()
+        );
 
         Ok(code_mode)
     }
@@ -55,9 +69,12 @@ impl StartCmd {
 
         let code_mode = StartCmd::load_code_mode(&cfg).await?;
 
-        PctxMcpServer::new(&self.host, self.port, !self.no_banner)
-            .serve(&cfg, code_mode)
-            .await?;
+        let server = PctxMcpServer::new(&self.host, self.port, !self.no_banner);
+        if self.stdio {
+            server.serve_stdio(&cfg, code_mode).await?;
+        } else {
+            server.serve(&cfg, code_mode).await?;
+        }
 
         info!("Shutting down...");
 

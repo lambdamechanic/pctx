@@ -1,5 +1,6 @@
 mod code_mode;
 pub mod model;
+pub mod parallel_registration;
 pub use code_mode::CodeMode;
 use codegen::CodegenError;
 

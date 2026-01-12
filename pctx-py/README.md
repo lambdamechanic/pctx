@@ -138,6 +138,10 @@ The `Pctx` client provides 3 main code mode functions:
 
 3. **`execute(code)`** - Executes TypeScript code in an isolated Deno sandbox. The code can call any namespaced functions (e.g., `Namespace.functionName()`) discovered via `list_functions()`. Returns the execution result with stdout, stderr, and return value.
 
+If the optional dependancy `pctx-client[bm25s]` is installed, pctx will also
+provide:
+4. **`search_functions(query, top_k)`** - Searches available functions using BM25s vector search to find the most relevant functions for a given query.  LLMs are instructed to call this first to discover what functions are available from your registered tools and MCP servers.
+
 ## Defining Tools
 
 pctx provides two approaches for defining tools: the `@tool` decorator for simple function-based tools, and `Tool`/`AsyncTool` classes for more complex implementations.
@@ -414,6 +418,113 @@ p = Pctx(tools=[calc, search, db])
 
 # Mix both approaches
 p = Pctx(tools=[get_weather, calc, search, fetch_user_data])
+```
+
+## Registering MCP Servers
+
+pctx supports connecting to MCP servers to extend your agent's capabilities. You can register both HTTP-based and stdio-based MCP servers.
+
+### HTTP MCP Servers
+
+```python
+from pctx_client import Pctx
+
+# HTTP server without authentication
+servers = [
+    {
+        "name": "weather",
+        "url": "http://localhost:3000/mcp"
+    }
+]
+
+# HTTP server with bearer token authentication
+servers = [
+    {
+        "name": "api",
+        "url": "https://api.example.com/mcp",
+        "auth": {
+            "type": "bearer",
+            "token": "your-api-token"
+        }
+    }
+]
+
+# HTTP server with custom headers authentication
+servers = [
+    {
+        "name": "api",
+        "url": "https://api.example.com/mcp",
+        "auth": {
+            "type": "headers",
+            "headers": {
+                "X-API-Key": "your-api-key",
+                "X-Custom-Header": "custom-value"
+            }
+        }
+    }
+]
+
+p = Pctx(servers=servers)
+```
+
+### Stdio MCP Servers
+
+Stdio MCP servers communicate via stdin/stdout, making them ideal for local integrations and command-line tools.
+NOTE: The stdio mcp servers must be running on the same host as pctx, which is not necessarily the same host as this python client.
+
+```python
+from pctx_client import Pctx
+
+# Basic stdio server
+servers = [
+    {
+        "name": "local-mcp",
+        "command": "node"
+    }
+]
+
+# Stdio server with arguments
+servers = [
+    {
+        "name": "local-mcp",
+        "command": "node",
+        "args": ["./mcp-server.js", "--config", "config.json"]
+    }
+]
+
+# Stdio server with environment variables
+servers = [
+    {
+        "name": "local-mcp",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-everything"],
+        "env": {
+            "NODE_ENV": "production",
+            "LOG_LEVEL": "info"
+        }
+    }
+]
+
+p = Pctx(servers=servers)
+```
+
+### Combining Tools and Servers
+
+```python
+from pctx_client import Pctx, tool
+
+@tool
+def custom_function(input: str) -> str:
+    """A custom local function."""
+    return f"Processed: {input}"
+
+servers = [
+    {"name": "api", "url": "https://api.example.com/mcp"},
+    {"name": "local", "command": "node", "args": ["./server.js"]}
+]
+
+# Initialize with both local tools and MCP servers
+p = Pctx(tools=[custom_function], servers=servers)
 ```
 
 ## Agent Frameworks

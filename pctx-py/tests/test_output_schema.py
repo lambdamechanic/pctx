@@ -1,6 +1,7 @@
 """Tests for create_output_schema"""
 
 from pydantic import BaseModel, TypeAdapter
+
 from pctx_client._tool import create_output_schema
 
 
