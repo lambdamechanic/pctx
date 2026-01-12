@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 50 commits contributed to the release over the course of 45 calendar days.
+ - 51 commits contributed to the release over the course of 45 calendar days.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release pctx_config v0.1.0, pctx_code_execution_runtime v0.1.0, pctx_codegen v0.1.0, deno_transpiler v0.1.0, pctx_type_check_runtime v0.1.0, pctx_executor v0.1.0, pctx_code_mode v0.1.0 ([`821751c`](https://github.com/portofcontext/pctx/commit/821751c5ba7e28d2be1741454fcfe73fde3e8414))
     - Changelog init ([`899cdfc`](https://github.com/portofcontext/pctx/commit/899cdfcf69f9b404668188f768cc24ed853daf7d))
     - Adjusting changelogs prior to release of pctx_config v0.1.0, pctx_code_execution_runtime v0.1.0, pctx_codegen v0.1.0, deno_transpiler v0.1.0, pctx_type_check_runtime v0.1.0, pctx_executor v0.1.0, pctx_code_mode v0.1.0 ([`44a3253`](https://github.com/portofcontext/pctx/commit/44a325347bad9a22a69e87691c583dfb3721ab39))
     - Init changelogs ([`60b8c14`](https://github.com/portofcontext/pctx/commit/60b8c14b41da72b74a843c1e4a20297ddc17f364))
