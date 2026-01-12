@@ -3,14 +3,17 @@ name = "pctx_code_mode"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-publish = false
+description = "Code mode functionality for pctx AI-powered development"
+repository = "https://github.com/portofcontext/pctx"
+keywords = ["ai", "code-mode", "pctx", "mcp"]
+categories = ["development-tools"]
 
 [dependencies]
 # local
-pctx_config = { path = "../pctx_config" }
-codegen = { path = "../codegen" }
-pctx_executor = { path = "../pctx_executor" }
-pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
+pctx_config = { version = "0.1.0", path = "../pctx_config" }
+pctx_codegen = { version = "0.1.0", path = "../pctx_codegen" }
+pctx_executor = { version = "0.1.0", path = "../pctx_executor" }
+pctx_code_execution_runtime = { version = "0.1.0", path = "../pctx_code_execution_runtime" }
 
 # general
 thiserror = { workspace = true }

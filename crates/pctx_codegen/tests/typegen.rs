@@ -1,4 +1,4 @@
-use codegen::case::Case;
+use pctx_codegen::case::Case;
 use pctx_type_check_runtime::type_check;
 use serde::Deserialize;
 
@@ -24,14 +24,14 @@ struct TestCase {
 
 async fn run_typegen_test(test_name: &str, test: TypegenTest) {
     let type_name = Case::Pascal.sanitize(test_name.trim_start_matches("test_"));
-    let typegen_res =
-        codegen::typegen::generate_types(test.schema, &type_name).expect("Failed generating type");
+    let typegen_res = pctx_codegen::typegen::generate_types(test.schema, &type_name)
+        .expect("Failed generating type");
 
     insta::assert_snapshot!(format!("{test_name}.ts"), &typegen_res.types);
 
     // run type checks
     for valid in &test.tests.valid {
-        let typed_code = codegen::format::format_ts(&format!(
+        let typed_code = pctx_codegen::format::format_ts(&format!(
             "{types}\n\nconst value: {type_name} = {val};",
             types = typegen_res.types,
             val = valid.value
@@ -47,7 +47,7 @@ async fn run_typegen_test(test_name: &str, test: TypegenTest) {
     }
 
     for invalid in &test.tests.invalid {
-        let typed_code = codegen::format::format_ts(&format!(
+        let typed_code = pctx_codegen::format::format_ts(&format!(
             "{types}\n\nconst value: {type_name} = {val};",
             types = typegen_res.types,
             val = invalid.value

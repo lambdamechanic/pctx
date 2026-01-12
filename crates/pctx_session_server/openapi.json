@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "PCTX Agent Server API",
+    "title": "pctx Agent Server API",
     "description": "REST API for PCTX agent mode - dynamic tool and MCP server registration with code execution",
     "license": {
       "name": "MIT",

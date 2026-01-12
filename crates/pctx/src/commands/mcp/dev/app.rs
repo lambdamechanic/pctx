@@ -8,7 +8,7 @@ use std::{
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use chrono::{DateTime, Utc};
-use codegen::{Tool, ToolSet};
+use pctx_codegen::{Tool, ToolSet};
 use pctx_config::logger::LogLevel;
 use ratatui::{layout::Rect, widgets::ListState};
 

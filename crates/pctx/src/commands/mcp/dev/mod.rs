@@ -520,8 +520,8 @@ mod tests {
     use super::*;
     // use crate::commands::dev::log_entry::{LogEntry, LogEntryFields};
     use chrono::Utc;
-    use codegen::{Tool, ToolSet};
     use pctx_code_mode::CodeMode;
+    use pctx_codegen::{Tool, ToolSet};
     use pctx_config::{logger::LogLevel, server::ServerConfig};
     use serde_json::json;
 

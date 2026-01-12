@@ -1434,30 +1434,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codegen"
-version = "0.1.0"
-dependencies = [
- "biome_formatter",
- "biome_js_formatter",
- "biome_js_parser",
- "biome_js_syntax",
- "handlebars",
- "heck 0.5.0",
- "indexmap 1.9.3",
- "insta",
- "pctx_type_check_runtime",
- "regex",
- "schemars 0.8.22",
- "serde",
- "serde_json",
- "serde_yaml",
- "thiserror 2.0.17",
- "tokio",
- "tracing",
- "unicode-ident",
-]
-
-[[package]]
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6998,7 +6974,6 @@ dependencies = [
  "chrono",
  "clap",
  "clap-markdown",
- "codegen",
  "crossterm",
  "env_logger",
  "indexmap 2.12.1",
@@ -7009,6 +6984,7 @@ dependencies = [
  "opentelemetry-otlp 0.31.0",
  "opentelemetry_sdk 0.31.0",
  "pctx_code_mode",
+ "pctx_codegen",
  "pctx_config",
  "pctx_executor",
  "pctx_mcp_server",
@@ -7056,9 +7032,9 @@ dependencies = [
 name = "pctx_code_mode"
 version = "0.1.0"
 dependencies = [
- "codegen",
  "futures",
  "pctx_code_execution_runtime",
+ "pctx_codegen",
  "pctx_config",
  "pctx_executor",
  "schemars 1.1.0",
@@ -7069,6 +7045,30 @@ dependencies = [
  "tokio",
  "tracing",
  "utoipa",
+]
+
+[[package]]
+name = "pctx_codegen"
+version = "0.1.0"
+dependencies = [
+ "biome_formatter",
+ "biome_js_formatter",
+ "biome_js_parser",
+ "biome_js_syntax",
+ "handlebars",
+ "heck 0.5.0",
+ "indexmap 1.9.3",
+ "insta",
+ "pctx_type_check_runtime",
+ "regex",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "unicode-ident",
 ]
 
 [[package]]
@@ -7129,10 +7129,10 @@ dependencies = [
  "anstyle",
  "anyhow",
  "axum 0.8.7",
- "codegen",
  "opentelemetry 0.31.0",
  "pctx_code_execution_runtime",
  "pctx_code_mode",
+ "pctx_codegen",
  "pctx_config",
  "rmcp",
  "serde",
@@ -7154,11 +7154,11 @@ dependencies = [
  "axum 0.8.7",
  "axum-test",
  "chrono",
- "codegen",
  "futures",
  "http-body-util",
  "pctx_code_execution_runtime",
  "pctx_code_mode",
+ "pctx_codegen",
  "pctx_config",
  "reqwest",
  "rmcp",

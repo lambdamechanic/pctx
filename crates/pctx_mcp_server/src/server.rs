@@ -236,7 +236,7 @@ impl PctxMcpServer {
         if !code_mode.tool_sets.is_empty() {
             builder.push_record(["", ""]);
 
-            let tool_record = |s: &codegen::ToolSet| {
+            let tool_record = |s: &pctx_codegen::ToolSet| {
                 format!(
                     "{} - {} tool{}",
                     fmt_cyan(&s.name),

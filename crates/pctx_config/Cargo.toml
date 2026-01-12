@@ -3,6 +3,10 @@ name = "pctx_config"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+description = "Configuration management for pctx toolkit"
+repository = "https://github.com/portofcontext/pctx"
+keywords = ["pctx", "config", "mcp"]
+categories = ["development-tools"]
 
 [lib]
 path = "src/lib.rs"

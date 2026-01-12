@@ -1,6 +1,6 @@
 use anyhow::Result;
-use codegen::case::Case;
 use indexmap::IndexMap;
+use pctx_codegen::case::Case;
 use pctx_config::auth::{AuthConfig, AuthSecret, SecretString, write_to_keychain};
 use tracing::info;
 

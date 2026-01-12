@@ -65,7 +65,7 @@ use pctx_code_mode::model::{
         (name = "health", description = "Health check endpoints")
     ),
     info(
-        title = "PCTX Agent Server API",
+        title = "pctx agent server API",
         version = "0.1.0",
         description = "REST API for PCTX agent mode - dynamic tool and MCP server registration with code execution",
     )
@@ -87,8 +87,8 @@ pub async fn start_server<B: PctxSessionBackend>(
     let addr = format!("{host}:{port}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
-    info!("🚀 PCTX Agent Server listening on http://{addr}");
-    info!("   OpenAPI documentation: http://{addr}/swagger-ui/");
+    info!("pctx agent server listening on http://{addr}");
+    info!("OpenAPI documentation: http://{addr}/swagger-ui/");
     info!("");
     info!("Use REST API to register tools and MCP servers dynamically.");
     info!("WebSocket endpoint at ws://{addr}/ws for tool callbacks.",);

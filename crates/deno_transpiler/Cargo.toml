@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT"
-publish = false
+description = "TypeScript transpilation utilities using Deno"
+repository = "https://github.com/portofcontext/pctx"
+keywords = ["typescript", "transpiler", "deno"]
+categories = ["development-tools"]
 
 [dependencies]
 deno_ast = { version = "0.51", features = ["transpiling"] }

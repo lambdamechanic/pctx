@@ -5,7 +5,9 @@ edition = "2024"
 rust-version = "1.89"
 license = "MIT"
 description = "Isolated TypeScript type checking runtime for PCTX"
-publish = false
+repository = "https://github.com/portofcontext/pctx"
+keywords = ["typescript", "type-checking", "pctx"]
+categories = ["development-tools"]
 
 [lib]
 path = "src/lib.rs"

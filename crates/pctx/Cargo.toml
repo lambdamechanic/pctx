@@ -27,7 +27,7 @@ pctx_code_mode = { path = "../pctx_code_mode" }
 pctx_executor = { path = "../pctx_executor" }
 pctx_session_server = { path = "../pctx_session_server" }
 pctx_mcp_server = { path = "../pctx_mcp_server" }
-codegen = { path = "../codegen" }
+pctx_codegen = { path = "../pctx_codegen" }
 pctx_config = { path = "../pctx_config" }
 
 # CLI

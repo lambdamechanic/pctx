@@ -4,13 +4,16 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT"
-publish = false
+description = "JavaScript/TypeScript execution runtime for pctx"
+repository = "https://github.com/portofcontext/pctx"
+keywords = ["javascript", "typescript", "runtime", "pctx"]
+categories = ["development-tools"]
 
 [lib]
 path = "src/lib.rs"
 
 [dependencies]
-pctx_config = { path = "../pctx_config" }
+pctx_config = { version = "0.1.0", path = "../pctx_config" }
 deno_core = { version = "0.372.0", features = ["include_icu_data"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -23,7 +26,7 @@ rmcp = { workspace = true }
 tracing = { workspace = true }
 
 [build-dependencies]
-pctx_config = { path = "../pctx_config" }
+pctx_config = { version = "0.1.0", path = "../pctx_config" }
 deno_core = { version = "0.372.0", features = ["include_icu_data"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

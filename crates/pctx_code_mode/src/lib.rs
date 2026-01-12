@@ -2,7 +2,7 @@ mod code_mode;
 pub mod model;
 pub mod parallel_registration;
 pub use code_mode::CodeMode;
-use codegen::CodegenError;
+use pctx_codegen::CodegenError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]

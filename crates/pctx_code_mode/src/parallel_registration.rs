@@ -9,7 +9,7 @@ use tracing::{debug, error, info, warn};
 /// Result of successfully connecting and initializing an MCP server
 pub struct ServerRegistrationResult {
     pub server_config: ServerConfig,
-    pub tool_set: codegen::ToolSet,
+    pub tool_set: pctx_codegen::ToolSet,
 }
 
 /// Error result from attempting to register a server
@@ -260,7 +260,7 @@ async fn register_single_server(server: &ServerConfig) -> Result<ServerRegistrat
     // Convert MCP tools to codegen tools
     let mut codegen_tools = vec![];
     for mcp_tool in listed_tools {
-        let input_schema: codegen::RootSchema =
+        let input_schema: pctx_codegen::RootSchema =
             serde_json::from_value(serde_json::json!(mcp_tool.input_schema)).map_err(|e| {
                 format!(
                     "Failed parsing inputSchema for tool `{}`: {e}",
@@ -270,7 +270,7 @@ async fn register_single_server(server: &ServerConfig) -> Result<ServerRegistrat
 
         let output_schema = if let Some(o) = mcp_tool.output_schema {
             Some(
-                serde_json::from_value::<codegen::RootSchema>(serde_json::json!(o)).map_err(
+                serde_json::from_value::<pctx_codegen::RootSchema>(serde_json::json!(o)).map_err(
                     |e| {
                         format!(
                             "Failed parsing outputSchema for tool `{}`: {e}",
@@ -284,7 +284,7 @@ async fn register_single_server(server: &ServerConfig) -> Result<ServerRegistrat
         };
 
         codegen_tools.push(
-            codegen::Tool::new_mcp(
+            pctx_codegen::Tool::new_mcp(
                 &mcp_tool.name,
                 mcp_tool.description.map(String::from),
                 input_schema,
@@ -299,7 +299,7 @@ async fn register_single_server(server: &ServerConfig) -> Result<ServerRegistrat
         .and_then(|p| p.server_info.title.clone())
         .unwrap_or(format!("MCP server at {}", server.display_target()));
 
-    let tool_set = codegen::ToolSet::new(&server.name, &description, codegen_tools);
+    let tool_set = pctx_codegen::ToolSet::new(&server.name, &description, codegen_tools);
 
     info!(
         "Successfully initialized MCP server '{}' with {} tools",

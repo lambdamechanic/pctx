@@ -15,7 +15,7 @@ path = "src/bin/generate-openapi.rs"
 pctx_code_mode = { path = "../pctx_code_mode" }
 pctx_config = { path = "../pctx_config" }
 pctx_code_execution_runtime = { path = "../pctx_code_execution_runtime" }
-codegen = { path = "../codegen" }
+pctx_codegen = { path = "../pctx_codegen" }
 
 # Web framework
 axum = { workspace = true, features = ["macros", "ws"] }

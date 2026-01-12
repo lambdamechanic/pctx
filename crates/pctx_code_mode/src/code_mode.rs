@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use codegen::{Tool, ToolSet};
 use pctx_code_execution_runtime::CallbackRegistry;
+use pctx_codegen::{Tool, ToolSet};
 use pctx_config::server::ServerConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -18,7 +18,7 @@ use crate::{
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct CodeMode {
     // Codegen interfaces
-    pub tool_sets: Vec<codegen::ToolSet>,
+    pub tool_sets: Vec<pctx_codegen::ToolSet>,
 
     // configurations
     pub servers: Vec<ServerConfig>,
@@ -47,7 +47,7 @@ impl CodeMode {
         }
 
         ListFunctionsOutput {
-            code: codegen::format::format_d_ts(&namespaces.join("\n\n")),
+            code: pctx_codegen::format::format_d_ts(&namespaces.join("\n\n")),
             functions,
         }
     }
@@ -69,7 +69,7 @@ impl CodeMode {
         for tool_set in &self.tool_sets {
             if let Some(fn_names) = by_mod.get(&tool_set.namespace) {
                 // filter tools based on requested fn names
-                let tools: Vec<&codegen::Tool> = tool_set
+                let tools: Vec<&pctx_codegen::Tool> = tool_set
                     .tools
                     .iter()
                     .filter(|t| fn_names.contains(&t.fn_name))
@@ -99,7 +99,7 @@ impl CodeMode {
         let code = if namespaces.is_empty() {
             "// No namespaces/functions match the request".to_string()
         } else {
-            codegen::format::format_d_ts(&namespaces.join("\n\n"))
+            pctx_codegen::format::format_d_ts(&namespaces.join("\n\n"))
         };
 
         GetFunctionDetailsOutput { code, functions }
@@ -113,7 +113,7 @@ impl CodeMode {
     ) -> Result<ExecuteOutput> {
         let registry = callback_registry.unwrap_or_default();
         // Format for logging only
-        let formatted_code = codegen::format::format_ts(code);
+        let formatted_code = pctx_codegen::format::format_ts(code);
 
         debug!(
             code_from_llm = %code,
@@ -209,7 +209,7 @@ impl CodeMode {
         // convert callback config into tool
         let input_schema = if let Some(i) = &cfg.input_schema {
             Some(
-                serde_json::from_value::<codegen::RootSchema>(json!(i)).map_err(|e| {
+                serde_json::from_value::<pctx_codegen::RootSchema>(json!(i)).map_err(|e| {
                     Error::Message(format!(
                         "Failed parsing inputSchema as json schema for tool `{}`: {e}",
                         &cfg.name
@@ -221,7 +221,7 @@ impl CodeMode {
         };
         let output_schema = if let Some(o) = &cfg.output_schema {
             Some(
-                serde_json::from_value::<codegen::RootSchema>(json!(o)).map_err(|e| {
+                serde_json::from_value::<pctx_codegen::RootSchema>(json!(o)).map_err(|e| {
                     Error::Message(format!(
                         "Failed parsing outputSchema as json schema for tool `{}`: {e}",
                         &cfg.name
