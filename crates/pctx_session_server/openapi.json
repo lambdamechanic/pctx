@@ -1,20 +1,15 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "pctx Agent Server API",
+    "title": "pctx agent server API",
     "description": "REST API for PCTX agent mode - dynamic tool and MCP server registration with code execution",
-    "license": {
-      "name": "MIT",
-      "identifier": "MIT"
-    },
+    "license": { "name": "MIT", "identifier": "MIT" },
     "version": "0.1.0"
   },
   "paths": {
     "/code-mode/functions/details": {
       "post": {
-        "tags": [
-          "CodeMode"
-        ],
+        "tags": ["CodeMode"],
         "summary": "Get detailed information about a specific function",
         "operationId": "get_function_details",
         "parameters": [
@@ -23,9 +18,7 @@
             "in": "header",
             "description": "Current code mode session",
             "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           }
         ],
         "requestBody": {
@@ -53,9 +46,7 @@
             "description": "Function not found",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorData" }
               }
             }
           },
@@ -63,9 +54,7 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorData" }
               }
             }
           }
@@ -74,9 +63,7 @@
     },
     "/code-mode/functions/list": {
       "post": {
-        "tags": [
-          "CodeMode"
-        ],
+        "tags": ["CodeMode"],
         "summary": "List all available code mode functions from both server and tool registrations",
         "operationId": "list_functions",
         "parameters": [
@@ -85,9 +72,7 @@
             "in": "header",
             "description": "Current code mode session",
             "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           }
         ],
         "responses": {
@@ -95,9 +80,7 @@
             "description": "List of all code mode functions as source code & structured output",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListFunctionsOutput"
-                }
+                "schema": { "$ref": "#/components/schemas/ListFunctionsOutput" }
               }
             }
           },
@@ -105,9 +88,7 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorData" }
               }
             }
           }
@@ -116,9 +97,7 @@
     },
     "/code-mode/session/close": {
       "post": {
-        "tags": [
-          "CodeMode"
-        ],
+        "tags": ["CodeMode"],
         "summary": "Close a `CodeMode` session",
         "operationId": "close_session",
         "parameters": [
@@ -127,9 +106,7 @@
             "in": "header",
             "description": "Current code mode session",
             "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           }
         ],
         "responses": {
@@ -147,9 +124,7 @@
             "description": "Session not found",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorData" }
               }
             }
           },
@@ -157,9 +132,7 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorData" }
               }
             }
           }
@@ -168,9 +141,7 @@
     },
     "/code-mode/session/create": {
       "post": {
-        "tags": [
-          "CodeMode"
-        ],
+        "tags": ["CodeMode"],
         "summary": "Create a new `CodeMode` session",
         "operationId": "create_session",
         "responses": {
@@ -188,9 +159,7 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorData" }
               }
             }
           }
@@ -199,9 +168,7 @@
     },
     "/health": {
       "get": {
-        "tags": [
-          "health"
-        ],
+        "tags": ["health"],
         "summary": "Health check endpoint",
         "operationId": "health",
         "responses": {
@@ -209,9 +176,7 @@
             "description": "Service is healthy",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
               }
             }
           }
@@ -220,9 +185,7 @@
     },
     "/register/servers": {
       "post": {
-        "tags": [
-          "registration"
-        ],
+        "tags": ["registration"],
         "summary": "Register MCP servers dynamically at runtime",
         "operationId": "register_servers",
         "parameters": [
@@ -231,9 +194,7 @@
             "in": "header",
             "description": "Current code mode session",
             "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           }
         ],
         "requestBody": {
@@ -261,9 +222,7 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorData" }
               }
             }
           }
@@ -272,9 +231,7 @@
     },
     "/register/tools": {
       "post": {
-        "tags": [
-          "registration"
-        ],
+        "tags": ["registration"],
         "summary": "Register tools that will be called via WebSocket callbacks",
         "operationId": "register_tools",
         "parameters": [
@@ -283,17 +240,13 @@
             "in": "header",
             "description": "Current code mode session",
             "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterToolsRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/RegisterToolsRequest" }
             }
           },
           "required": true
@@ -313,9 +266,7 @@
             "description": "Session not found",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorData" }
               }
             }
           },
@@ -323,9 +274,7 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorData"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorData" }
               }
             }
           }
@@ -337,92 +286,46 @@
     "schemas": {
       "CallbackConfig": {
         "type": "object",
-        "required": [
-          "name",
-          "namespace"
-        ],
+        "required": ["name", "namespace"],
         "properties": {
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
+          "description": { "type": ["string", "null"] },
           "input_schema": {},
-          "name": {
-            "type": "string"
-          },
-          "namespace": {
-            "type": "string"
-          },
+          "name": { "type": "string" },
+          "namespace": { "type": "string" },
           "output_schema": {}
         }
       },
       "CloseSessionResponse": {
         "type": "object",
         "description": "Response after closing a `CodeMode` session",
-        "required": [
-          "success"
-        ],
-        "properties": {
-          "success": {
-            "type": "boolean"
-          }
-        }
+        "required": ["success"],
+        "properties": { "success": { "type": "boolean" } }
       },
       "CreateSessionResponse": {
         "type": "object",
         "description": "Response after creating a new `CodeMode` session",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
-          "session_id": {
-            "type": "string"
-          }
-        }
+        "required": ["session_id"],
+        "properties": { "session_id": { "type": "string" } }
       },
       "ErrorCode": {
         "type": "string",
-        "enum": [
-          "invalid_session",
-          "internal",
-          "execution"
-        ]
+        "enum": ["invalid_session", "internal", "execution"]
       },
       "ErrorData": {
         "type": "object",
-        "required": [
-          "code",
-          "message"
-        ],
+        "required": ["code", "message"],
         "properties": {
-          "code": {
-            "$ref": "#/components/schemas/ErrorCode"
-          },
-          "details": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "message": {
-            "type": "string"
-          }
+          "code": { "$ref": "#/components/schemas/ErrorCode" },
+          "details": { "type": ["string", "null"] },
+          "message": { "type": "string" }
         }
       },
       "FunctionDetails": {
         "allOf": [
-          {
-            "$ref": "#/components/schemas/ListedFunction"
-          },
+          { "$ref": "#/components/schemas/ListedFunction" },
           {
             "type": "object",
-            "required": [
-              "input_type",
-              "output_type",
-              "types"
-            ],
+            "required": ["input_type", "output_type", "types"],
             "properties": {
               "input_type": {
                 "type": "string",
@@ -442,179 +345,93 @@
       },
       "GetFunctionDetailsInput": {
         "type": "object",
-        "required": [
-          "functions"
-        ],
+        "required": ["functions"],
         "properties": {
           "functions": {
             "type": "array",
-            "items": {
-              "type": "string"
-            },
+            "items": { "type": "string" },
             "description": "List of functions to get details of."
           }
         }
       },
       "GetFunctionDetailsOutput": {
         "type": "object",
-        "required": [
-          "functions",
-          "code"
-        ],
+        "required": ["functions", "code"],
         "properties": {
-          "code": {
-            "type": "string"
-          },
+          "code": { "type": "string" },
           "functions": {
             "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FunctionDetails"
-            }
+            "items": { "$ref": "#/components/schemas/FunctionDetails" }
           }
         }
       },
       "HealthResponse": {
         "type": "object",
         "description": "Health check response",
-        "required": [
-          "status",
-          "version"
-        ],
+        "required": ["status", "version"],
         "properties": {
-          "status": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          }
+          "status": { "type": "string" },
+          "version": { "type": "string" }
         }
       },
       "ListFunctionsOutput": {
         "type": "object",
-        "required": [
-          "functions",
-          "code"
-        ],
+        "required": ["functions", "code"],
         "properties": {
-          "code": {
-            "type": "string"
-          },
+          "code": { "type": "string" },
           "functions": {
             "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ListedFunction"
-            },
+            "items": { "$ref": "#/components/schemas/ListedFunction" },
             "description": "Available functions"
           }
         }
       },
       "ListedFunction": {
         "type": "object",
-        "required": [
-          "namespace",
-          "name"
-        ],
+        "required": ["namespace", "name"],
         "properties": {
           "description": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Function description"
           },
-          "name": {
-            "type": "string",
-            "description": "Function name"
-          },
+          "name": { "type": "string", "description": "Function name" },
           "namespace": {
             "type": "string",
             "description": "Namespace the function belongs in"
           }
         }
       },
-      "McpServerConfig": {
-        "type": "object",
-        "required": [
-          "name",
-          "url"
-        ],
-        "properties": {
-          "auth": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          }
-        }
-      },
       "RegisterMcpServersRequest": {
         "type": "object",
         "description": "Request to register MCP servers",
-        "required": [
-          "servers"
-        ],
-        "properties": {
-          "servers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/McpServerConfig"
-            }
-          }
-        }
+        "required": ["servers"],
+        "properties": { "servers": { "type": "array", "items": {} } }
       },
       "RegisterMcpServersResponse": {
         "type": "object",
         "description": "Response after registering MCP servers",
-        "required": [
-          "registered",
-          "failed"
-        ],
+        "required": ["registered", "failed"],
         "properties": {
-          "failed": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "registered": {
-            "type": "integer",
-            "minimum": 0
-          }
+          "failed": { "type": "array", "items": { "type": "string" } },
+          "registered": { "type": "integer", "minimum": 0 }
         }
       },
       "RegisterToolsRequest": {
         "type": "object",
         "description": "Request to register tools",
-        "required": [
-          "tools"
-        ],
+        "required": ["tools"],
         "properties": {
           "tools": {
             "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CallbackConfig"
-            }
+            "items": { "$ref": "#/components/schemas/CallbackConfig" }
           }
         }
       },
       "RegisterToolsResponse": {
         "type": "object",
         "description": "Response to registering tools",
-        "required": [
-          "registered"
-        ],
-        "properties": {
-          "registered": {
-            "type": "integer",
-            "minimum": 0
-          }
-        }
+        "required": ["registered"],
+        "properties": { "registered": { "type": "integer", "minimum": 0 } }
       }
     }
   },
@@ -623,9 +440,6 @@
       "name": "tools",
       "description": "Tool management and execution endpoints"
     },
-    {
-      "name": "health",
-      "description": "Health check endpoints"
-    }
+    { "name": "health", "description": "Health check endpoints" }
   ]
 }

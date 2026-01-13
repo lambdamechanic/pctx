@@ -1,7 +1,6 @@
 use axum::{Json, http::StatusCode, response::IntoResponse};
 use pctx_code_mode::model::ExecuteOutput;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tracing::{error, warn};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -88,29 +87,8 @@ pub struct RegisterToolsResponse {
 /// Request to register MCP servers
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RegisterMcpServersRequest {
-    pub servers: Vec<McpServerConfig>,
-}
-
-// TODO: de-dup with pctx_config
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-#[serde(untagged)]
-pub enum McpServerConfig {
-    Http {
-        name: String,
-        url: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        #[schema(value_type = Option<Object>)]
-        auth: Option<Value>,
-    },
-    Stdio {
-        name: String,
-        command: String,
-        #[serde(default)]
-        args: Vec<String>,
-        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-        #[schema(value_type = Object)]
-        env: std::collections::BTreeMap<String, String>,
-    },
+    #[schema(value_type = Vec<serde_json::Value>)]
+    pub servers: Vec<pctx_config::server::ServerConfig>,
 }
 
 /// Response after registering MCP servers

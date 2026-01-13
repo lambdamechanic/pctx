@@ -13,8 +13,8 @@ use uuid::Uuid;
 use crate::extractors::CodeModeSession;
 use crate::model::{
     ApiError, ApiResult, CloseSessionResponse, CreateSessionResponse, ErrorCode, ErrorData,
-    HealthResponse, McpServerConfig, RegisterMcpServersRequest, RegisterMcpServersResponse,
-    RegisterToolsRequest, RegisterToolsResponse,
+    HealthResponse, RegisterMcpServersRequest, RegisterMcpServersResponse, RegisterToolsRequest,
+    RegisterToolsResponse,
 };
 use crate::state::{AppState, backend::PctxSessionBackend};
 
@@ -299,13 +299,11 @@ pub(crate) async fn register_servers<B: PctxSessionBackend>(
         ))?;
 
     // Use parallel server registration with conversion function
-    let mut results =
-        pctx_code_mode::parallel_registration::register_servers_parallel_with_conversion(
-            &request.servers,
-            30, // 30 second timeout
-            convert_mcp_server_config,
-        )
-        .await;
+    let mut results = pctx_code_mode::parallel_registration::register_servers_parallel(
+        &request.servers,
+        30, // 30 second timeout
+    )
+    .await;
 
     // Add successful registrations to code_mode
     let registered = results.add_to_code_mode(&mut code_mode);
@@ -332,53 +330,4 @@ pub(crate) async fn register_servers<B: PctxSessionBackend>(
     );
 
     Ok(Json(RegisterMcpServersResponse { registered, failed }))
-}
-
-/// Convert `McpServerConfig` (HTTP API model) `ServerConfig` (internal config type)
-///
-/// Returns (`server_name`, `ServerConfig`) on success, or (`server_name`, `error_message`) on failure
-fn convert_mcp_server_config(
-    server: &McpServerConfig,
-) -> Result<(String, pctx_config::server::ServerConfig), (String, String)> {
-    let server_name = match server {
-        McpServerConfig::Http { name, .. } => name.clone(),
-        McpServerConfig::Stdio { name, .. } => name.clone(),
-    };
-
-    let server_config = match server {
-        McpServerConfig::Http { name, url, auth } => {
-            // Parse and validate URL
-            let parsed_url = url::Url::parse(url)
-                .map_err(|e| (server_name.clone(), format!("Invalid URL '{url}': {e}")))?;
-
-            // Create HTTP ServerConfig
-            let mut server_config =
-                pctx_config::server::ServerConfig::new(name.clone(), parsed_url);
-
-            // Add auth if provided
-            if let Some(auth_value) = auth {
-                let auth = serde_json::from_value(auth_value.clone())
-                    .map_err(|e| (server_name.clone(), format!("Invalid auth config: {e}")))?;
-                server_config.set_auth(Some(auth));
-            }
-
-            server_config
-        }
-        McpServerConfig::Stdio {
-            name,
-            command,
-            args,
-            env,
-        } => {
-            // Create stdio ServerConfig
-            pctx_config::server::ServerConfig::new_stdio(
-                name.clone(),
-                command.clone(),
-                args.clone(),
-                env.clone(),
-            )
-        }
-    };
-
-    Ok((server_name, server_config))
 }

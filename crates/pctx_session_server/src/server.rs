@@ -13,7 +13,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::{
     AppState, PctxSessionBackend,
     model::{
-        CloseSessionResponse, CreateSessionResponse, ErrorData, HealthResponse, McpServerConfig,
+        CloseSessionResponse, CreateSessionResponse, ErrorData, HealthResponse,
         RegisterMcpServersRequest, RegisterMcpServersResponse, RegisterToolsRequest,
         RegisterToolsResponse,
     },
@@ -54,7 +54,6 @@ use pctx_code_mode::model::{
             RegisterToolsResponse,
             // Server registration
             RegisterMcpServersRequest,
-            McpServerConfig,
             RegisterMcpServersResponse,
             // Common
             ErrorData
