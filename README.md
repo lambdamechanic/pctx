@@ -136,10 +136,6 @@ console.log(`Found ${orders.length} orders`);
 - **Simple config with CLI**: Create the pctx.json config with a simple CLI. pctx.json manages auth, upstream MCPs, logging, and more. See [Config Guide](docs/config.md).
 - **Secure authentication**: Source secrets from environment variables, system keychain, and external commands. See [Authentication Section](docs/config.md#authentication) in the CLI configuration docs for more details.
 
-## Architecture
-
-<img width="1020" height="757" alt="Screenshot 2025-11-21 at 11 03 20 AM" src="./docs/pctx-architecture.svg" />
-
 ## Security
 
 - LLM generated code runs in an isolated [Deno](https://deno.com) sandbox that can only access the network hosts specified in the configuration file.
