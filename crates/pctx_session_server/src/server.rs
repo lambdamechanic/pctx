@@ -5,13 +5,16 @@ use axum::{
     Router,
     routing::{get, post},
 };
+use opentelemetry::{global, trace::TraceContextExt};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use tracing::info;
+use tracing::{debug, info, warn};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     AppState, PctxSessionBackend,
+    extractors::HeaderExtractor,
     model::{
         CloseSessionResponse, CreateSessionResponse, ErrorData, HealthResponse,
         RegisterMcpServersRequest, RegisterMcpServersResponse, RegisterToolsRequest,
@@ -123,7 +126,41 @@ pub fn create_router<B: PctxSessionBackend>(state: AppState<B>) -> Router {
         .with_state(state)
         // Add middleware
         .layer(CorsLayer::permissive())
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http().make_span_with(
+            |request: &axum::http::Request<axum::body::Body>| {
+                // Extract trace context from headers using OpenTelemetry propagator
+                let parent_cx = global::get_text_map_propagator(|propagator| {
+                    propagator.extract(&HeaderExtractor(request.headers()))
+                });
+
+                // Check if we have a valid parent context
+                let is_valid = parent_cx.span().span_context().is_valid();
+                debug!(
+                    traceparent = ?request.headers().get("traceparent"),
+                    parent_valid = %is_valid,
+                    "Extracting trace context"
+                );
+
+                // Create span with extracted context
+                let span = tracing::info_span!(
+                    "http_request",
+                    method = %request.method(),
+                    uri = %request.uri(),
+                    version = ?request.version(),
+                );
+
+                // Set the parent OpenTelemetry context on the tracing span
+                if is_valid {
+                    if let Err(e) = span.set_parent(parent_cx) {
+                        warn!(err = ?e, "Failed setting parent span context")
+                    } else {
+                        debug!("Successfully set parent span context")
+                    }
+                }
+
+                span
+            },
+        ))
 }
 
 /// Graceful shutdown signal handler

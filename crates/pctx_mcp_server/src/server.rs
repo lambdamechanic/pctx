@@ -1,4 +1,5 @@
 use anyhow::Result;
+use opentelemetry::{global, trace::TraceContextExt};
 use pctx_config::Config;
 use rmcp::{
     ServiceExt,
@@ -23,9 +24,11 @@ use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
     trace::TraceLayer,
 };
-use tracing::info;
+use tracing::{debug, info, warn};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::{
+    extractors::HeaderExtractor,
     service::PctxMcpService,
     utils::{
         LOGO,
@@ -111,13 +114,38 @@ impl PctxMcpServer {
                                 id.header_value().to_str().unwrap_or("invalid").to_string()
                             });
 
-                        tracing::error_span!(
+                        // Extract trace context from headers using OpenTelemetry propagator
+                        let parent_cx = global::get_text_map_propagator(|propagator| {
+                            propagator.extract(&HeaderExtractor(request.headers()))
+                        });
+
+                        // Check if we have a valid parent context
+                        let is_valid = parent_cx.span().span_context().is_valid();
+                        debug!(
+                            traceparent = ?request.headers().get("traceparent"),
+                            parent_valid = %is_valid,
+                            "Extracting trace context"
+                        );
+
+                        // Create span with extracted context
+                        let span = tracing::error_span!(
                             "request",
                             method = %request.method(),
                             uri = %request.uri(),
                             version = ?request.version(),
                             request_id = %request_id,
-                        )
+                        );
+
+                        // Set the parent OpenTelemetry context on the tracing span
+                        if is_valid {
+                            if let Err(e) = span.set_parent(parent_cx) {
+                                warn!(err = ?e, "Failed setting parent span context")
+                            } else {
+                                debug!("Successfully set parent span context")
+                            }
+                        }
+
+                        span
                     },
                 )),
         );

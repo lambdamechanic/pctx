@@ -22,21 +22,22 @@ rmcp = { workspace = true, features = [
     "schemars",
 ] }
 axum = { workspace = true, features = ["macros"] }
-tower = "0.5.2"
-tower-http = { version = "^0.6.6", features = ["trace", "request-id"] }
+tower = { workspace = true }
+tower-http = { workspace = true, features = ["trace", "request-id"] }
 
 # Telemetry
 tracing = { workspace = true }
-opentelemetry = "0.31"
+opentelemetry = { workspace = true }
+tracing-opentelemetry = { workspace = true }
 
 # General
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "signal"] }
-anyhow = "1.0"
+anyhow = { workspace = true }
 tabled = { version = "0.17", features = ["ansi"] }
-terminal_size = "0.4.3"
-anstyle = "1.0.13"
+terminal_size = "0.4"
+anstyle = "1"
 
 [lints]
 workspace = true

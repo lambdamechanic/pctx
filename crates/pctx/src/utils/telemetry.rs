@@ -5,7 +5,7 @@ use opentelemetry::KeyValue;
 use opentelemetry::trace::TracerProvider;
 
 use camino::Utf8PathBuf;
-use opentelemetry_sdk::Resource;
+use opentelemetry_sdk::{Resource, propagation::TraceContextPropagator};
 use pctx_config::{Config, logger::LoggerFormat};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt};
 use tracing_subscriber::{Layer, Registry, util::SubscriberInitExt};
@@ -17,6 +17,10 @@ pub(crate) async fn init_telemetry(
     json_l: Option<Utf8PathBuf>,
     use_stderr: bool,
 ) -> Result<()> {
+    // Set global text map propagator for trace context propagation (W3C Trace Context)
+    // This enables parsing of traceparent/tracestate headers in distributed tracing
+    opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
+
     let mut layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = Vec::new();
 
     let resource = Resource::builder()

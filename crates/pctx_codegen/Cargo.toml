@@ -9,24 +9,24 @@ keywords = ["codegen", "pctx", "typescript"]
 categories = ["development-tools"]
 
 [dependencies]
-biome_js_formatter = "0.3.1"
-biome_js_parser = "0.3.1"
-biome_js_syntax = "0.3.1"
-biome_formatter = "0.3.1"
-handlebars = "6.3.2"
-heck = "0.5.0"
-indexmap = "1.2"
-regex = "1.12.2"
-schemars = { version = "0.8.22", features = ["preserve_order"] }
+biome_js_formatter = "0.3"
+biome_js_parser = "0.3"
+biome_js_syntax = "0.3"
+biome_formatter = "0.3"
+handlebars = "6"
+heck = "0.5"
+indexmap = { workspace = true }
+regex = "1"
+schemars = { version = "0.8", features = ["preserve_order"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-unicode-ident = "1.0.22"
+unicode-ident = "1"
 
 
 [dev-dependencies]
-insta = "1.43.2"
-serde_yaml = "0.9.34"
+insta = "1"
+serde_yaml = "0.9"
 pctx_type_check_runtime = { path = "../pctx_type_check_runtime" }
 tokio = { workspace = true, features = ["macros", "rt"] }

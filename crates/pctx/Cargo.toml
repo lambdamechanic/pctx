@@ -31,42 +31,42 @@ pctx_codegen = { path = "../pctx_codegen" }
 pctx_config = { path = "../pctx_config" }
 
 # CLI
-clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
-url = { version = "^2.5", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env", "wrap_help"] }
+url = { workspace = true, features = ["serde"] }
 rustls = { version = "0.23", default-features = false, features = [
     "aws-lc-rs",
 ] }
-camino = { version = "1.2.1", features = ["serde1"] }
-spinoff = "0.8.0"
-anstyle = "1.0.13"
-inquire = "0.9.1"
+camino = { version = "1", features = ["serde1"] }
+spinoff = "0.8"
+anstyle = "1"
+inquire = "0.9"
 tabled = { version = "0.20", features = ["ansi"] }
-terminal_size = "0.4.3"
-clap-markdown = "0.1.4"
+terminal_size = "0.4"
+clap-markdown = "0.1"
 ratatui = "0.30.0-beta.0"
 crossterm = "0.29"
-chrono = { version = "0.4", features = ["serde"] }
-notify = "8.2.0"
-arboard = "3.4"
+chrono = { workspace = true, features = ["serde"] }
+notify = "8"
+arboard = "3"
 shlex = { workspace = true }
 
 # Logging and Telemetry
 tracing = { workspace = true }
-tracing-subscriber = { version = "^0.3.20", features = [
+tracing-subscriber = { version = "0.3", features = [
     "env-filter",
     # "fmt",
     "ansi",
     "json",
 ] }
 env_logger = "0.11"
-opentelemetry = "0.31"
-opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }
-opentelemetry-otlp = { version = "0.31", features = [
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
+opentelemetry-otlp = { workspace = true, features = [
     "grpc-tonic",
     "http-proto",
     "trace",
 ] }
-tracing-opentelemetry = "0.32.0"
+tracing-opentelemetry = { workspace = true }
 
 # MCP server
 rmcp = { workspace = true, features = [
@@ -76,13 +76,13 @@ rmcp = { workspace = true, features = [
     "schemars",
 ] }
 axum = { workspace = true, features = ["macros"] }
-tower = "0.5.2"
-tower-http = { version = "^0.6.6", features = ["trace", "request-id"] }
+tower = { workspace = true }
+tower-http = { workspace = true, features = ["trace", "request-id"] }
 
 
 # General
 serde = { workspace = true }
-indexmap = { version = "2.12.0", features = ["serde"] }
+indexmap = { workspace = true, features = ["serde"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = [
     "macros",
@@ -94,17 +94,17 @@ tokio = { workspace = true, features = [
 ] }
 
 # Errors
-anyhow = "1.0"
+anyhow = { workspace = true }
 
 
 [target.'cfg(all(not(target_env = "msvc"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "powerpc64")))'.dependencies]
-tikv-jemallocator = "0.6.0"
+tikv-jemallocator = "0.6"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-mimalloc = "0.1.43"
+mimalloc = "0.1"
 
 [dev-dependencies]
-tempfile = "3.8"
+tempfile = "3"
 
 [lints]
 workspace = true

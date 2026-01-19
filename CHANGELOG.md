@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- OpenTelemetry distributed tracing support via W3C `traceparent` header in both MCP and session servers
+
 ## [v0.4.1] - 2026-01-12
 
 ### Added
@@ -24,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+
 ## [v0.4.0] - 2025-12-31
 
 ### Added

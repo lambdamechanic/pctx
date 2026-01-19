@@ -2,8 +2,9 @@ use crate::model::{ErrorCode, ErrorData};
 use axum::{
     Json,
     extract::FromRequestParts,
-    http::{StatusCode, request::Parts},
+    http::{HeaderMap, StatusCode, request::Parts},
 };
+use opentelemetry::propagation::Extractor;
 use uuid::Uuid;
 
 pub static CODE_MODE_SESSION_HEADER: &str = "x-code-mode-session";
@@ -59,5 +60,18 @@ where
         })?;
 
         Ok(CodeModeSession(session_id))
+    }
+}
+
+/// Custom header extractor for OpenTelemetry trace propagation
+pub struct HeaderExtractor<'a>(pub &'a HeaderMap);
+
+impl<'a> Extractor for HeaderExtractor<'a> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).and_then(|v| v.to_str().ok())
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(|k| k.as_str()).collect()
     }
 }
