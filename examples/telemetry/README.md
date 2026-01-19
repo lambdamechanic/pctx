@@ -83,7 +83,7 @@ Create a PCTX configuration file with telemetry enabled. Here's an example confi
 Start PCTX with your configuration file:
 
 ```bash
-pctx start --config path/to/your/pctx.json
+pctx mcp start --config path/to/your/pctx.json
 ```
 
 ### 4. View Telemetry Data
