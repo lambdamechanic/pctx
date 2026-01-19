@@ -7049,7 +7049,7 @@ dependencies = [
  "biome_js_syntax",
  "handlebars",
  "heck 0.5.0",
- "indexmap 1.9.3",
+ "indexmap 2.12.1",
  "insta",
  "pctx_type_check_runtime",
  "regex",

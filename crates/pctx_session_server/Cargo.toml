@@ -19,21 +19,21 @@ pctx_codegen = { path = "../pctx_codegen" }
 
 # Web framework
 axum = { workspace = true, features = ["macros", "ws"] }
-tower = "0.5.2"
-tower-http = { version = "^0.6.6", features = ["trace", "request-id", "cors"] }
+tower = { workspace = true }
+tower-http = { workspace = true, features = ["trace", "request-id", "cors"] }
 tokio = { workspace = true, features = [
     "macros",
     "rt",
     "rt-multi-thread",
     "signal",
 ] }
-tokio-tungstenite = "0.28.0"
+tokio-tungstenite = "0.28"
 futures = "0.3"
-utoipa = { version = "5.3", features = ["axum_extras"] }
-utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
-url = "2.5"
-uuid = { version = "1.11", features = ["v4", "serde"] }
-chrono = "0.4"
+utoipa = { workspace = true, features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+url = { workspace = true }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -41,29 +41,29 @@ serde_json = { workspace = true }
 
 # Logging & Telemetry
 tracing = { workspace = true }
-opentelemetry = "0.31"
-tracing-opentelemetry = "0.32"
+opentelemetry = { workspace = true }
+tracing-opentelemetry = { workspace = true }
 
 # Errors
-anyhow = "1.0"
-thiserror = "2.0"
+anyhow = { workspace = true }
+thiserror = { workspace = true }
 
 # MCP client
 rmcp = { workspace = true, features = [
     "client",
     "transport-streamable-http-client",
 ] }
-async-trait = "0.1.89"
+async-trait = "0.1"
 
 [dev-dependencies]
 tokio-test = "0.4"
 http-body-util = "0.1"
-tower = "0.5.2"
+tower = { workspace = true }
 reqwest = { version = "0.12", features = ["json"] }
-serial_test = "3.0"
-axum-test = { version = "^18.4.1", features = ["ws"] }
-similar-asserts = { version = "1.7.0", features = ["serde"] }
-test-log = "0.2.19"
+serial_test = "3"
+axum-test = { version = "18", features = ["ws"] }
+similar-asserts = { version = "1", features = ["serde"] }
+test-log = "0.2"
 
 [lints]
 workspace = true

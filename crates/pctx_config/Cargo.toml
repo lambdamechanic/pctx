@@ -12,19 +12,19 @@ categories = ["development-tools"]
 path = "src/lib.rs"
 
 [dependencies]
-anyhow = "1.0.100"
-indexmap = { version = "2.12.0", features = ["serde"] }
+anyhow = { workspace = true }
+indexmap = { workspace = true, features = ["serde"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "process"] }
-url = { version = "^2.5", features = ["serde"] }
-keyring = { version = "3.6.1", features = [
+url = { workspace = true, features = ["serde"] }
+keyring = { version = "3", features = [
     "apple-native",
     "windows-native",
     "linux-native",
 ] }
 tracing = { workspace = true }
-camino = { version = "1.2.1", features = ["serde1"] }
+camino = { version = "1", features = ["serde1"] }
 rmcp = { workspace = true, features = [
     "client",
     "transport-streamable-http-client-reqwest",
@@ -33,15 +33,15 @@ rmcp = { workspace = true, features = [
 ] }
 reqwest = { version = "0.12", features = ["json"] }
 thiserror.workspace = true
-http = "1.3.1"
-opentelemetry-otlp = { version = "0.31", features = [
+http = "1"
+opentelemetry-otlp = { workspace = true, features = [
     "grpc-tonic",
     "http-proto",
     "trace",
 ] }
-base64 = "0.22.1"
-tonic = "0.14.2"
-opentelemetry_sdk = "0.31.0"
+base64 = "0.22"
+tonic = "0.14"
+opentelemetry_sdk = { workspace = true }
 shlex = { workspace = true }
 
 

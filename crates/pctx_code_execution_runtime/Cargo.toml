@@ -13,21 +13,21 @@ categories = ["development-tools"]
 path = "src/lib.rs"
 
 [dependencies]
-pctx_config = { version = "^0.1.0", path = "../pctx_config" }
-deno_core = { version = "0.372.0", features = ["include_icu_data"] }
+pctx_config = { version = "0.1", path = "../pctx_config" }
+deno_core = { version = "0.372", features = ["include_icu_data"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 reqwest = { version = "0.12", features = ["json"] }
 thiserror = { workspace = true }
-anyhow = "1.0"
+anyhow = { workspace = true }
 deno_error = "0.7"
-url = "2.5"
+url = { workspace = true }
 rmcp = { workspace = true }
 tracing = { workspace = true }
 
 [build-dependencies]
-pctx_config = { version = "^0.1.0", path = "../pctx_config" }
-deno_core = { version = "0.372.0", features = ["include_icu_data"] }
+pctx_config = { version = "0.1", path = "../pctx_config" }
+deno_core = { version = "0.372", features = ["include_icu_data"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
