@@ -1,12 +1,12 @@
-# PCTX OpenTelemetry Example
+# pctx OpenTelemetry Example
 
-This directory contains a complete setup for testing PCTX's OpenTelemetry (OTLP) functionality with traces and metrics collection.
+This directory contains a complete setup for testing pctx's OpenTelemetry (OTLP) functionality with traces and metrics collection.
 
 ## Overview
 
 The Docker Compose setup provides:
 
-- **OpenTelemetry Collector**: Receives OTLP data from PCTX and exports to downstream services
+- **OpenTelemetry Collector**: Receives OTLP data from pctx and exports to downstream services
 - **Tempo**: Distributed tracing backend for storing and querying traces
 - **Prometheus**: Metrics storage and querying
 - **Grafana**: Visualization dashboard for traces and metrics
@@ -28,26 +28,14 @@ This will start all services:
 - Prometheus: `http://localhost:9090`
 - Tempo: `http://localhost:3200`
 
-### 2. Configure PCTX
+### 2. Configure pctx
 
-Create a PCTX configuration file with telemetry enabled. Here's an example configuration:
+Create a pctx configuration file with telemetry enabled. Here's an example configuration:
 
 ```json
 {
   "name": "pctx-opentelemetry",
   "version": "0.1.0",
-  "servers": [
-    {
-      "name": "stripe",
-      "url": "https://mcp.stripe.com/",
-      "auth": {
-        "type": "headers",
-        "headers": {
-          "Authorization": "Bearer ${env:STRIPE_MCP_KEY}"
-        }
-      }
-    }
-  ],
   "logger": {
     "enabled": true,
     "format": "pretty",
@@ -78,13 +66,15 @@ Create a PCTX configuration file with telemetry enabled. Here's an example confi
 }
 ```
 
-### 3. Run PCTX
+### 3. Run pctx
 
-Start PCTX with your configuration file:
+Start the pctx MCP server with your configuration file:
 
 ```bash
 pctx mcp start --config path/to/your/pctx.json
 ```
+
+**_Note: you can also configure the pctx session server (`pctx start` to export OpenTelemetry) with the same config, just `servers` will be ignored_**
 
 ### 4. View Telemetry Data
 
@@ -143,7 +133,7 @@ sum(mcp_tool_calls_total)
 
 ## Configuration Options
 
-See the [Configuration Guide](../../docs/config.md) for details on how to configure OpenTelemetry exporters with PCTX.
+See the [Configuration Guide](../../docs/config.md) for details on how to configure OpenTelemetry exporters with pctx.
 
 ## Stopping the Stack
 
@@ -169,7 +159,7 @@ The following data is persisted in Docker volumes:
 
 ### No traces appearing in Grafana
 
-1. Check that PCTX is running with telemetry enabled
+1. Check that pctx is running with telemetry enabled
 2. Verify the OTLP Collector is receiving data: `docker compose logs otel-collector`
 3. Check Tempo logs: `docker compose logs tempo`
 

@@ -7,7 +7,7 @@ use axum::{
 };
 use opentelemetry::{global, trace::TraceContextExt};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use tracing::{debug, error, info};
+use tracing::{debug, info, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -150,10 +150,12 @@ pub fn create_router<B: PctxSessionBackend>(state: AppState<B>) -> Router {
                 );
 
                 // Set the parent OpenTelemetry context on the tracing span
-                if let Err(e) = span.set_parent(parent_cx) {
-                    error!(err = ?e, "Failed setting parent span context")
-                } else {
-                    debug!("Successfully registered span parent")
+                if is_valid {
+                    if let Err(e) = span.set_parent(parent_cx) {
+                        warn!(err = ?e, "Failed setting parent span context")
+                    } else {
+                        debug!("Successfully set parent span context")
+                    }
                 }
 
                 span
