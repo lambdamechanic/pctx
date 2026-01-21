@@ -61,11 +61,11 @@ esac
 
 echo ""
 print_info "=== DRY RUN ==="
-print_info "Running: cargo smart-release $CRATE_NAME --bump $BUMP_TYPE"
+print_info "Running: cargo smart-release $CRATE_NAME --bump $BUMP_TYPE --no-changelog-preview"
 print_info "This will show all crates that need to be published (including dependencies)"
 echo ""
 
-cargo smart-release "$CRATE_NAME" --bump "$BUMP_TYPE"
+cargo smart-release "$CRATE_NAME" --bump "$BUMP_TYPE" --no-changelog-preview
 
 echo ""
 print_warning "This was a dry run. Review the output above."
@@ -80,9 +80,10 @@ fi
 
 echo ""
 print_info "=== EXECUTING RELEASE ==="
+print_info "Auto-generated changelogs will be created from commit history"
 echo ""
 
-cargo smart-release "$CRATE_NAME" --bump "$BUMP_TYPE" --execute
+cargo smart-release "$CRATE_NAME" --bump "$BUMP_TYPE" --no-changelog-preview --allow-fully-generated-changelogs --execute
 
 echo ""
 print_success "Release completed successfully!"
