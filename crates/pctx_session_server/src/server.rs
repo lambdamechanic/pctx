@@ -152,9 +152,9 @@ pub fn create_router<B: PctxSessionBackend>(state: AppState<B>) -> Router {
                 // Set the parent OpenTelemetry context on the tracing span
                 if is_valid {
                     if let Err(e) = span.set_parent(parent_cx) {
-                        warn!(err = ?e, "Failed setting parent span context")
+                        warn!(err = ?e, "Failed setting parent span context");
                     } else {
-                        debug!("Successfully set parent span context")
+                        debug!("Successfully set parent span context");
                     }
                 }
 

@@ -1,9 +1,8 @@
-use deno_runtime::deno_core;
-use deno_runtime::deno_core::JsRuntime;
-use deno_runtime::deno_core::ModuleCodeString;
-use deno_runtime::deno_core::RuntimeOptions;
-use deno_runtime::deno_core::anyhow;
-use deno_runtime::deno_core::error::CoreError;
+use deno_core::JsRuntime;
+use deno_core::ModuleCodeString;
+use deno_core::RuntimeOptions;
+use deno_core::anyhow;
+use deno_core::error::CoreError;
 use pctx_code_execution_runtime::CallbackRegistry;
 pub use pctx_type_check_runtime::{CheckResult, Diagnostic, is_relevant_error, type_check};
 use serde::{Deserialize, Serialize};

@@ -123,6 +123,7 @@ pub(crate) async fn call_mcp_tool(
         .call_tool(CallToolRequestParam {
             name: tool_name.to_string().into(),
             arguments: args,
+            task: None,
         })
         .await
         .map_err(|e| {
