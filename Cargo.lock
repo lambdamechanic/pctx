@@ -4127,7 +4127,7 @@ dependencies = [
 
 [[package]]
 name = "pctx_code_execution_runtime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "deno_core",
@@ -4166,7 +4166,7 @@ dependencies = [
 
 [[package]]
 name = "pctx_codegen"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "biome_formatter",
  "biome_js_formatter",
@@ -4190,7 +4190,7 @@ dependencies = [
 
 [[package]]
 name = "pctx_config"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4214,7 +4214,7 @@ dependencies = [
 
 [[package]]
 name = "pctx_deno_transpiler"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "deno_ast",
  "thiserror 2.0.17",
@@ -4309,7 +4309,7 @@ dependencies = [
 
 [[package]]
 name = "pctx_type_check_runtime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "deno_ast",
  "deno_core",

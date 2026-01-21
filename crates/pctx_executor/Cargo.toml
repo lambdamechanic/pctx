@@ -16,10 +16,10 @@ deno_core = { workspace = true }
 deno_resolver = { workspace = true }
 node_resolver = { workspace = true }
 sys_traits = { workspace = true }
-pctx_deno_transpiler = { version = "0.1", path = "../pctx_deno_transpiler" }
-pctx_code_execution_runtime = { version = "0.1", path = "../pctx_code_execution_runtime" }
-pctx_type_check_runtime = { version = "0.1", path = "../pctx_type_check_runtime" }
-pctx_config = { version = "0.1", path = "../pctx_config" }
+pctx_deno_transpiler = { version = "^0.1.1", path = "../pctx_deno_transpiler" }
+pctx_code_execution_runtime = { version = "^0.1.1", path = "../pctx_code_execution_runtime" }
+pctx_type_check_runtime = { version = "^0.1.1", path = "../pctx_type_check_runtime" }
+pctx_config = { version = "^0.1.1", path = "../pctx_config" }
 tempfile = "3"
 regex = "1"
 thiserror = { workspace = true }
