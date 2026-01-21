@@ -22,15 +22,8 @@ if ! command -v cargo-smart-release &> /dev/null; then
     exit 1
 fi
 
-# Get crate name from argument or prompt
-if [ $# -eq 0 ]; then
-    print_info "Available crates:"
-    ls -1 crates/ | sed 's/^/  /'
-    echo ""
-    read -r -p "Enter crate name to publish: " CRATE_NAME
-else
-    CRATE_NAME="$1"
-fi
+# Default to pctx_code_mode if no argument provided
+CRATE_NAME="${1:-pctx_code_mode}"
 
 # Verify crate exists
 if [ ! -d "crates/$CRATE_NAME" ]; then
@@ -38,7 +31,8 @@ if [ ! -d "crates/$CRATE_NAME" ]; then
     exit 1
 fi
 
-print_info "Publishing crate: $CRATE_NAME"
+print_info "Publishing crate: $CRATE_NAME (with dependencies)"
+print_info "cargo-smart-release will automatically publish all required dependencies"
 echo ""
 
 # Get bump type
@@ -68,12 +62,14 @@ esac
 echo ""
 print_info "=== DRY RUN ==="
 print_info "Running: cargo smart-release $CRATE_NAME --bump $BUMP_TYPE"
+print_info "This will show all crates that need to be published (including dependencies)"
 echo ""
 
 cargo smart-release "$CRATE_NAME" --bump "$BUMP_TYPE"
 
 echo ""
 print_warning "This was a dry run. Review the output above."
+print_warning "cargo-smart-release will publish dependencies in the correct order"
 echo ""
 read -r -p "Proceed with actual release? [y/N]: " confirm
 
@@ -92,7 +88,7 @@ echo ""
 print_success "Release completed successfully!"
 echo ""
 print_info "The release has:"
-echo "  - Updated version in Cargo.toml"
+echo "  - Updated versions in Cargo.toml (for $CRATE_NAME and dependencies)"
 echo "  - Created git commits and tags"
-echo "  - Published to crates.io"
+echo "  - Published to crates.io (in dependency order)"
 echo "  - Pushed commits and tags to git"

@@ -12,7 +12,7 @@ help:
 	@echo "  make test-python-integration - Run Python client tests with integration testing"
 	@echo "  make test-cli                - Run CLI integration tests (pctx mcp start)"
 	@echo "  make release                 - Interactive release script (bump version, update changelog)"
-	@echo "  make publish-crates          - Publish Rust crates to crates.io (runs locally)"
+	@echo "  make publish-crates          - Publish pctx_code_mode + dependencies to crates.io (runs locally)"
 	@echo ""
 
 # Generate CLI and Python documentation
