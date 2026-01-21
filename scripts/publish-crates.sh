@@ -61,11 +61,11 @@ esac
 
 echo ""
 print_info "=== DRY RUN ==="
-print_info "Running: cargo smart-release $CRATE_NAME --bump $BUMP_TYPE --no-changelog-preview"
+print_info "Running: cargo smart-release $CRATE_NAME --bump $BUMP_TYPE --no-changelog-preview --allow-fully-generated-changelogs"
 print_info "This will show all crates that need to be published (including dependencies)"
 echo ""
 
-cargo smart-release "$CRATE_NAME" --bump "$BUMP_TYPE" --no-changelog-preview
+cargo smart-release "$CRATE_NAME" --bump "$BUMP_TYPE" --no-changelog-preview --allow-fully-generated-changelogs
 
 echo ""
 print_warning "This was a dry run. Review the output above."
