@@ -5,17 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.1.0 (2026-01-12)
-
-### Added
-
-- Initial release of pctx_code_mode
+## 0.1.1 (2026-01-20)
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 51 commits contributed to the release over the course of 45 calendar days.
+ - 8 commits contributed to the release over the course of 7 calendar days.
+ - 8 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -26,6 +23,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Bump primary ([`392eb7c`](https://github.com/portofcontext/pctx/commit/392eb7c30e14ca0c15f03a1a960d7dc080e14d8f))
+    - Adjusting changelogs prior to release of pctx_config v0.1.1, pctx_code_execution_runtime v0.1.1, pctx_codegen v0.1.1, pctx_deno_transpiler v0.1.1, pctx_type_check_runtime v0.1.1, pctx_executor v0.1.0, pctx_code_mode v0.1.0 ([`1226141`](https://github.com/portofcontext/pctx/commit/1226141953fe727fc35c42ef50d1c95bd27037e0))
+    - Merge pull request #52 from portofcontext/bump-deps-for-goose ([`8a25938`](https://github.com/portofcontext/pctx/commit/8a259388b64d111a671cf930cdd6294449b70d8b))
+    - Cargo fmt ([`553531d`](https://github.com/portofcontext/pctx/commit/553531ddeaf3bdbaf6e7643b946e4e8b554b6456))
+    - Bump deps and export needed code mode structs and funcs ([`ddf9f35`](https://github.com/portofcontext/pctx/commit/ddf9f35cfb9d9bc760b8e31d02eb332cbc04b1ed))
+    - Merge pull request #51 from portofcontext/otlp-traceparent ([`1a0c13e`](https://github.com/portofcontext/pctx/commit/1a0c13e4c739285f278f887e0abd4fa2d1a43f08))
+    - Consolidate deps to root cargo toml ([`4da94a7`](https://github.com/portofcontext/pctx/commit/4da94a7fb913fc9e4d6052277077eb6f7a87628a))
+    - Dedup RegisterMcpServersRequest server config ([`776ff74`](https://github.com/portofcontext/pctx/commit/776ff7445bd303aaee1cf9af7868e90ea74badd1))
+</details>
+
+## 0.1.0 (2026-01-12)
+
+### Added
+
+- Initial release of pctx_code_mode
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 52 commits contributed to the release over the course of 45 calendar days.
+ - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release pctx_deno_transpiler v0.1.0, pctx_type_check_runtime v0.1.0, pctx_executor v0.1.0, pctx_code_mode v0.1.0 ([`6abd5b1`](https://github.com/portofcontext/pctx/commit/6abd5b160dd1895e88a216360b1ff07e355f819e))
     - Release pctx_config v0.1.0, pctx_code_execution_runtime v0.1.0, pctx_codegen v0.1.0, deno_transpiler v0.1.0, pctx_type_check_runtime v0.1.0, pctx_executor v0.1.0, pctx_code_mode v0.1.0 ([`821751c`](https://github.com/portofcontext/pctx/commit/821751c5ba7e28d2be1741454fcfe73fde3e8414))
     - Changelog init ([`899cdfc`](https://github.com/portofcontext/pctx/commit/899cdfcf69f9b404668188f768cc24ed853daf7d))
     - Adjusting changelogs prior to release of pctx_config v0.1.0, pctx_code_execution_runtime v0.1.0, pctx_codegen v0.1.0, deno_transpiler v0.1.0, pctx_type_check_runtime v0.1.0, pctx_executor v0.1.0, pctx_code_mode v0.1.0 ([`44a3253`](https://github.com/portofcontext/pctx/commit/44a325347bad9a22a69e87691c583dfb3721ab39))
