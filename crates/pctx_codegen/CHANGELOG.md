@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release over the course of 1 calendar day.
+ - 3 commits contributed to the release over the course of 1 calendar day.
  - 8 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Adjusting changelogs prior to release of pctx_config v0.1.1, pctx_code_execution_runtime v0.1.1, pctx_codegen v0.1.1, pctx_deno_transpiler v0.1.1, pctx_type_check_runtime v0.1.1, pctx_executor v0.1.0, pctx_code_mode v0.1.0 ([`1226141`](https://github.com/portofcontext/pctx/commit/1226141953fe727fc35c42ef50d1c95bd27037e0))
     - Merge pull request #51 from portofcontext/otlp-traceparent ([`1a0c13e`](https://github.com/portofcontext/pctx/commit/1a0c13e4c739285f278f887e0abd4fa2d1a43f08))
     - Consolidate deps to root cargo toml ([`4da94a7`](https://github.com/portofcontext/pctx/commit/4da94a7fb913fc9e4d6052277077eb6f7a87628a))
 </details>
