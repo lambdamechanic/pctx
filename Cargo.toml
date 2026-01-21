@@ -23,7 +23,7 @@ tower-http = "0.6"
 utoipa = "5"
 
 # MCP
-rmcp = "0.11"
+rmcp = "0.13.0"
 
 # Logging & Telemetry
 tracing = "0.1"
@@ -41,6 +41,14 @@ shlex = "1"
 url = "2"
 chrono = "0.4"
 indexmap = "2"
+
+# Deno runtime
+deno_core = { version = "0.381", features = ["include_icu_data"] }
+deno_ast = "0.52"
+deno_error = "0.7"
+deno_resolver = "0.58"
+node_resolver = "0.65"
+sys_traits = "0.1"
 
 [workspace.lints.rust]
 unreachable_pub = "warn"

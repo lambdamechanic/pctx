@@ -136,7 +136,7 @@ deno_core::extension!(
 // Global mutex to serialize type checking operations and prevent V8 race conditions
 static TYPE_CHECK_MUTEX: std::sync::LazyLock<Mutex<()>> = std::sync::LazyLock::new(|| {
     // Initialize V8 platform once
-    deno_core::JsRuntime::init_platform(None, false);
+    deno_core::JsRuntime::init_platform(None);
     Mutex::new(())
 });
 

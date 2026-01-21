@@ -1,7 +1,156 @@
+//! # PCTX Code Mode
+//!
+//! A TypeScript code execution engine that enables AI agents to dynamically call tools through generated code.
+//! Code Mode converts tool schemas (like MCP tools) into TypeScript interfaces, executes LLM-generated code
+//! in a sandboxed Deno runtime, and bridges function calls back to your Rust callbacks.
+//!
+//! ## Quick Start
+//!
+//! ```ignore
+//! use pctx_code_mode::{CodeMode, Tool, ToolSet, RootSchema, CallbackRegistry};
+//! use schemars::schema_for;
+//! use serde::{Deserialize, Serialize};
+//! use std::sync::Arc;
+//!
+//! #[derive(Serialize, Deserialize, schemars::JsonSchema)]
+//! struct GreetInput {
+//!     name: String,
+//! }
+//!
+//! #[tokio::main]
+//! async fn main() -> anyhow::Result<()> {
+//!     // 1. Define your tools with JSON schemas
+//!     let tool = Tool::new_callback(
+//!         "greet",
+//!         Some("Greets a person by name".to_string()),
+//!         serde_json::from_value(serde_json::to_value(schema_for!(GreetInput))?)?,
+//!         None,
+//!     )?;
+//!
+//!     let toolset = ToolSet::new("Greeter", "Greeting functions", vec![tool]);
+//!
+//!     // 2. Create CodeMode instance with your tools
+//!     let mut code_mode = CodeMode::default();
+//!     code_mode.tool_sets = vec![toolset];
+//!
+//!     // 3. Register callbacks that execute when tools are called
+//!     let registry = CallbackRegistry::default();
+//!     registry.add("Greeter.greet", Arc::new(|args| {
+//!         Box::pin(async move {
+//!             let name = args
+//!                 .and_then(|v| v.get("name"))
+//!                 .and_then(|v| v.as_str())
+//!                 .unwrap_or("World");
+//!             Ok(serde_json::json!({ "message": format!("Hello, {name}!") }))
+//!         })
+//!     }))?;
+//!
+//!     // 4. Execute LLM-generated TypeScript code
+//!     let code = r#"
+//!         async function run() {
+//!             const result = await Greeter.greet({ name: "Alice" });
+//!             return result;
+//!         }
+//!     "#;
+//!
+//!     let output = code_mode.execute(code, Some(registry)).await?;
+//!
+//!     if output.success {
+//!         println!("Result: {}", serde_json::to_string_pretty(&output.output)?);
+//!     } else {
+//!         eprintln!("Error: {}", output.stderr);
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Core Concepts
+//!
+//! ### Tools and ToolSets
+//!
+//! [`Tool`]s represent individual functions that can be called from TypeScript code.
+//! They are organized into [`ToolSet`]s (namespaces).
+//!
+//! ### CodeMode
+//!
+//! The [`CodeMode`] struct is the main execution engine that manages tools and executes TypeScript code.
+//!
+//! ### Callbacks
+//!
+//! [`CallbackFn`] are Rust async functions that execute when TypeScript code calls your tools.
+//! Register them using [`CallbackRegistry`].
+//!
+//! ### Code Execution
+//!
+//! Execute LLM-generated TypeScript code that calls your registered tools using [`CodeMode::execute`].
+//!
+//! ## Examples
+//!
+//! ### Multi-Tool Workflow
+//!
+//! ```ignore
+//! # use pctx_code_mode::{CodeMode, CallbackRegistry};
+//! # async fn example(code_mode: CodeMode, registry: CallbackRegistry) -> anyhow::Result<()> {
+//! let code = r#"
+//!     async function run() {
+//!         // Fetch user data
+//!         const user = await UserApi.getUser({ id: 123 });
+//!
+//!         // Process the data
+//!         const processed = await DataProcessor.transform({
+//!             input: user.data,
+//!             format: "normalized"
+//!         });
+//!
+//!         // Save results
+//!         const saved = await Storage.save({
+//!             key: `user_${user.id}`,
+//!             value: processed
+//!         });
+//!
+//!         return {
+//!             userId: user.id,
+//!             saved: saved.success,
+//!             location: saved.url
+//!         };
+//!     }
+//! "#;
+//!
+//! let output = code_mode.execute(code, Some(registry)).await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Architecture
+//!
+//! 1. **Tool Definition**: Tools are defined with JSON Schemas for inputs/outputs
+//! 2. **Code Generation**: TypeScript interface definitions are generated from schemas
+//! 3. **Code Execution**: User code is wrapped with namespace implementations and executed in Deno
+//! 4. **Callback Routing**: Function calls in TypeScript are routed to Rust callbacks
+//! 5. **Result Marshaling**: JSON values are passed between TypeScript and Rust
+//!
+//! ## Sandbox Security
+//!
+//! Code is executed in a Deno runtime with:
+//! - Network access restricted to allowed hosts
+//! - No file system access
+//! - No subprocess spawning
+//! - Isolated V8 context per execution
+
 mod code_mode;
 pub mod model;
 pub mod parallel_registration;
+
+// Core execution API
 pub use code_mode::CodeMode;
+
+// Re-export runtime types that are part of the public API
+pub use pctx_code_execution_runtime::{CallbackFn, CallbackRegistry};
+
+// Re-export codegen types needed for tool registration
+pub use pctx_codegen::{RootSchema, Tool, ToolSet, case};
+
 use pctx_codegen::CodegenError;
 
 pub type Result<T> = std::result::Result<T, Error>;
