@@ -149,7 +149,7 @@ pub use code_mode::CodeMode;
 pub use pctx_code_execution_runtime::{CallbackFn, CallbackRegistry};
 
 // Re-export codegen types needed for tool registration
-pub use pctx_codegen::{case, RootSchema, Tool, ToolSet};
+pub use pctx_codegen::{RootSchema, Tool, ToolSet, case};
 
 use pctx_codegen::CodegenError;
 
