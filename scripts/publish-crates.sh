@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+print_info() { echo -e "${BLUE}ℹ ${NC}$1"; }
+print_success() { echo -e "${GREEN}✓${NC} $1"; }
+print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
+print_error() { echo -e "${RED}✗${NC} $1"; }
+
+# Check if cargo-smart-release is installed
+if ! command -v cargo-smart-release &> /dev/null; then
+    print_error "cargo-smart-release is not installed"
+    echo ""
+    echo "Install it with:"
+    echo "  cargo install cargo-smart-release"
+    exit 1
+fi
+
+# Get crate name from argument or prompt
+if [ $# -eq 0 ]; then
+    print_info "Available crates:"
+    ls -1 crates/ | sed 's/^/  /'
+    echo ""
+    read -r -p "Enter crate name to publish: " CRATE_NAME
+else
+    CRATE_NAME="$1"
+fi
+
+# Verify crate exists
+if [ ! -d "crates/$CRATE_NAME" ]; then
+    print_error "Crate 'crates/$CRATE_NAME' does not exist"
+    exit 1
+fi
+
+print_info "Publishing crate: $CRATE_NAME"
+echo ""
+
+# Get bump type
+print_info "Select version bump type:"
+echo "  1) auto   - Determine from git history (default)"
+echo "  2) patch  - Bug fixes"
+echo "  3) minor  - New features"
+echo "  4) major  - Breaking changes"
+echo "  5) keep   - Keep current version"
+echo ""
+
+read -r -p "Enter choice [1-5] (default: 1): " choice
+choice=${choice:-1}
+
+case "$choice" in
+    1) BUMP_TYPE="auto" ;;
+    2) BUMP_TYPE="patch" ;;
+    3) BUMP_TYPE="minor" ;;
+    4) BUMP_TYPE="major" ;;
+    5) BUMP_TYPE="keep" ;;
+    *)
+        print_error "Invalid choice"
+        exit 1
+        ;;
+esac
+
+echo ""
+print_info "=== DRY RUN ==="
+print_info "Running: cargo smart-release $CRATE_NAME --bump $BUMP_TYPE"
+echo ""
+
+cargo smart-release "$CRATE_NAME" --bump "$BUMP_TYPE"
+
+echo ""
+print_warning "This was a dry run. Review the output above."
+echo ""
+read -r -p "Proceed with actual release? [y/N]: " confirm
+
+if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    print_warning "Release cancelled"
+    exit 0
+fi
+
+echo ""
+print_info "=== EXECUTING RELEASE ==="
+echo ""
+
+cargo smart-release "$CRATE_NAME" --bump "$BUMP_TYPE" --execute
+
+echo ""
+print_success "Release completed successfully!"
+echo ""
+print_info "The release has:"
+echo "  - Updated version in Cargo.toml"
+echo "  - Created git commits and tags"
+echo "  - Published to crates.io"
+echo "  - Pushed commits and tags to git"

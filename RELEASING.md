@@ -86,14 +86,15 @@ npm install -g @portofcontext/pctx
 ```
 
 
-# COMING SOON
-<!-- #### 6. Publish to crates.io
+#### 6. Publish to crates.io (Optional)
 
-If publishing to crates.io:
+To publish Rust library crates to crates.io:
 
 ```bash
-cargo publish -p pctx
-``` -->
+make publish-crates
+```
+
+This runs locally using `cargo-smart-release` to handle multi-crate dependencies.
 
 ## Release Types
 
