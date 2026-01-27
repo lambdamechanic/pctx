@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release.
+ - 6 commits contributed to the release.
  - 6 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release pctx_code_mode v0.2.0 ([`043829f`](https://github.com/portofcontext/pctx/commit/043829fecd52bc1216638f964f3a6014aff1a0d9))
     - Merge branch 'main' into improve-code-mode-interface ([`b9175f8`](https://github.com/portofcontext/pctx/commit/b9175f8577fe1e6dd90e4b3688065055d90500db))
     - Temp bug fix: empty inputSchema on callbacks ([`ae90ef1`](https://github.com/portofcontext/pctx/commit/ae90ef14774954ca1959a721268af8ca7ff55469))
     - Migrate crates dependant on pctx_code_mode ([`a0157c1`](https://github.com/portofcontext/pctx/commit/a0157c1587f9126f26bd895ba78bd2c3452b3d4e))
