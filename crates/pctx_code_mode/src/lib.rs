@@ -140,7 +140,6 @@
 
 mod code_mode;
 pub mod model;
-pub mod parallel_registration;
 
 // Core execution API
 pub use code_mode::CodeMode;

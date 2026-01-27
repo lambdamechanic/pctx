@@ -1,9 +1,16 @@
 import asyncio
 import pprint
+from datetime import datetime
 
 from pydantic import BaseModel
 
 from pctx_client import Pctx, tool
+
+
+@tool
+def now_timestamp() -> float:
+    """Returns current timestamp"""
+    return datetime.now().timestamp()
 
 
 @tool("add", namespace="my_math")
@@ -31,9 +38,9 @@ def multiply(a: float, b: float) -> MultiplyOutput:
 
 async def main():
     async with Pctx(
-        url="http://localhost:8080/some-org/some-server",
-        api_key="asdlkfjasldf",
-        tools=[add, subtract, multiply],
+        # url="http://localhost:8080/some-org/some-server",
+        # api_key="asdlkfjasldf",
+        tools=[add, subtract, multiply, now_timestamp],
         # servers=[
         #     {
         #         "name": "stripe",
@@ -49,27 +56,28 @@ async def main():
         print((await p.list_functions()).code)
 
         print("\n\n+++++++++++ DETAILS +++++++++++\n")
-        print((await p.get_function_details(["MyMath.add"])).code)
+        print((await p.get_function_details(["MyMath.add", "Tools.nowTimestamp"])).code)
 
         code = """
-    async function run() {
-        let addval = await MyMath.add({a: 40, b: 2});
-        let subval = await MyMath.subtract({a: addval, b: 2});
-        let multval = await MyMath.multiply({a: subval, b: 2});
+async function run() {
+    let addval = await MyMath.add({a: 40, b: 2});
+    let subval = await MyMath.subtract({a: addval, b: 2});
+    let multval = await MyMath.multiply({a: subval, b: 2});
+    let now = await Tools.nowTimestamp({});
 
 
-        return multval;
-    }
+    return { multval, now };
+}
     """
         output = await p.execute(code)
         pprint.pprint(output)
 
         invalid_code = """
-    async function run() {
-        let addval = await MyMath.add({a: "40", b: 2}); // invalid because `a` must be a number
+async function run() {
+    let addval = await MyMath.add({a: "40", b: 2}); // invalid because `a` must be a number
 
-        return addval;
-    }
+    return addval;
+}
     """
         invalid_output = await p.execute(invalid_code)
         pprint.pprint(invalid_output)
