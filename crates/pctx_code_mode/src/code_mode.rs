@@ -187,17 +187,17 @@ impl CodeMode {
     // Generates a Tool and add it to the correct Toolset from the given callback config
     pub fn add_callback(&mut self, cfg: &CallbackConfig) -> Result<()> {
         // find the correct toolset & check for clashes
-        let tool_set =
-            if let Some(exists) = self.tool_sets.iter_mut().find(|s| s.name == cfg.namespace) {
-                exists
-            } else {
+        let idx = self
+            .tool_sets
+            .iter()
+            .position(|s| s.name == cfg.namespace)
+            .unwrap_or_else(|| {
+                let idx = self.tool_sets.len();
                 self.tool_sets
                     .push(ToolSet::new(&cfg.namespace, "", vec![]));
-                self.tool_sets
-                    .iter_mut()
-                    .find(|s| s.name == cfg.namespace)
-                    .unwrap()
-            };
+                idx
+            });
+        let tool_set = &mut self.tool_sets[idx];
 
         if tool_set.tools.iter().any(|t| t.name == cfg.name) {
             return Err(Error::Message(format!(
