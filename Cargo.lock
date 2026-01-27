@@ -4127,7 +4127,7 @@ dependencies = [
 
 [[package]]
 name = "pctx_code_execution_runtime"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "deno_core",
@@ -4190,7 +4190,7 @@ dependencies = [
 
 [[package]]
 name = "pctx_config"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

@@ -11,8 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 6 commits contributed to the release.
- - 6 days passed between releases.
+ - 2 commits contributed to the release.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -23,12 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
-    - Release pctx_code_mode v0.2.0 ([`043829f`](https://github.com/portofcontext/pctx/commit/043829fecd52bc1216638f964f3a6014aff1a0d9))
-    - Merge branch 'main' into improve-code-mode-interface ([`b9175f8`](https://github.com/portofcontext/pctx/commit/b9175f8577fe1e6dd90e4b3688065055d90500db))
-    - Temp bug fix: empty inputSchema on callbacks ([`ae90ef1`](https://github.com/portofcontext/pctx/commit/ae90ef14774954ca1959a721268af8ca7ff55469))
-    - Migrate crates dependant on pctx_code_mode ([`a0157c1`](https://github.com/portofcontext/pctx/commit/a0157c1587f9126f26bd895ba78bd2c3452b3d4e))
-    - Better CodeMode struct ([`d270397`](https://github.com/portofcontext/pctx/commit/d2703972374d32356d96d3e35a32b18484658886))
-    - Use position() instead of unwrap() when adding callbacks ([`02e456a`](https://github.com/portofcontext/pctx/commit/02e456a302e4d16711f8afbabf488f981cb2167e))
+    - Merge branch 'main' of github.com:portofcontext/pctx ([`4e4c328`](https://github.com/portofcontext/pctx/commit/4e4c32849dd080c77046fb255fe686944e5c37d8))
+    - Improve example code_mode code ([`353da7a`](https://github.com/portofcontext/pctx/commit/353da7a7868a250ed5c8ea5a945af3305dde79d3))
 </details>
 
 ## 0.1.1 (2026-01-20)
