@@ -105,14 +105,7 @@ impl CodeMode {
 
         // check for ToolSet conflicts & add to self
         for tool_set in tool_sets {
-            // Check for duplicate names
-            if self.tool_sets.iter().any(|t| t.name == tool_set.name) {
-                return Err(Error::Message(format!(
-                    "Trying to add MCP server with name '{}' conflicting with existing ToolSet name",
-                    tool_set.name
-                )));
-            }
-            self.tool_sets.push(tool_set)
+            self.add_tool_set(tool_set)?;
         }
 
         // add server configs
@@ -196,53 +189,55 @@ impl CodeMode {
         &mut self,
         callbacks: impl IntoIterator<Item = &'a CallbackConfig>,
     ) -> Result<()> {
-        for cfg in callbacks {
-            self.add_callback(cfg)?;
+        for callback in callbacks {
+            self.add_callback(callback)?;
         }
         Ok(())
     }
 
     // Generates a Tool and add it to the correct Toolset from the given callback config
-    pub fn add_callback(&mut self, cfg: &CallbackConfig) -> Result<()> {
+    pub fn add_callback(&mut self, callback: &CallbackConfig) -> Result<()> {
+        debug!(callback =? callback.id(), "Adding callback tool {}", callback.id());
+
         // find the correct toolset & check for clashes
         let idx = self
             .tool_sets
             .iter()
-            .position(|s| s.name == cfg.namespace)
+            .position(|s| s.name == callback.namespace)
             .unwrap_or_else(|| {
                 let idx = self.tool_sets.len();
                 self.tool_sets
-                    .push(ToolSet::new(&cfg.namespace, "", vec![]));
+                    .push(ToolSet::new(&callback.namespace, "", vec![]));
                 idx
             });
         let tool_set = &mut self.tool_sets[idx];
 
-        if tool_set.tools.iter().any(|t| t.name == cfg.name) {
+        if tool_set.tools.iter().any(|t| t.name == callback.name) {
             return Err(Error::Message(format!(
                 "ToolSet `{}` already has a tool with name `{}`. Tool names must be unique within tool sets",
-                &tool_set.name, &cfg.name
+                &tool_set.name, &callback.name
             )));
         }
 
         // convert callback config into tool
-        let input_schema = if let Some(i) = &cfg.input_schema {
+        let input_schema = if let Some(i) = &callback.input_schema {
             Some(
                 serde_json::from_value::<pctx_codegen::RootSchema>(json!(i)).map_err(|e| {
                     Error::Message(format!(
                         "Failed parsing inputSchema as json schema for tool `{}`: {e}",
-                        &cfg.name
+                        &callback.name
                     ))
                 })?,
             )
         } else {
             None
         };
-        let output_schema = if let Some(o) = &cfg.output_schema {
+        let output_schema = if let Some(o) = &callback.output_schema {
             Some(
                 serde_json::from_value::<pctx_codegen::RootSchema>(json!(o)).map_err(|e| {
                     Error::Message(format!(
                         "Failed parsing outputSchema as json schema for tool `{}`: {e}",
-                        &cfg.name
+                        &callback.name
                     ))
                 })?,
             )
@@ -250,15 +245,28 @@ impl CodeMode {
             None
         };
         let tool = Tool::new_callback(
-            &cfg.name,
-            cfg.description.clone(),
+            &callback.name,
+            callback.description.clone(),
             input_schema.unwrap(), // TODO: optional input schemas
             output_schema,
         )?;
 
         // add tool & it's configuration
         tool_set.tools.push(tool);
-        self.callbacks.push(cfg.clone());
+        self.callbacks.push(callback.clone());
+
+        Ok(())
+    }
+
+    pub fn add_tool_set(&mut self, tool_set: ToolSet) -> Result<()> {
+        if self.tool_sets.iter().any(|t| t.name == tool_set.name) {
+            return Err(Error::Message(format!(
+                "CodeMode already has ToolSet with name: {}",
+                tool_set.name
+            )));
+        }
+
+        self.tool_sets.push(tool_set);
 
         Ok(())
     }

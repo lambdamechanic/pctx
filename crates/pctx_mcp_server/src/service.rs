@@ -175,7 +175,7 @@ impl ServerHandler for PctxMcpService {
         let default_description = format!(
             "This server provides tools to explore SDK functions and execute SDK scripts for the following services: {}",
             self.code_mode
-                .tool_sets
+                .tool_sets()
                 .iter()
                 .map(|s| s.name.clone())
                 .collect::<Vec<String>>()
