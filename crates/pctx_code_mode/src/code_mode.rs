@@ -208,16 +208,15 @@ impl CodeMode {
 
         // convert callback config into tool
         let input_schema = if let Some(i) = &cfg.input_schema {
-            Some(
-                serde_json::from_value::<pctx_codegen::RootSchema>(json!(i)).map_err(|e| {
-                    Error::Message(format!(
-                        "Failed parsing inputSchema as json schema for tool `{}`: {e}",
-                        &cfg.name
-                    ))
-                })?,
-            )
+            serde_json::from_value::<pctx_codegen::RootSchema>(json!(i)).map_err(|e| {
+                Error::Message(format!(
+                    "Failed parsing inputSchema as json schema for tool `{}`: {e}",
+                    &cfg.name
+                ))
+            })?
         } else {
-            None
+            // TODO: better empty input schema support
+            serde_json::from_value::<pctx_codegen::RootSchema>(json!({})).unwrap()
         };
         let output_schema = if let Some(o) = &cfg.output_schema {
             Some(
@@ -234,7 +233,7 @@ impl CodeMode {
         let tool = Tool::new_callback(
             &cfg.name,
             cfg.description.clone(),
-            input_schema.unwrap(), // TODO: optional input schemas
+            input_schema,
             output_schema,
         )?;
 
