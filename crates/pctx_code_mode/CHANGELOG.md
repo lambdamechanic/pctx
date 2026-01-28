@@ -5,13 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.2.1 (2026-01-27)
+## 0.2.2 (2026-01-28)
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 4 commits contributed to the release.
+ - 1 commit contributed to the release.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -22,6 +22,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Improve pctx code mode re-exports & update readme ([`6d15c75`](https://github.com/portofcontext/pctx/commit/6d15c75052db5d317a875b368ed5677d90755c76))
+</details>
+
+## 0.2.1 (2026-01-27)
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 5 commits contributed to the release.
+ - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release pctx_code_mode v0.2.1 ([`5b8cd05`](https://github.com/portofcontext/pctx/commit/5b8cd05369652d6d8308303679d54d9c7a91fc6e))
     - Bump code mode crate ([`480a076`](https://github.com/portofcontext/pctx/commit/480a0760282e443e8d2a1f907b337bbf82cb51a0))
     - Release pctx_config v0.1.2, pctx_code_execution_runtime v0.1.2, pctx_code_mode v0.2.0 ([`bb7d3d9`](https://github.com/portofcontext/pctx/commit/bb7d3d93af81360310c3891bb649c54077af445d))
     - Merge branch 'main' of github.com:portofcontext/pctx ([`4e4c328`](https://github.com/portofcontext/pctx/commit/4e4c32849dd080c77046fb255fe686944e5c37d8))

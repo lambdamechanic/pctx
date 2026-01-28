@@ -5,13 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.1.2 (2026-01-27)
+## 0.1.3 (2026-01-28)
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
  - 1 commit contributed to the release.
+ - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Remove generic fectch from runtime ([`fdfc800`](https://github.com/portofcontext/pctx/commit/fdfc80069eb561177410fc55909ce422f2450280))
+</details>
+
+## 0.1.2 (2026-01-27)
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release.
  - 6 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -23,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release pctx_config v0.1.2, pctx_code_execution_runtime v0.1.2, pctx_code_mode v0.2.0 ([`bb7d3d9`](https://github.com/portofcontext/pctx/commit/bb7d3d93af81360310c3891bb649c54077af445d))
     - Bump rmcp ([`af1c5e3`](https://github.com/portofcontext/pctx/commit/af1c5e30122cab57c19a8a0984f4cd4f51ae8539))
 </details>
 
