@@ -24,6 +24,7 @@ utoipa = "5"
 
 # MCP
 rmcp = "0.14"
+reqwest = { version = "0.12.28", default-features = false }
 
 # Logging & Telemetry
 tracing = "0.1"
