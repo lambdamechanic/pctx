@@ -160,13 +160,14 @@ pub mod model;
 // Core execution API
 pub use code_mode::CodeMode;
 
-// Re-export runtime types that are part of the public API
+// Re-export config, runtime and codegen crates
+pub use pctx_code_execution_runtime as runtime;
+pub use pctx_codegen as codegen;
+pub use pctx_config as config;
+
+// Re-export commonly used types for backwards compatibility
 pub use pctx_code_execution_runtime::{CallbackFn, CallbackRegistry};
-
-// Re-export codegen types needed for tool registration
 pub use pctx_codegen::{RootSchema, Tool, ToolSet, case};
-
-use pctx_codegen::CodegenError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
@@ -176,7 +177,7 @@ pub enum Error {
     #[error("MCP Service error: {0}")]
     McpService(#[from] pctx_config::server::ServiceError),
     #[error("Codegen error: {0}")]
-    Codegen(#[from] CodegenError),
+    Codegen(#[from] pctx_codegen::CodegenError),
     #[error("Execution error: {0:?}")]
     Execution(#[from] pctx_executor::DenoExecutorError),
     #[error("Error: {0}")]

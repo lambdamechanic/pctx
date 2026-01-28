@@ -1,6 +1,7 @@
 import asyncio
 import pprint
 from datetime import datetime
+from os import getenv
 
 from pydantic import BaseModel
 
@@ -38,19 +39,19 @@ def multiply(a: float, b: float) -> MultiplyOutput:
 
 async def main():
     async with Pctx(
-        # url="http://localhost:8080/some-org/some-server",
-        # api_key="asdlkfjasldf",
+        # url="https://....",
+        # api_key="pctx_xxxx",
         tools=[add, subtract, multiply, now_timestamp],
-        # servers=[
-        #     {
-        #         "name": "stripe",
-        #         "url": "https://mcp.stripe.com",
-        #         "auth": {
-        #             "type": "bearer",
-        #             "token": "TOKEN",
-        #         },
-        #     }
-        # ],
+        servers=[
+            {
+                "name": "stripe",
+                "url": "https://mcp.stripe.com",
+                "auth": {
+                    "type": "bearer",
+                    "token": getenv("STRIPE_MCP_KEY"),
+                },
+            }
+        ],
     ) as p:
         print("+++++++++++ LIST +++++++++++\n")
         print((await p.list_functions()).code)
@@ -64,6 +65,7 @@ async function run() {
     let subval = await MyMath.subtract({a: addval, b: 2});
     let multval = await MyMath.multiply({a: subval, b: 2});
     let now = await Tools.nowTimestamp({});
+    let customers = await Stripe.listCustomers({});
 
 
     return { multval, now };
