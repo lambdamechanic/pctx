@@ -57,3 +57,27 @@ const x = ;
         "Should have error information"
     );
 }
+
+#[tokio::test]
+#[serial]
+async fn test_fetch_not_available() {
+    let code = r#"
+async function test() {
+    const res = await fetch("https://example.com");
+    return { res }
+}
+
+export default await test();
+"#;
+
+    let result = execute(code, ExecuteOptions::new())
+        .await
+        .expect("execute should not error");
+
+    assert!(!result.success);
+    assert!(
+        result
+            .stderr
+            .starts_with("ReferenceError: fetch is not defined")
+    )
+}
